@@ -523,11 +523,8 @@ async function triggerTelegramNotification(newRecord, fileBuffer, filename) {
     }
 
     const caption = 
-      `📢 ABSENSI BARU MASUK\n\n` +
       `👤 Nama: ${newRecord.nama_lengkap}\n` +
-      `🏷️ Username: @${newRecord.username}\n` +
       `⏰ Waktu: ${formattedTime}\n` +
-      `📍 Lokasi: ${locationStr}\n` +
       `📝 Status: ${newRecord.status}`;
 
     if (newRecord.foto_url === 'telegram' && fileBuffer) {

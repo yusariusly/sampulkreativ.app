@@ -246,7 +246,7 @@ export default function LoginPage() {
     setError("");
 
     if (!namaLengkap.trim() || !noHp.trim()) {
-      setError("Nama Lengkap dan Nomor WhatsApp wajib diisi");
+      setError("Nama Lengkap dan Nomor Telepon wajib diisi");
       return;
     }
 
@@ -367,7 +367,7 @@ export default function LoginPage() {
 
           <div className="bg-black/10 rounded-2xl p-4 text-left space-y-2 border border-white/10 text-xs font-medium text-white/90">
             <div>
-              <span className="text-white/60 block">Nomor HP / WhatsApp</span>
+              <span className="text-white/60 block">Nomor Telepon</span>
               <span>{pendingUser.username}</span>
             </div>
             <div>
@@ -383,19 +383,6 @@ export default function LoginPage() {
           <p className="text-xs text-white/70 italic">
             Harap hubungi Administrator kantor untuk memberikan persetujuan akses pada akun Anda agar dapat melakukan absensi.
           </p>
-
-          <div className="pt-2 flex flex-col gap-3">
-            <button
-              onClick={() => {
-                localStorage.removeItem("v2_user");
-                setIsPendingApproval(false);
-                setPendingUser(null);
-              }}
-              className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-all cursor-pointer text-sm border border-white/20 active:scale-98"
-            >
-              Ganti Akun / Daftar Ulang
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -443,7 +430,7 @@ export default function LoginPage() {
 
           <div className="mb-6">
             <h1 className="text-3xl font-extrabold text-[#1C3D3F] mb-1.5">
-              {mode === "register" ? "Registrasi Karyawan" : "Portal Administrator"}
+              {mode === "register" ? "Absensi Karyawan" : "Administrator"}
             </h1>
             <p className="text-gray-400 text-sm">
               {mode === "register" 
@@ -476,7 +463,7 @@ export default function LoginPage() {
               
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider pl-1 flex items-center gap-1.5">
-                  <Phone size={13} className="text-[#2AB0B2]" /> Nomor WhatsApp / HP
+                  <Phone size={13} className="text-[#2AB0B2]" /> Nomor Telepon
                 </label>
                 <input
                   type="tel"
@@ -561,7 +548,7 @@ export default function LoginPage() {
                   }}
                   className="text-xs text-[#2AB0B2] hover:underline font-bold cursor-pointer"
                 >
-                  Kembali ke Registrasi Karyawan
+                  Kembali ke Absensi Karyawan
                 </button>
               </div>
             </form>
