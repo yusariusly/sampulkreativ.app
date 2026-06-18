@@ -82,17 +82,6 @@ export default function UserLayout({
                 <p className="text-[9px] font-semibold text-gray-400 mt-1 uppercase tracking-wider">by sampulkreativ</p>
               </div>
             </div>
-            {/* Show LogOut button on Profile page */}
-            {pathname === "/user/profile" && (
-              <button
-                onClick={handleLogout}
-                className="text-red-500 hover:text-red-600 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold bg-red-50 px-3 py-2 rounded-xl border border-red-100/60"
-                title="Log Out"
-              >
-                <LogOut size={13} />
-                <span>Keluar</span>
-              </button>
-            )}
           </header>
         )}
 
