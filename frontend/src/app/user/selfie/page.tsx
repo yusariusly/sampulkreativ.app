@@ -23,7 +23,11 @@ export default function SelfiePage() {
     const startCamera = async () => {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: facingMode, width: { ideal: 480 }, height: { ideal: 640 } },
+          video: { 
+            facingMode: facingMode, 
+            width: { ideal: 1920 }, 
+            height: { ideal: 1080 } 
+          },
           audio: false,
         });
         currentStream = mediaStream;

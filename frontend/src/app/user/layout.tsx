@@ -69,16 +69,16 @@ export default function UserLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F2F5] flex justify-center font-sans">
+    <div className="h-[100dvh] max-h-[100dvh] bg-[#F0F2F5] flex justify-center overflow-hidden font-sans">
       {/* Centered Mobile Container */}
-      <div className="w-full max-w-md bg-[#F0F2F5] min-h-screen flex flex-col shadow-xs relative">
+      <div className="w-full max-w-md bg-[#F0F2F5] h-full max-h-full flex flex-col shadow-xs relative overflow-hidden">
         {/* Top Navbar */}
         {isBaseScreen && (
           <header className="bg-white border-b border-gray-100 px-5 py-3.5 flex items-center justify-between shadow-xs select-none">
             <div className="flex items-center gap-2.5">
               <AppLogo size={30} />
               <div>
-                <p className="font-extrabold text-sm leading-none text-[#1C3D3F]">Absensi</p>
+                <p className="font-extrabold text-sm leading-none text-[#1C3D3F]">Absensi SK</p>
                 <p className="text-[9px] font-semibold text-gray-400 mt-1 uppercase tracking-wider">by sampulkreativ</p>
               </div>
             </div>
@@ -97,7 +97,7 @@ export default function UserLayout({
         )}
 
         {/* Screen Content Viewport */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="flex-1 flex flex-col overflow-y-auto relative">
           {children}
         </div>
 
