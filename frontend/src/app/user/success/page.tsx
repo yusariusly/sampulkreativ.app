@@ -8,6 +8,7 @@ export default function SuccessPage() {
   const router = useRouter();
   const [clockInTime, setClockInTime] = useState("");
   const [coords, setCoords] = useState("Tanpa GPS");
+  const [address, setAddress] = useState("Kantor");
   const [fullname, setFullname] = useState("Karyawan");
 
   useEffect(() => {
@@ -67,12 +68,23 @@ export default function SuccessPage() {
         </div>
         <div className="h-px bg-gray-100" />
         <div className="flex justify-between items-center">
-          <span className="text-gray-400 text-sm">Koordinat GPS</span>
-          <span className="font-bold text-sm text-right text-[#1C3D3F] font-mono">
-            {coords}
+          <span className="text-gray-400 text-sm">Lokasi</span>
+          <span className="font-bold text-sm text-right text-[#1C3D3F] max-w-[200px] truncate">
+            {address}
           </span>
         </div>
-        <div className="h-px bg-gray-105" />
+        {coords !== "Tanpa GPS" && (
+          <>
+            <div className="h-px bg-gray-100" />
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400 text-sm">Koordinat GPS</span>
+              <span className="font-bold text-xs text-right text-gray-500 font-mono">
+                {coords}
+              </span>
+            </div>
+          </>
+        )}
+        <div className="h-px bg-gray-100" />
         <div className="flex justify-between items-center">
           <span className="text-gray-400 text-sm">Status</span>
           <span className="rounded-full font-bold px-4 py-1.5 text-sm bg-[#2AB0B2] text-white shadow-xs">
