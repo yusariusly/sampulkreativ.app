@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { X, CameraOff, RefreshCw } from "lucide-react";
+import jsQR from "jsqr";
 
 function QrCodeGraphic() {
   return (
-    <svg width="130" height="130" viewBox="0 0 130 130" fill="white" className="opacity-85">
+    <svg width="130" height="130" viewBox="0 0 130 130" fill="white" className="opacity-80">
       <rect x="8" y="8" width="44" height="44" rx="3" fill="none" stroke="white" strokeWidth="5" />
       <rect x="19" y="19" width="22" height="22" fill="white" />
       <rect x="78" y="8" width="44" height="44" rx="3" fill="none" stroke="white" strokeWidth="5" />
@@ -27,7 +28,12 @@ function QrCodeGraphic() {
 
 export default function QRScanPage() {
   const router = useRouter();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [scanning, setScanning] = useState(true);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [qrToken, setQrToken] = useState("");
+  const [loading, setLoading] = useState(true);
   const BOX = 240;
 
   useEffect(() => {
@@ -45,101 +51,218 @@ export default function QRScanPage() {
     getQrToken();
   }, []);
 
-  const handleScanned = () => {
-    if (typeof window !== "undefined") {
-      // Save scanned validation token
-      sessionStorage.setItem("v2_scanned_token", qrToken || "DEFAULT-TOKEN");
+  const startCamera = async () => {
+    try {
+      setLoading(true);
+      setCameraError(null);
+      setScanning(true);
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+      });
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        await videoRef.current.play();
+      }
+      setLoading(false);
+    } catch (err: any) {
+      console.error("Error accessing camera:", err);
+      setCameraError(
+        "Gagal mengakses kamera. Silakan pastikan izin kamera diizinkan untuk situs ini."
+      );
+      setLoading(false);
     }
-    router.push("/user/selfie");
   };
 
+  useEffect(() => {
+    startCamera();
+
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  useEffect(() => {
+    let animationFrameId: number;
+
+    const scanLoop = () => {
+      if (!scanning) return;
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      
+      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (ctx) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
+          });
+          
+          if (code) {
+            setScanning(false);
+            stopCamera();
+
+            if (navigator.vibrate) {
+              navigator.vibrate(100);
+            }
+
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("v2_scanned_token", code.data);
+            }
+            router.push("/user/selfie");
+            return;
+          }
+        }
+      }
+      animationFrameId = requestAnimationFrame(scanLoop);
+    };
+
+    if (!loading && !cameraError && scanning) {
+      animationFrameId = requestAnimationFrame(scanLoop);
+    }
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [scanning, loading, cameraError]);
+
   const handleBack = () => {
+    stopCamera();
     router.push("/user");
   };
 
   return (
-    <div className="relative h-full flex flex-col items-center bg-black overflow-hidden select-none">
-      {/* Simulated dark camera background */}
-      <div className="absolute inset-0 bg-[#1a1a2e] opacity-95" />
+    <div className="relative h-full w-full flex flex-col items-center bg-black overflow-hidden select-none">
+      {/* Hidden canvas for processing */}
+      <canvas ref={canvasRef} className="hidden" />
 
-      {/* Subtle room texture lines */}
-      <div className="absolute inset-0 opacity-10">
-        {Array.from({ length: 6 }).map((_, i) => (
+      {/* Live Video Stream */}
+      {!cameraError && (
+        <video
+          ref={videoRef}
+          className="absolute inset-0 w-full h-full object-cover"
+          playsInline
+          muted
+        />
+      )}
+
+      {/* Dark overlay with scan viewfinder cutout */}
+      {!cameraError && !loading && (
+        <div 
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            boxShadow: "inset 0 0 0 9999px rgba(0, 0, 0, 0.65)"
+          }}
+        />
+      )}
+
+      {/* Viewfinder box container */}
+      {!cameraError && !loading && (
+        <div
+          className="absolute z-10"
+          style={{
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -57%)",
+            width: BOX,
+            height: BOX,
+          }}
+        >
+          {/* Border Corners */}
+          {[
+            { pos: "top-0 left-0", cls: "border-t-4 border-l-4 rounded-tl-xl" },
+            { pos: "top-0 right-0", cls: "border-t-4 border-r-4 rounded-tr-xl" },
+            { pos: "bottom-0 left-0", cls: "border-b-4 border-l-4 rounded-bl-xl" },
+            { pos: "bottom-0 right-0", cls: "border-b-4 border-r-4 rounded-br-xl" },
+          ].map(({ pos, cls }, i) => (
+            <div
+              key={i}
+              className={`absolute ${pos} w-9 h-9 ${cls}`}
+              style={{ borderColor: "#2AB0B2" }}
+            />
+          ))}
+
+          {/* Inner transparent graphic area */}
+          <div className="absolute inset-3 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
+            <QrCodeGraphic />
+          </div>
+
+          {/* Glowing animated scanline */}
           <div
-            key={i}
-            className="absolute h-px bg-white left-0 right-0"
-            style={{ top: `${15 + i * 14}%` }}
+            className="absolute left-3 right-3 h-0.5 z-20 rounded-full animate-scan"
+            style={{
+              backgroundColor: "#2AB0B2",
+              boxShadow: "0 0 12px 3px rgba(42, 176, 178, 0.75)",
+            }}
           />
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* Instructions label */}
+      {!cameraError && !loading && (
+        <div
+          className="absolute z-10 text-center w-full px-6"
+          style={{ top: "calc(50% + 96px)" }}
+        >
+          <p className="text-white text-lg font-medium drop-shadow-md">Arahkan kamera ke</p>
+          <p className="text-white text-lg font-medium drop-shadow-md">QR Code kantor</p>
+          {qrToken && (
+            <p className="text-gray-400 text-xs mt-3 font-mono opacity-80 bg-black/40 inline-block px-3 py-1 rounded-full backdrop-blur-xs">
+              ID Token Aktif
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && !cameraError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-30">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-white text-sm">Menyiapkan kamera...</p>
+        </div>
+      )}
+
+      {/* Error state (Camera Permission Denied) */}
+      {cameraError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#111] px-6 text-center z-30">
+          <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mb-6">
+            <CameraOff size={32} />
+          </div>
+          <h3 className="text-white text-xl font-semibold mb-2">Kamera Tidak Aktif</h3>
+          <p className="text-gray-400 text-sm max-w-xs mb-8 leading-relaxed">
+            {cameraError}
+          </p>
+          <button
+            onClick={startCamera}
+            className="flex items-center gap-2 px-6 py-3 bg-primary text-white font-medium rounded-full hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+          >
+            <RefreshCw size={18} />
+            Coba Lagi
+          </button>
+        </div>
+      )}
 
       {/* Close button */}
       <button
         onClick={handleBack}
-        className="absolute top-6 left-5 z-10 text-white hover:opacity-80 transition-opacity cursor-pointer"
+        className="absolute top-6 left-5 z-20 text-white bg-black/30 backdrop-blur-md p-2 rounded-full hover:bg-black/50 transition-all cursor-pointer"
       >
-        <X size={28} />
-      </button>
-
-      {/* Viewfinder box container */}
-      <div
-        className="absolute z-10"
-        style={{
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -57%)",
-          width: BOX,
-          height: BOX,
-        }}
-      >
-        {/* Border Corners */}
-        {[
-          { pos: "top-0 left-0", cls: "border-t-4 border-l-4 rounded-tl-xl" },
-          { pos: "top-0 right-0", cls: "border-t-4 border-r-4 rounded-tr-xl" },
-          { pos: "bottom-0 left-0", cls: "border-b-4 border-l-4 rounded-bl-xl" },
-          { pos: "bottom-0 right-0", cls: "border-b-4 border-r-4 rounded-br-xl" },
-        ].map(({ pos, cls }, i) => (
-          <div
-            key={i}
-            className={`absolute ${pos} w-9 h-9 ${cls}`}
-            style={{ borderColor: "#2AB0B2" }}
-          />
-        ))}
-
-        {/* Inner frosted graphic area */}
-        <div className="absolute inset-3 rounded-lg overflow-hidden bg-white/10 backdrop-blur-xs flex items-center justify-center">
-          <QrCodeGraphic />
-        </div>
-
-        {/* Glowing animated scanline */}
-        <div
-          className="absolute left-3 right-3 h-0.5 z-20 rounded-full animate-scan"
-          style={{
-            backgroundColor: "#2AB0B2",
-            boxShadow: "0 0 12px 3px rgba(42, 176, 178, 0.55)",
-          }}
-        />
-      </div>
-
-      {/* Instructions label */}
-      <div
-        className="absolute z-10 text-center w-full px-6"
-        style={{ top: "calc(50% + 96px)" }}
-      >
-        <p className="text-white text-lg font-medium">Arahkan kamera ke</p>
-        <p className="text-white text-lg font-medium">QR Code kantor</p>
-        {qrToken && (
-          <p className="text-gray-500 text-xs mt-2 font-mono">ID: {qrToken.substring(0, 15)}...</p>
-        )}
-      </div>
-
-      {/* Simulation trigger */}
-      <button
-        onClick={handleScanned}
-        className="absolute bottom-10 z-10 px-8 py-3 rounded-full text-sm font-semibold text-white border border-white/30 backdrop-blur-md cursor-pointer hover:bg-white/10 active:scale-95 transition-all"
-        style={{ backgroundColor: "rgba(42, 176, 178, 0.3)" }}
-      >
-        Simulasi Berhasil Pindai →
+        <X size={24} />
       </button>
     </div>
   );
