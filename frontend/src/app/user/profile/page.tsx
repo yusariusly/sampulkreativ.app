@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { User, Eye, EyeOff, Camera } from "lucide-react";
+import { User, Camera } from "lucide-react";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -11,8 +11,10 @@ export default function ProfilePage() {
   const [username, setUsername] = useState("username");
   const [profilePhoto, setProfilePhoto] = useState("/uploads/placeholder.jpg");
   
-  const [newPw, setNewPw] = useState("");
-  const [showPw, setShowPw] = useState(false);
+  const [tanggalLahir, setTanggalLahir] = useState("");
+  const [gender, setGender] = useState("");
+  const [alamat, setAlamat] = useState("");
+  
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
@@ -27,6 +29,9 @@ export default function ProfilePage() {
         setFullname(userObj.nama_lengkap);
         setUsername(userObj.username);
         setProfilePhoto(userObj.foto_profile || "/uploads/placeholder.jpg");
+        setTanggalLahir(userObj.tanggal_lahir || "");
+        setGender(userObj.gender || "");
+        setAlamat(userObj.alamat || "");
       }
     }
   }, []);
@@ -107,40 +112,43 @@ export default function ProfilePage() {
     setError("");
     setSubmitted(false);
     setSuccessMsg("");
-
-    if (!newPw.trim()) return;
-
     setLoading(true);
 
     try {
-      const res = await fetch("/api/users/change-password", {
+      const res = await fetch("/api/users/update-bio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, new_password: newPw.trim() }),
+        body: JSON.stringify({
+          user_id: userId,
+          tanggal_lahir: tanggalLahir,
+          gender: gender,
+          alamat: alamat
+        }),
       });
 
       const data = await res.json();
 
-      if (res.ok) {
-        setSuccessMsg("Password berhasil diperbarui!");
+      if (res.ok && data.success) {
+        setSuccessMsg("Biodata berhasil diperbarui!");
         setSubmitted(true);
-        setNewPw("");
+        
+        // Update local storage
+        const storedUser = localStorage.getItem("v2_user");
+        if (storedUser) {
+          const userObj = JSON.parse(storedUser);
+          userObj.tanggal_lahir = data.user.tanggal_lahir;
+          userObj.gender = data.user.gender;
+          userObj.alamat = data.user.alamat;
+          localStorage.setItem("v2_user", JSON.stringify(userObj));
+        }
       } else {
-        setError(data.error || "Gagal memperbarui password");
+        setError(data.error || "Gagal memperbarui biodata");
       }
     } catch (err) {
       setError("Gagal menghubungi server");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleLogout = () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("v2_user");
-      localStorage.removeItem("v2_clockInTime");
-    }
-    router.push("/");
   };
 
   return (
@@ -187,9 +195,9 @@ export default function ProfilePage() {
           <p className="text-gray-400 text-sm mt-0.5">@{username}</p>
         </div>
 
-        {/* Change Password Card */}
+        {/* Biodata Card */}
         <div className="bg-white rounded-2xl shadow-xs p-5 mb-4 border border-gray-100/50">
-          <h3 className="font-bold text-gray-800 mb-5 text-base">Ubah Password</h3>
+          <h3 className="font-bold text-gray-800 mb-5 text-base">Bio Data</h3>
           
           {submitted && successMsg && (
             <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl text-xs font-semibold text-center animate-pulse">
@@ -201,38 +209,53 @@ export default function ProfilePage() {
             <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold text-center">
               {error}
             </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1.5 font-medium">
-                Password Baru
+              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
+                Tanggal Lahir
               </label>
-              <div className="relative">
-                <input
-                  type={showPw ? "text" : "password"}
-                  placeholder="Masukkan password baru"
-                  value={newPw}
-                  onChange={(e) => setNewPw(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors pr-10"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw((p) => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-555 cursor-pointer"
-                >
-                  {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
+              <input
+                type="date"
+                value={tanggalLahir}
+                onChange={(e) => setTanggalLahir(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-gray-50/50"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
+                Jenis Kelamin
+              </label>
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white cursor-pointer"
+              >
+                <option value="">Pilih Jenis Kelamin</option>
+                <option value="Laki-laki">Laki-laki</option>
+                <option value="Perempuan">Perempuan</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
+                Alamat
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Masukkan alamat lengkap"
+                value={alamat}
+                onChange={(e) => setAlamat(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-gray-50/50 resize-none"
+              />
             </div>
             
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 rounded-xl text-white font-bold cursor-pointer hover:bg-[#209092] transition-colors bg-[#2AB0B2] disabled:opacity-50"
+              className="w-full py-3.5 rounded-xl text-white font-bold cursor-pointer hover:bg-[#209092] transition-colors bg-[#2AB0B2] disabled:opacity-50 mt-2"
             >
-              {loading ? "Memproses..." : "Submit"}
+              {loading ? "Menyimpan..." : "Simpan Biodata"}
             </button>
           </form>
         </div>
@@ -240,3 +263,17 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

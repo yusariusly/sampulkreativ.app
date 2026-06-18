@@ -134,6 +134,11 @@ export default function SelfiePage() {
       const hh = String(now.getHours()).padStart(2, "0");
       const mm = String(now.getMinutes()).padStart(2, "0");
       localStorage.setItem("v2_clockInTime", `${hh}:${mm}`);
+      if (coords && coords.lat) {
+        localStorage.setItem("v2_clockInCoords", `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
+      } else {
+        localStorage.setItem("v2_clockInCoords", "Tanpa GPS");
+      }
 
       // 2. Perform background fetch with keepalive: true (do NOT await it)
       fetch("/api/attendance", {

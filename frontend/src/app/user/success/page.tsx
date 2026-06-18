@@ -6,13 +6,33 @@ import { CheckCircle } from "lucide-react";
 
 export default function SuccessPage() {
   const router = useRouter();
-  const [clockInTime, setClockInTime] = useState("08:00");
+  const [clockInTime, setClockInTime] = useState("");
+  const [coords, setCoords] = useState("Tanpa GPS");
+  const [fullname, setFullname] = useState("Karyawan");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const storedTime = localStorage.getItem("v2_clockInTime");
       if (storedTime) {
         setClockInTime(storedTime);
+      } else {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, "0");
+        const mm = String(now.getMinutes()).padStart(2, "0");
+        setClockInTime(`${hh}:${mm}`);
+      }
+
+      const storedCoords = localStorage.getItem("v2_clockInCoords");
+      if (storedCoords) {
+        setCoords(storedCoords);
+      }
+
+      const storedUser = localStorage.getItem("v2_user");
+      if (storedUser) {
+        try {
+          const userObj = JSON.parse(storedUser);
+          setFullname(userObj.nama_lengkap);
+        } catch (e) {}
       }
     }
   }, []);
@@ -37,20 +57,25 @@ export default function SuccessPage() {
 
       <div className="bg-white rounded-2xl shadow-sm p-6 w-full mb-8 space-y-4 border border-gray-100/50">
         <div className="flex justify-between items-center">
-          <span className="text-gray-400 text-sm">Jam Masuk</span>
+          <span className="text-gray-400 text-sm">Nama Karyawan</span>
+          <span className="font-bold text-[#1C3D3F]">{fullname}</span>
+        </div>
+        <div className="h-px bg-gray-100" />
+        <div className="flex justify-between items-center">
+          <span className="text-gray-400 text-sm">Jam Absen</span>
           <span className="font-bold text-[#1C3D3F]">{clockInTime} WIB</span>
         </div>
         <div className="h-px bg-gray-100" />
         <div className="flex justify-between items-center">
-          <span className="text-gray-400 text-sm">Lokasi</span>
-          <span className="font-bold text-sm text-right text-[#1C3D3F]">
-            Kantor Pusat, Jakarta
+          <span className="text-gray-400 text-sm">Koordinat GPS</span>
+          <span className="font-bold text-sm text-right text-[#1C3D3F] font-mono">
+            {coords}
           </span>
         </div>
-        <div className="h-px bg-gray-100" />
+        <div className="h-px bg-gray-105" />
         <div className="flex justify-between items-center">
           <span className="text-gray-400 text-sm">Status</span>
-          <span className="rounded-full font-bold px-4 py-1.5 text-sm bg-green-500 text-white shadow-xs">
+          <span className="rounded-full font-bold px-4 py-1.5 text-sm bg-[#2AB0B2] text-white shadow-xs">
             Hadir
           </span>
         </div>

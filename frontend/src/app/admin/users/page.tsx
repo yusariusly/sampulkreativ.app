@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, User, Smartphone, Check } from "lucide-react";
 
 const ROLE_STYLE: Record<string, string> = {
   pengguna: "bg-gray-100 text-gray-600",
@@ -39,10 +39,6 @@ export default function AdminUsersPage() {
 
   // Notifications
   const [notification, setNotification] = useState("");
-
-  // Profile Photo Viewer Modal States
-  const [modalPhoto, setModalPhoto] = useState<string | null>(null);
-  const [modalUserFullname, setModalUserFullname] = useState("");
 
   const fetchUsers = async () => {
     try {
@@ -265,7 +261,7 @@ export default function AdminUsersPage() {
             <table className="w-full min-w-[550px]">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">
-                  {["Foto", "Username / HP", "Nama Lengkap", "Role", "Perangkat Terikat", "Status", "Aksi"].map((h) => (
+                  {["Username / HP", "Nama Lengkap", "Role", "Perangkat Terikat", "Status", "Aksi"].map((h) => (
                     <th key={h} className="text-left px-5 py-4 text-sm font-semibold text-gray-700">
                       {h}
                     </th>
@@ -275,7 +271,7 @@ export default function AdminUsersPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-sm text-gray-400 font-medium">
+                    <td colSpan={6} className="text-center py-8 text-sm text-gray-400 font-medium">
                       Memuat daftar karyawan...
                     </td>
                   </tr>
@@ -283,31 +279,8 @@ export default function AdminUsersPage() {
                   users.map((u, i) => (
                     <tr
                       key={i}
-                      className="border-b border-gray-50 last:border-0 hover:bg-gray-50/30 transition-colors"
+                      className="border-b border-gray-55 last:border-0 hover:bg-gray-50/30 transition-colors"
                     >
-                      <td className="px-5 py-3">
-                        <div
-                          onClick={() => {
-                            if (u.foto_profile && u.foto_profile !== "/uploads/placeholder.jpg") {
-                              setModalPhoto(u.foto_profile);
-                              setModalUserFullname(u.nama_lengkap);
-                            }
-                          }}
-                          className={`w-10 h-10 rounded-full overflow-hidden border border-gray-200 shadow-xs bg-gray-50 flex items-center justify-center ${
-                            u.foto_profile && u.foto_profile !== "/uploads/placeholder.jpg"
-                              ? "cursor-pointer hover:scale-105 active:scale-95 transition-transform"
-                              : ""
-                          }`}
-                          title={u.foto_profile && u.foto_profile !== "/uploads/placeholder.jpg" ? "Klik untuk melihat foto profil penuh" : ""}
-                        >
-                          {u.foto_profile && u.foto_profile !== "/uploads/placeholder.jpg" ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={u.foto_profile} alt="Avatar" className="w-full h-full object-cover" />
-                          ) : (
-                            <User size={18} className="text-gray-400" />
-                          )}
-                        </div>
-                      </td>
                       <td className="px-5 py-4 text-sm font-mono text-[#1C3D3F] font-semibold">{u.username.match(/^\d+$/) ? u.username : `@${u.username}`}</td>
                       <td className="px-5 py-4 text-sm text-gray-600 font-medium">{u.nama_lengkap}</td>
                       <td className="px-5 py-4">
@@ -381,7 +354,7 @@ export default function AdminUsersPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-sm text-gray-400 font-medium">
+                    <td colSpan={6} className="text-center py-8 text-sm text-gray-400 font-medium">
                       Tidak ada data pengguna ditemukan
                     </td>
                   </tr>
@@ -532,39 +505,6 @@ export default function AdminUsersPage() {
           </div>
         </div>
       </div>
-
-      {/* Profile Photo Viewer Modal Overlay */}
-      {modalPhoto && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200"
-          onClick={() => setModalPhoto(null)}
-        >
-          <div 
-            className="bg-white rounded-3xl overflow-hidden shadow-2xl max-w-sm w-full border border-gray-100 flex flex-col relative animate-in fade-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h3 className="font-bold text-[#1C3D3F] text-base">Foto Profil: {modalUserFullname}</h3>
-              <button 
-                onClick={() => setModalPhoto(null)}
-                className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600 cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            {/* Modal Image display */}
-            <div className="bg-gray-50 aspect-square w-full relative flex items-center justify-center overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img 
-                src={modalPhoto} 
-                alt={`Foto profil ${modalUserFullname}`} 
-                className="w-full h-full object-cover select-none" 
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

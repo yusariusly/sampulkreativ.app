@@ -70,7 +70,10 @@ async function initDb() {
         nama_lengkap VARCHAR(100) NOT NULL,
         role VARCHAR(20) NOT NULL,
         is_active TINYINT(1) DEFAULT 1,
-        foto_profile TEXT DEFAULT '/uploads/placeholder.jpg'
+        foto_profile TEXT DEFAULT '/uploads/placeholder.jpg',
+        tanggal_lahir VARCHAR(20) NULL,
+        gender VARCHAR(20) NULL,
+        alamat TEXT NULL
       )
     `);
 
@@ -96,6 +99,24 @@ async function initDb() {
 
     try {
       await pool.query("ALTER TABLE users ADD COLUMN device_info VARCHAR(255) NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN tanggal_lahir VARCHAR(20) NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN gender VARCHAR(20) NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN alamat TEXT NULL");
     } catch (err) {
       // Column already exists, safe to ignore
     }
@@ -198,7 +219,10 @@ app.post('/api/auth/login', async (req, res) => {
       username: user.username,
       nama_lengkap: user.nama_lengkap,
       role: user.role,
-      foto_profile: user.foto_profile || '/uploads/placeholder.jpg'
+      foto_profile: user.foto_profile || '/uploads/placeholder.jpg',
+      tanggal_lahir: user.tanggal_lahir || '',
+      gender: user.gender || '',
+      alamat: user.alamat || ''
     });
   } catch (error) {
     res.status(500).json({ error: 'Terjadi kesalahan internal server' });
@@ -267,7 +291,10 @@ app.post('/api/auth/register-device', async (req, res) => {
       is_active: user.is_active,
       foto_profile: user.foto_profile || '/uploads/placeholder.jpg',
       device_id: user.device_id,
-      device_info: user.device_info
+      device_info: user.device_info,
+      tanggal_lahir: user.tanggal_lahir || '',
+      gender: user.gender || '',
+      alamat: user.alamat || ''
     });
   } catch (error) {
     res.status(500).json({ error: 'Gagal melakukan registrasi perangkat' });
@@ -282,7 +309,7 @@ app.get('/api/auth/check-device', async (req, res) => {
     }
 
     const [rows] = await pool.query(
-      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info FROM users WHERE device_id = ? LIMIT 1',
+      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat FROM users WHERE device_id = ? LIMIT 1',
       [device_id.trim()]
     );
 
@@ -301,7 +328,10 @@ app.get('/api/auth/check-device', async (req, res) => {
         is_active: user.is_active,
         foto_profile: user.foto_profile || '/uploads/placeholder.jpg',
         device_id: user.device_id,
-        device_info: user.device_info
+        device_info: user.device_info,
+        tanggal_lahir: user.tanggal_lahir || '',
+        gender: user.gender || '',
+        alamat: user.alamat || ''
       }
     });
   } catch (error) {
@@ -738,7 +768,7 @@ app.post('/api/attendance/override', async (req, res) => {
 // 4. Users CRUD API
 app.get('/api/users', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info FROM users');
+    const [rows] = await pool.query('SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat FROM users');
     const mapped = rows.map(u => ({
       ...u,
       is_active: u.is_active === 1
@@ -1040,6 +1070,38 @@ app.post('/api/users/update-profile', async (req, res) => {
   } catch (error) {
     console.error('Gagal memperbarui foto profil:', error);
     res.status(500).json({ error: 'Gagal memperbarui foto profil' });
+  }
+});
+
+// 9. Update Bio Data
+app.post('/api/users/update-bio', async (req, res) => {
+  try {
+    const { user_id, tanggal_lahir, gender, alamat } = req.body;
+    if (!user_id) {
+      return res.status(400).json({ error: 'User ID wajib disertakan' });
+    }
+
+    const [userRows] = await pool.query('SELECT * FROM users WHERE id = ?', [user_id]);
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+    }
+
+    await pool.query(
+      'UPDATE users SET tanggal_lahir = ?, gender = ?, alamat = ? WHERE id = ?',
+      [tanggal_lahir || null, gender || null, alamat || null, user_id]
+    );
+
+    // Fetch updated user to return
+    const [updatedRows] = await pool.query(
+      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat FROM users WHERE id = ?',
+      [user_id]
+    );
+    const updatedUser = updatedRows[0];
+
+    res.json({ success: true, user: updatedUser });
+  } catch (error) {
+    console.error('Gagal memperbarui biodata:', error);
+    res.status(500).json({ error: 'Gagal memperbarui biodata' });
   }
 });
 
