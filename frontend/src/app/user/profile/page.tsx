@@ -204,11 +204,12 @@ export default function ProfilePage() {
               {successMsg}
             </div>
           )}
-
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold text-center">
               {error}
             </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
