@@ -20,12 +20,73 @@ function AppLogo({ size = 80 }: { size?: number }) {
 
 function getOrCreateDeviceId() {
   if (typeof window === "undefined") return "";
-  let id = localStorage.getItem("v2_device_id");
-  if (!id) {
-    id = "dev-" + Math.random().toString(36).substring(2, 15) + "-" + Date.now().toString(36);
-    localStorage.setItem("v2_device_id", id);
+  
+  // 1. Core hardware attributes
+  const screenSpec = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
+  const userAgent = navigator.userAgent;
+  const language = navigator.language || "";
+  
+  // 2. Canvas Fingerprint (Highly unique to OS font rendering & GPU)
+  let canvasHash = "";
+  try {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      canvas.width = 200;
+      canvas.height = 40;
+      ctx.textBaseline = "top";
+      ctx.font = "14px Arial";
+      ctx.fillStyle = "#f60";
+      ctx.fillRect(100, 5, 50, 20);
+      ctx.fillStyle = "#069";
+      ctx.fillText("Absensi_SK_FP_v2", 2, 10);
+      ctx.fillStyle = "rgba(102, 204, 0, 0.6)";
+      ctx.fillText("Absensi_SK_FP_v2", 4, 12);
+      const dataUrl = canvas.toDataURL();
+      
+      let hash = 0;
+      for (let i = 0; i < dataUrl.length; i++) {
+        hash = (hash << 5) - hash + dataUrl.charCodeAt(i);
+        hash |= 0;
+      }
+      canvasHash = Math.abs(hash).toString(36);
+    }
+  } catch (e) {
+    canvasHash = "canvas-err";
   }
-  return id;
+
+  // 3. WebGL GPU vendor & renderer
+  let webglHash = "";
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = (canvas.getContext("webgl") || canvas.getContext("experimental-webgl")) as WebGLRenderingContext | null;
+    if (gl) {
+      const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+      if (debugInfo) {
+        const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+        const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+        webglHash = `${vendor}_${renderer}`;
+      }
+    }
+  } catch (e) {
+    webglHash = "webgl-err";
+  }
+
+  const rawSignature = `${screenSpec}|${userAgent}|${language}|${canvasHash}|${webglHash}`;
+  
+  // Hash the raw signature string
+  let finalHash = 0;
+  for (let i = 0; i < rawSignature.length; i++) {
+    finalHash = (finalHash << 5) - finalHash + rawSignature.charCodeAt(i);
+    finalHash |= 0;
+  }
+  
+  const fingerprint = "hw-" + Math.abs(finalHash).toString(36);
+  
+  // Cache in localStorage
+  localStorage.setItem("v2_device_id", fingerprint);
+  
+  return fingerprint;
 }
 
 function getDeviceInfo() {
