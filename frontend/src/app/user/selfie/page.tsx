@@ -35,6 +35,8 @@ export default function SelfiePage() {
         setHasCamera(true);
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
+          videoRef.current.setAttribute("playsinline", "true");
+          await videoRef.current.play().catch(err => console.error("Selfie video play error:", err));
         }
       } catch (err) {
         console.warn(`Kamera (${facingMode}) tidak dapat diakses, menggunakan simulasi:`, err);
@@ -48,6 +50,9 @@ export default function SelfiePage() {
       // Cleanup tracks on unmount or facingMode change
       if (currentStream) {
         currentStream.getTracks().forEach((track) => track.stop());
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
       }
     };
   }, [facingMode]);
@@ -118,6 +123,7 @@ export default function SelfiePage() {
       }
 
       const userObj = JSON.parse(storedUser);
+      const deviceId = localStorage.getItem("v2_device_id") || userObj.device_id || "";
 
       // Submit to backend database API
       const res = await fetch("/api/attendance", {
@@ -125,6 +131,7 @@ export default function SelfiePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: userObj.id,
+          device_id: deviceId,
           foto_base64: base64Image,
           latitude: coords.lat,
           longitude: coords.lng,
@@ -166,15 +173,14 @@ export default function SelfiePage() {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Camera feed or fallback user graphic */}
-      {hasCamera ? (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className={`absolute inset-0 w-full h-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""}`}
-        />
-      ) : (
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className={`absolute inset-0 w-full h-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""} ${hasCamera ? "" : "hidden"}`}
+      />
+      {!hasCamera && (
         <div className="absolute inset-0 bg-gradient-to-b from-gray-700 to-gray-900 flex items-center justify-center">
           <div className="flex flex-col items-center text-white/50">
             <User size={88} className="mb-2" />

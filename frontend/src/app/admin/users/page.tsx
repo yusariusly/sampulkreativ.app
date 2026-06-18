@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Edit2, Trash2, CheckCircle2, X, User } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone } from "lucide-react";
 
 const ROLE_STYLE: Record<string, string> = {
   pengguna: "bg-gray-100 text-gray-600",
@@ -17,6 +17,8 @@ interface UserAccount {
   role: string;
   is_active: boolean;
   foto_profile?: string;
+  device_id?: string;
+  device_info?: string;
 }
 
 export default function AdminUsersPage() {
@@ -191,6 +193,29 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleResetDevice = async (usr: string) => {
+    if (confirm(`Apakah Anda yakin ingin melepas (reset) ikatan HP untuk @${usr}? Karyawan tersebut akan dapat mendaftarkan HP baru setelah ini.`)) {
+      try {
+        const res = await fetch("/api/users/reset-device", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: usr }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          showToast(`🔓 Berhasil mereset perangkat terikat untuk @${usr}`);
+          fetchUsers(); // Refresh list
+        } else {
+          showToast(`⚠️ ${data.error || "Gagal mereset perangkat"}`);
+        }
+      } catch (err) {
+        showToast("⚠️ Terjadi kesalahan koneksi");
+      }
+    }
+  };
+
   return (
     <div className="flex-1 bg-[#F0F2F5] p-6 md:p-10 select-none relative">
       {/* Toast Alert Notification */}
@@ -213,7 +238,7 @@ export default function AdminUsersPage() {
             <table className="w-full min-w-[550px]">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">
-                  {["Foto", "Username", "Nama Lengkap", "Role", "Status", "Aksi"].map((h) => (
+                  {["Foto", "Username / HP", "Nama Lengkap", "Role", "Perangkat Terikat", "Aksi"].map((h) => (
                     <th key={h} className="text-left px-5 py-4 text-sm font-semibold text-gray-700">
                       {h}
                     </th>
@@ -243,7 +268,7 @@ export default function AdminUsersPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-sm font-mono text-[#1C3D3F] font-semibold">@{u.username}</td>
+                      <td className="px-5 py-4 text-sm font-mono text-[#1C3D3F] font-semibold">{u.username.match(/^\d+$/) ? u.username : `@${u.username}`}</td>
                       <td className="px-5 py-4 text-sm text-gray-600 font-medium">{u.nama_lengkap}</td>
                       <td className="px-5 py-4">
                         <span
@@ -254,16 +279,16 @@ export default function AdminUsersPage() {
                           {u.role}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-sm">
-                        <span
-                          className={`font-bold px-2.5 py-1 rounded text-xs select-none ${
-                            u.is_active
-                              ? "text-emerald-600 bg-emerald-50"
-                              : "text-red-500 bg-red-55/80"
-                          }`}
-                        >
-                          {u.is_active ? "Aktif" : "Nonaktif"}
-                        </span>
+                      <td className="px-5 py-4 text-sm max-w-[160px] truncate">
+                        {u.device_info ? (
+                          <span className="font-semibold px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs" title={u.device_info}>
+                            📱 {u.device_info}
+                          </span>
+                        ) : (
+                          <span className="font-semibold px-2 py-1 bg-amber-50 text-amber-700 rounded text-xs">
+                            ⚠️ Belum Terikat
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex gap-3">
@@ -274,6 +299,15 @@ export default function AdminUsersPage() {
                           >
                             <Edit2 size={16} />
                           </button>
+                          {u.device_id && (
+                            <button
+                              onClick={() => handleResetDevice(u.username)}
+                              className="text-gray-300 hover:text-amber-500 transition-colors cursor-pointer"
+                              title="Reset Perangkat HP"
+                            >
+                              <Smartphone size={16} />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDeleteUser(u.username)}
                             className="text-gray-300 hover:text-red-500 transition-colors cursor-pointer"

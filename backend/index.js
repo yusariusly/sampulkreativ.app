@@ -81,6 +81,18 @@ async function initDb() {
       // Column already exists, safe to ignore
     }
 
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN device_id VARCHAR(100) NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN device_info VARCHAR(255) NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS absensi (
         id VARCHAR(50) PRIMARY KEY,
@@ -183,6 +195,110 @@ app.post('/api/auth/login', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Terjadi kesalahan internal server' });
+  }
+});
+
+app.post('/api/auth/register-device', async (req, res) => {
+  try {
+    const { nama_lengkap, username, device_id, device_info } = req.body;
+    if (!nama_lengkap || !username || !device_id) {
+      return res.status(400).json({ error: 'Nama Lengkap, Nomor HP, dan Perangkat wajib diisi' });
+    }
+
+    const trimmedUsername = username.trim().toLowerCase();
+    const trimmedNama = nama_lengkap.trim();
+
+    // Check if username already exists
+    const [existing] = await pool.query(
+      'SELECT * FROM users WHERE LOWER(username) = ?',
+      [trimmedUsername]
+    );
+
+    let user;
+    if (existing.length > 0) {
+      user = existing[0];
+      if (user.is_active !== 1) {
+        return res.status(401).json({ error: 'Akun Anda dinonaktifkan oleh administrator' });
+      }
+
+      // Lock to device: check if device_id matches
+      if (user.device_id && user.device_id.trim() !== '' && user.device_id !== device_id) {
+        return res.status(403).json({ 
+          error: `Nomor HP ini sudah terikat pada HP lain (${user.device_info || 'Perangkat lain'}). Silakan hubungi Administrator untuk mereset perangkat Anda.` 
+        });
+      }
+
+      // If no device_id bound yet (e.g. added by admin or reset), bind it now
+      if (!user.device_id || user.device_id.trim() === '') {
+        await pool.query(
+          'UPDATE users SET device_id = ?, device_info = ? WHERE id = ?',
+          [device_id, device_info, user.id]
+        );
+        user.device_id = device_id;
+        user.device_info = device_info;
+      }
+    } else {
+      const userId = `usr-${Date.now()}`;
+      await pool.query(
+        'INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, device_id, device_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [userId, trimmedUsername, 'no_password', trimmedNama, 'user', 1, '/uploads/placeholder.jpg', device_id, device_info]
+      );
+      user = {
+        id: userId,
+        username: trimmedUsername,
+        nama_lengkap: trimmedNama,
+        role: 'user',
+        foto_profile: '/uploads/placeholder.jpg',
+        device_id: device_id,
+        device_info: device_info
+      };
+    }
+
+    res.json({
+      id: user.id,
+      username: user.username,
+      nama_lengkap: user.nama_lengkap,
+      role: user.role,
+      foto_profile: user.foto_profile || '/uploads/placeholder.jpg',
+      device_id: user.device_id,
+      device_info: user.device_info
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Gagal melakukan registrasi perangkat' });
+  }
+});
+
+app.get('/api/auth/check-device', async (req, res) => {
+  try {
+    const { device_id } = req.query;
+    if (!device_id || device_id.trim() === '') {
+      return res.status(400).json({ error: 'Device ID wajib disertakan' });
+    }
+
+    const [rows] = await pool.query(
+      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info FROM users WHERE device_id = ? AND is_active = 1 LIMIT 1',
+      [device_id.trim()]
+    );
+
+    if (rows.length === 0) {
+      return res.json({ registered: false });
+    }
+
+    const user = rows[0];
+    res.json({
+      registered: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        nama_lengkap: user.nama_lengkap,
+        role: user.role,
+        foto_profile: user.foto_profile || '/uploads/placeholder.jpg',
+        device_id: user.device_id,
+        device_info: user.device_info
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Gagal mencocokkan perangkat' });
   }
 });
 
@@ -448,6 +564,16 @@ app.post('/api/attendance', async (req, res) => {
     }
     const user = userRows[0];
 
+    // Device Verification: Ensure the device matches registered device (only if device_id is set)
+    if (user.role === 'user' && user.device_id && user.device_id.trim() !== '') {
+      const { device_id } = req.body;
+      if (!device_id || device_id !== user.device_id) {
+        return res.status(403).json({ 
+          error: 'Akses ditolak: Absensi harus dilakukan dari handphone yang terdaftar untuk akun ini.' 
+        });
+      }
+    }
+
     // Distance/Coordinate verification (only if status is Hadir)
     if (status === 'Hadir') {
       const [latSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'office_latitude'");
@@ -605,7 +731,7 @@ app.post('/api/attendance/override', async (req, res) => {
 // 4. Users CRUD API
 app.get('/api/users', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, username, nama_lengkap, role, is_active, foto_profile FROM users');
+    const [rows] = await pool.query('SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info FROM users');
     const mapped = rows.map(u => ({
       ...u,
       is_active: u.is_active === 1
@@ -843,6 +969,25 @@ app.post('/api/users/change-password', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Gagal mengganti password' });
+  }
+});
+
+// 7.5 Reset Device
+app.post('/api/users/reset-device', async (req, res) => {
+  try {
+    const { username } = req.body;
+    if (!username) {
+      return res.status(400).json({ error: 'Username wajib disertakan' });
+    }
+
+    await pool.query(
+      'UPDATE users SET device_id = NULL, device_info = NULL WHERE LOWER(username) = ?',
+      [username.trim().toLowerCase()]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Gagal mereset perangkat pengguna' });
   }
 });
 
