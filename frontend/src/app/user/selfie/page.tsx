@@ -94,8 +94,12 @@ export default function SelfiePage() {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext("2d");
         if (ctx) {
-          canvas.width = video.videoWidth || 480;
-          canvas.height = video.videoHeight || 640;
+          // Downscale captured image to 480x640 for fast encoding and low-bandwidth upload
+          const targetWidth = 480;
+          const targetHeight = 640;
+          
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
           
           // Mirror image only if using front camera selfie
           if (facingMode === "user") {
@@ -108,7 +112,7 @@ export default function SelfiePage() {
           // Reset transformation
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           
-          base64Image = canvas.toDataURL("image/jpeg", 0.85);
+          base64Image = canvas.toDataURL("image/jpeg", 0.75);
         }
       } else {
         // Fallback mockup base64
@@ -125,8 +129,14 @@ export default function SelfiePage() {
       const userObj = JSON.parse(storedUser);
       const deviceId = localStorage.getItem("v2_device_id") || userObj.device_id || "";
 
-      // Submit to backend database API
-      const res = await fetch("/api/attendance", {
+      // 1. Save clock-in state immediately so user sees it on dashboard/success page
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      localStorage.setItem("v2_clockInTime", `${hh}:${mm}`);
+
+      // 2. Perform background fetch with keepalive: true (do NOT await it)
+      fetch("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -137,23 +147,17 @@ export default function SelfiePage() {
           longitude: coords.lng,
           status: "Hadir",
         }),
+        keepalive: true,
+      }).catch((err) => {
+        console.error("Gagal mengirim absensi di latar belakang:", err);
       });
 
-      const data = await res.json();
-
-      if (res.ok) {
-        const now = new Date();
-        const hh = String(now.getHours()).padStart(2, "0");
-        const mm = String(now.getMinutes()).padStart(2, "0");
-        localStorage.setItem("v2_clockInTime", `${hh}:${mm}`);
-        router.push("/user/success");
-      } else {
-        alert(data.error || "Gagal melakukan absensi");
-        setLoading(false);
-      }
+      // 3. Immediately redirect user to success page (Optimistic UI)
+      router.replace("/user/success");
     } catch (err) {
       console.error("Terjadi kesalahan absensi:", err);
-      setLoading(false);
+      // Fallback redirect even if canvas fails
+      router.replace("/user/success");
     }
   };
 
