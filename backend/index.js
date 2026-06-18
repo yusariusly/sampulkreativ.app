@@ -275,7 +275,7 @@ app.get('/api/auth/check-device', async (req, res) => {
     }
 
     const [rows] = await pool.query(
-      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info FROM users WHERE device_id = ? AND is_active = 1 LIMIT 1',
+      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info FROM users WHERE device_id = ? LIMIT 1',
       [device_id.trim()]
     );
 
@@ -291,6 +291,7 @@ app.get('/api/auth/check-device', async (req, res) => {
         username: user.username,
         nama_lengkap: user.nama_lengkap,
         role: user.role,
+        is_active: user.is_active,
         foto_profile: user.foto_profile || '/uploads/placeholder.jpg',
         device_id: user.device_id,
         device_info: user.device_info
