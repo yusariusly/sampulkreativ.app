@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistem Absensi PWA (Split Architecture)
 
-## Getting Started
+Proyek ini telah dipisahkan menjadi struktur folder **Frontend** (Next.js) dan **Backend** (Express.js) untuk mempermudah pemeliharaan dan deploy produksi.
 
-First, run the development server:
+## Struktur Direktori
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+application_absensi_v2/
+├── frontend/    # Aplikasi UI Mobile-Optimized & Admin Panel (Next.js)
+└── backend/     # Layanan REST API & Pengolah Media/Selfie (Express.js)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Cara Menjalankan Aplikasi
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Pastikan database MySQL Anda sudah menyala terlebih dahulu di WSL.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. Jalankan Express Backend (Port 5000)
+Buka terminal baru, masuk ke folder `backend`, lalu jalankan:
+```bash
+cd backend
+npm run dev
+```
+Server backend akan berjalan di `http://localhost:5000` dan secara otomatis menginisialisasi skema basis data serta tabel MySQL (`absensi_db`) beserta seed datanya jika kosong.
 
-## Learn More
+### 2. Jalankan Next.js Frontend (Port 3000)
+Buka terminal baru lainnya, masuk ke folder `frontend`, lalu jalankan:
+```bash
+cd frontend
+npm run dev -- -H 0.0.0.0
+```
+Server frontend akan berjalan di `http://localhost:3000`. Next.js dikonfigurasi dengan rewrites otomatis untuk meneruskan request `/api/*` dan `/uploads/*` ke Express backend di port 5000 secara transparan.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Variabel Lingkungan (Environment Variables)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Secara bawaan, backend akan mencoba terhubung ke database lokal menggunakan konfigurasi:
+* **Host**: `127.0.0.1`
+* **User**: `root`
+* **Password**: `root`
+* **Database**: `absensi_db`
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Jika Anda ingin mengubah konfigurasi database, buat file `.env` di dalam folder `backend/` dengan isi:
+```env
+PORT=5000
+DB_HOST=127.0.0.1
+DB_USER=root
+DB_PASSWORD=password_mysql_anda
+DB_NAME=absensi_db
+```

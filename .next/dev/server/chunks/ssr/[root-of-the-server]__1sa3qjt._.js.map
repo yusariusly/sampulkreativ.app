@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 3, "column": 0}, "map": {"version":3,"sources":["turbopack:///[next]/internal/font/google/inter_786c1081.module.css [app-rsc] (css module)"],"sourcesContent":["__turbopack_context__.v({\n  \"className\": \"inter_786c1081-module__J60SBq__className\",\n  \"variable\": \"inter_786c1081-module__J60SBq__variable\",\n});\n"],"names":[],"mappings":"AAAA;AACA;AACA;AACA","ignoreList":[0]}}]
+}
