@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, CameraOff, RefreshCw } from "lucide-react";
+import { X, CameraOff, RefreshCw, AlertCircle } from "lucide-react";
 import jsQR from "jsqr";
 
 function QrCodeGraphic() {
@@ -34,6 +34,7 @@ export default function QRScanPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [qrToken, setQrToken] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const BOX = 240;
 
   useEffect(() => {
@@ -161,17 +162,7 @@ export default function QRScanPage() {
         />
       )}
 
-      {/* Dark overlay with scan viewfinder cutout */}
-      {!cameraError && !loading && (
-        <div 
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            boxShadow: "inset 0 0 0 9999px rgba(0, 0, 0, 0.65)"
-          }}
-        />
-      )}
-
-      {/* Viewfinder box container */}
+      {/* Viewfinder box container (without dark overlay) */}
       {!cameraError && !loading && (
         <div
           className="absolute z-10"
@@ -198,7 +189,7 @@ export default function QRScanPage() {
           ))}
 
           {/* Inner transparent graphic area */}
-          <div className="absolute inset-3 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
+          <div className="absolute inset-3 rounded-lg overflow-hidden bg-black/10 flex items-center justify-center">
             <QrCodeGraphic />
           </div>
 
@@ -219,13 +210,8 @@ export default function QRScanPage() {
           className="absolute z-10 text-center w-full px-6"
           style={{ top: "calc(50% + 96px)" }}
         >
-          <p className="text-white text-lg font-medium drop-shadow-md">Arahkan kamera ke</p>
-          <p className="text-white text-lg font-medium drop-shadow-md">QR Code kantor</p>
-          {qrToken && (
-            <p className="text-gray-400 text-xs mt-3 font-mono opacity-80 bg-black/40 inline-block px-3 py-1 rounded-full backdrop-blur-xs">
-              ID Token Aktif
-            </p>
-          )}
+          <p className="text-white text-lg font-medium drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Arahkan kamera ke</p>
+          <p className="text-white text-lg font-medium drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">QR Code kantor</p>
         </div>
       )}
 
@@ -247,23 +233,86 @@ export default function QRScanPage() {
           <p className="text-gray-400 text-sm max-w-xs mb-8 leading-relaxed">
             {cameraError}
           </p>
-          <button
-            onClick={startCamera}
-            className="flex items-center gap-2 px-6 py-3 bg-primary text-white font-medium rounded-full hover:opacity-90 active:scale-95 transition-all cursor-pointer"
-          >
-            <RefreshCw size={18} />
-            Coba Lagi
-          </button>
+          <div className="flex flex-col gap-3 w-full max-w-xs">
+            <button
+              onClick={startCamera}
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white font-medium rounded-full hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+            >
+              <RefreshCw size={18} />
+              Coba Lagi
+            </button>
+            <button
+              onClick={() => setShowHelpModal(true)}
+              className="flex items-center justify-center gap-2 px-6 py-3 border border-white/20 text-white font-medium rounded-full hover:bg-white/5 active:scale-95 transition-all cursor-pointer"
+            >
+              <AlertCircle size={18} />
+              Cara Izinkan Kamera
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Close button */}
-      <button
-        onClick={handleBack}
-        className="absolute top-6 left-5 z-20 text-white bg-black/30 backdrop-blur-md p-2 rounded-full hover:bg-black/50 transition-all cursor-pointer"
-      >
-        <X size={24} />
-      </button>
+      {/* Top action buttons */}
+      <div className="absolute top-6 left-5 right-5 z-20 flex justify-between items-center pointer-events-none">
+        <button
+          onClick={handleBack}
+          className="text-white bg-black/40 backdrop-blur-md p-2.5 rounded-full hover:bg-black/60 transition-all cursor-pointer pointer-events-auto shadow-md"
+        >
+          <X size={22} />
+        </button>
+        <button
+          onClick={() => setShowHelpModal(true)}
+          className="text-white bg-black/40 backdrop-blur-md p-2.5 rounded-full hover:bg-black/60 transition-all cursor-pointer pointer-events-auto shadow-md"
+        >
+          <AlertCircle size={22} />
+        </button>
+      </div>
+
+      {/* Help Modal */}
+      {showHelpModal && (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-md z-45 flex items-center justify-center p-6">
+          <div className="bg-[#152525] border border-primary/40 rounded-2xl w-full max-w-sm p-6 text-white shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center gap-3 mb-4 text-primary">
+              <AlertCircle size={28} />
+              <h3 className="text-lg font-bold">Panduan Izin Kamera</h3>
+            </div>
+            
+            <p className="text-gray-300 text-sm mb-5 leading-relaxed">
+              Jika kamera tidak terbuka atau izin terlanjur ditolak, silakan ikuti panduan berikut sesuai perangkat Anda:
+            </p>
+
+            <div className="space-y-4 text-xs mb-6">
+              <div className="border-l-2 border-primary/50 pl-3">
+                <span className="font-semibold text-primary block mb-0.5 text-sm">Chrome (Android / PC)</span>
+                <span className="text-gray-300 leading-normal">
+                  Ketuk ikon <b>gembok 🔒</b> di kiri kolom alamat browser, lalu ubah izin <b>Kamera</b> menjadi <b>Izinkan / Allow</b>.
+                </span>
+              </div>
+
+              <div className="border-l-2 border-primary/50 pl-3">
+                <span className="font-semibold text-primary block mb-0.5 text-sm">Safari (iPhone / iOS)</span>
+                <span className="text-gray-300 leading-normal">
+                  Ketuk tombol <b>aA</b> di kiri kolom alamat browser, pilih <b>Pengaturan Situs Web</b>, lalu ubah izin <b>Kamera</b> menjadi <b>Izinkan / Allow</b>.
+                </span>
+              </div>
+
+              <div className="border-l-2 border-primary/50 pl-3">
+                <span className="font-semibold text-primary block mb-0.5 text-sm">Aplikasi Homescreen (PWA)</span>
+                <span className="text-gray-300 leading-normal">
+                  Buka <b>Pengaturan HP</b> &gt; Aplikasi &gt; <b>Absensi SK</b> &gt; Izin &gt; Aktifkan Kamera.
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowHelpModal(false)}
+              className="w-full py-3 bg-primary text-white font-semibold rounded-xl hover:opacity-90 active:scale-95 transition-all cursor-pointer text-center text-sm shadow-md"
+            >
+              Saya Mengerti
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
