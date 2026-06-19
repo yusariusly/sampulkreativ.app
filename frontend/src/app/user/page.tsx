@@ -102,101 +102,97 @@ export default function UserHomePage() {
 
   return (
     <div className="flex flex-col h-full bg-[#F0F2F5] px-5 pt-6 pb-6 select-none">
-      {/* Upper Area */}
-      <div className="flex-1 flex flex-col justify-between">
-        <div>
-          {/* Greeting */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
+      {/* Greeting */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-13 h-13 rounded-full flex items-center justify-center text-white font-bold text-xl flex-shrink-0 overflow-hidden border border-gray-150 shadow-xs bg-white"
+            style={{ width: 48, height: 48 }}
+          >
+            {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={profilePhoto} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
               <div
-                className="w-13 h-13 rounded-full flex items-center justify-center text-white font-bold text-xl flex-shrink-0 overflow-hidden border border-gray-150 shadow-xs bg-white"
-                style={{ width: 48, height: 48 }}
+                className="w-full h-full flex items-center justify-center text-white font-bold text-lg"
+                style={{ background: "linear-gradient(135deg, #2AB0B2, #1a8a8c)" }}
               >
-                {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profilePhoto} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <div
-                    className="w-full h-full flex items-center justify-center text-white font-bold text-lg"
-                    style={{ background: "linear-gradient(135deg, #2AB0B2, #1a8a8c)" }}
-                  >
-                    {fullname.charAt(0)}
-                  </div>
-                )}
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs leading-none">Halo,</p>
-                <p className="text-base font-bold leading-tight text-[#2AB0B2]">{fullname}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Clock card */}
-          <div className="bg-white rounded-3xl shadow-sm px-5 py-6 mb-4 border border-gray-100/50">
-            <p className="text-center font-bold text-gray-800 text-sm mb-0.5">Hari Ini</p>
-            <p className="text-center text-gray-400 text-[11px] mb-3">{dateStr}</p>
-
-            <p
-              className="text-center font-black mb-1 tracking-tight text-[#1C3D3F]"
-              style={{ fontSize: 68, lineHeight: 1 }}
-            >
-              {hh}:{mm}
-            </p>
-            <p className="text-center text-gray-400 text-xs mb-3">Waktu Sekarang</p>
-
-            {/* Status Label (Compact Badge) */}
-            <div className="flex justify-center mb-5">
-              {loading ? (
-                <span className="text-gray-400 text-xs font-medium">Memuat data...</span>
-              ) : clockOutTime ? (
-                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-100">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Sudah Absen Pulang ({clockOutTime})
-                </span>
-              ) : clockInTime ? (
-                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Sudah Absen Masuk ({clockInTime})
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-100">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#F6C13B] animate-pulse" /> Belum Absen
-                </span>
-              )}
-            </div>
-
-            {/* CTA Button moved under Waktu Sekarang */}
-            {!loading && (
-              <div className="w-full">
-                {clockOutTime ? (
-                  <div className="text-center text-xs text-gray-400 font-semibold py-2.5 bg-gray-50 border border-dashed border-gray-200 rounded-2xl">
-                    ✅ Anda telah menyelesaikan absen pulang untuk hari ini
-                  </div>
-                ) : clockInTime ? (
-                  <button
-                    onClick={handleStartAbsenPulang}
-                    className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
-                  >
-                    <Camera size={20} /> Absen Pulang
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleStartAbsen}
-                    className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-[#2AB0B2] hover:bg-[#209092] cursor-pointer"
-                  >
-                    <Camera size={20} /> Mulai Absen
-                  </button>
-                )}
+                {fullname.charAt(0)}
               </div>
             )}
           </div>
+          <div>
+            <p className="text-gray-500 text-xs leading-none">Halo,</p>
+            <p className="text-base font-bold leading-tight text-[#2AB0B2]">{fullname}</p>
+          </div>
         </div>
-
-
-
-        {/* Copyright */}
-        <p className="text-[10px] text-gray-400 text-center py-4 select-none">
-          © 2026 sampulkreativ · Absensi SK · All rights reserved
-        </p>
       </div>
+
+      {/* Centered Clock card Area */}
+      <div className="flex-1 flex flex-col justify-center py-4">
+        {/* Clock card */}
+        <div className="bg-white rounded-3xl shadow-sm px-5 py-8 border border-gray-100/50 w-full">
+          <p className="text-center font-bold text-gray-800 text-sm mb-0.5">Hari Ini</p>
+          <p className="text-center text-gray-400 text-[11px] mb-4">{dateStr}</p>
+
+          <p
+            className="text-center font-black mb-1 tracking-tight text-[#1C3D3F]"
+            style={{ fontSize: 68, lineHeight: 1 }}
+          >
+            {hh}:{mm}
+          </p>
+          <p className="text-center text-gray-400 text-xs mb-4">Waktu Sekarang</p>
+
+          {/* Status Label (Compact Badge) */}
+          <div className="flex justify-center mb-6">
+            {loading ? (
+              <span className="text-gray-400 text-xs font-medium">Memuat data...</span>
+            ) : clockOutTime ? (
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-100">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Sudah Absen Pulang ({clockOutTime})
+              </span>
+            ) : clockInTime ? (
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Sudah Absen Masuk ({clockInTime})
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-100">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#F6C13B] animate-pulse" /> Belum Absen
+              </span>
+            )}
+          </div>
+
+          {/* CTA Button moved under Waktu Sekarang */}
+          {!loading && (
+            <div className="w-full">
+              {clockOutTime ? (
+                <div className="text-center text-xs text-gray-400 font-semibold py-3 bg-gray-50 border border-dashed border-gray-200 rounded-2xl">
+                  ✅ Anda telah menyelesaikan absen pulang untuk hari ini
+                </div>
+              ) : clockInTime ? (
+                <button
+                  onClick={handleStartAbsenPulang}
+                  className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
+                >
+                  <Camera size={20} /> Absen Pulang
+                </button>
+              ) : (
+                <button
+                  onClick={handleStartAbsen}
+                  className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-[#2AB0B2] hover:bg-[#209092] cursor-pointer"
+                >
+                  <Camera size={20} /> Mulai Absen
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Copyright */}
+      <p className="text-[10px] text-gray-400 text-center py-2 select-none flex-shrink-0">
+        © 2026 sampulkreativ · Absensi SK · All rights reserved
+      </p>
     </div>
   );
 }
