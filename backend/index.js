@@ -27,25 +27,29 @@ async function sendAttendanceEmail({ senderName, status, reason, filePath, fileN
   let user = process.env.SMTP_USER;
   let pass = process.env.SMTP_PASS;
   let to = process.env.SMTP_TO;
+  let senderEmail = process.env.SMTP_SENDER || '';
 
   try {
-    const res = await pgPool.query("SELECT key_name, key_value FROM settings WHERE key_name IN ('smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_to')");
+    const res = await pgPool.query("SELECT key_name, key_value FROM settings WHERE key_name IN ('smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_to', 'smtp_sender')");
     res.rows.forEach(row => {
       if (row.key_name === 'smtp_host' && row.key_value.trim() !== '') host = row.key_value;
       if (row.key_name === 'smtp_port' && row.key_value.trim() !== '') port = row.key_value;
       if (row.key_name === 'smtp_user' && row.key_value.trim() !== '') user = row.key_value;
       if (row.key_name === 'smtp_pass' && row.key_value.trim() !== '') pass = row.key_value;
       if (row.key_name === 'smtp_to' && row.key_value.trim() !== '') to = row.key_value;
+      if (row.key_name === 'smtp_sender' && row.key_value.trim() !== '') senderEmail = row.key_value;
     });
   } catch (err) {
     console.error("Gagal memuat SMTP dari settings database, menggunakan env:", err);
   }
 
+  const finalSender = senderEmail || user;
+
   if (!host || !user || !pass || !to) {
     console.warn("⚠️ SMTP Credentials are not configured in settings/env. Email logging fallback:");
     console.log(`[Email Sent Mock]
 To: ${to || 'Admin'}
-From: ${senderName} <${user || 'system@absensi.com'}>
+From: ${senderName} <${finalSender || 'system@absensi.com'}>
 Subject: Pengajuan ${status} - ${senderName}
 Body: Saya izin ${status.toLowerCase()} ${status === 'Sakit' ? 'karena sakit' : `dengan alasan: ${reason}`}. Berikut terlampir buktinya.
 Attachment: ${filePath || 'None'}`);
@@ -92,7 +96,7 @@ Terima kasih.`;
   }
 
   const mailOptions = {
-    from: `"${senderName}" <${user}>`,
+    from: `"${senderName}" <${finalSender}>`,
     to,
     subject,
     text,
@@ -267,6 +271,7 @@ async function initDb() {
     await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('smtp_user', '') ON DUPLICATE KEY UPDATE key_value = key_value");
     await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('smtp_pass', '') ON DUPLICATE KEY UPDATE key_value = key_value");
     await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('smtp_to', '') ON DUPLICATE KEY UPDATE key_value = key_value");
+    await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('smtp_sender', '') ON DUPLICATE KEY UPDATE key_value = key_value");
 
     // 4. Seed default QR if empty
     const [qrRows] = await pool.query("SELECT COUNT(*) as cnt FROM qr_token");
@@ -1107,6 +1112,7 @@ app.get('/api/settings', async (req, res) => {
       smtp_user: '',
       smtp_pass: '',
       smtp_to: '',
+      smtp_sender: '',
     };
     rows.forEach(row => {
       settings[row.key_name] = row.key_value;
@@ -1130,7 +1136,8 @@ app.post('/api/settings', async (req, res) => {
       smtp_port,
       smtp_user,
       smtp_pass,
-      smtp_to
+      smtp_to,
+      smtp_sender
     } = req.body;
     
     if (deadline_time) {
@@ -1223,6 +1230,14 @@ app.post('/api/settings', async (req, res) => {
       const val = smtp_to.toString().trim();
       await pool.query(
         "INSERT INTO settings (key_name, key_value) VALUES ('smtp_to', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [val, val]
+      );
+    }
+
+    if (smtp_sender !== undefined) {
+      const val = smtp_sender.toString().trim();
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('smtp_sender', ?) ON DUPLICATE KEY UPDATE key_value = ?",
         [val, val]
       );
     }

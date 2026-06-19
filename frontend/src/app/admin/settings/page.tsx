@@ -17,6 +17,7 @@ export default function AdminSettingsPage() {
   const [smtpUser, setSmtpUser] = useState("");
   const [smtpPass, setSmtpPass] = useState("");
   const [smtpTo, setSmtpTo] = useState("");
+  const [smtpSender, setSmtpSender] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,6 +61,9 @@ export default function AdminSettingsPage() {
         if (data.smtp_to !== undefined) {
           setSmtpTo(data.smtp_to);
         }
+        if (data.smtp_sender !== undefined) {
+          setSmtpSender(data.smtp_sender);
+        }
       }
     } catch (err) {
       console.error("Gagal mengambil pengaturan:", err);
@@ -98,7 +102,8 @@ export default function AdminSettingsPage() {
           smtp_port: smtpPort,
           smtp_user: smtpUser,
           smtp_pass: smtpPass,
-          smtp_to: smtpTo
+          smtp_to: smtpTo,
+          smtp_sender: smtpSender
         }),
       });
 
@@ -247,18 +252,16 @@ export default function AdminSettingsPage() {
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      SMTP Username / Email Pengirim
+                      SMTP Username / Login
                     </label>
                     <input
                       type="text"
                       value={smtpUser}
                       onChange={(e) => setSmtpUser(e.target.value)}
-                      placeholder="Contoh: pengirim@gmail.com"
+                      placeholder="Contoh: af4a45001@smtp-brevo.com"
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
                     />
                   </div>
@@ -276,17 +279,31 @@ export default function AdminSettingsPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Email Penerima Laporan (Admin / HRD)
-                  </label>
-                  <input
-                    type="text"
-                    value={smtpTo}
-                    onChange={(e) => setSmtpTo(e.target.value)}
-                    placeholder="Contoh: admin@perusahaan.com"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Email Pengirim Default (Dari Brevo)
+                    </label>
+                    <input
+                      type="text"
+                      value={smtpSender}
+                      onChange={(e) => setSmtpSender(e.target.value)}
+                      placeholder="Contoh: absensi.sampulkreativ@gmail.com"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Email Penerima Laporan (Admin / HRD)
+                    </label>
+                    <input
+                      type="text"
+                      value={smtpTo}
+                      onChange={(e) => setSmtpTo(e.target.value)}
+                      placeholder="Contoh: admin@perusahaan.com"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
+                    />
+                  </div>
                 </div>
               </div>
               <p className="text-gray-400 text-xs leading-relaxed">
