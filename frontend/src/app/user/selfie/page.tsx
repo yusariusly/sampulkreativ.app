@@ -157,6 +157,29 @@ export default function SelfiePage() {
           
           canvas.width = targetWidth;
           canvas.height = targetHeight;
+
+          // Source dimensions
+          const sWidth = video.videoWidth || video.width || targetWidth;
+          const sHeight = video.videoHeight || video.height || targetHeight;
+
+          // Calculate source cropping coordinates to fit target ratio without distortion (object-cover)
+          let sx = 0;
+          let sy = 0;
+          let sCol = sWidth;
+          let sRow = sHeight;
+
+          const targetRatio = targetWidth / targetHeight;
+          const sourceRatio = sWidth / sHeight;
+
+          if (sourceRatio > targetRatio) {
+            // Source is wider than target ratio
+            sCol = sHeight * targetRatio;
+            sx = (sWidth - sCol) / 2;
+          } else {
+            // Source is taller than target ratio
+            sRow = sWidth / targetRatio;
+            sy = (sHeight - sRow) / 2;
+          }
           
           // Mirror image only if using front camera selfie
           if (facingMode === "user") {
@@ -164,7 +187,7 @@ export default function SelfiePage() {
             ctx.scale(-1, 1);
           }
           
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          ctx.drawImage(video, sx, sy, sCol, sRow, 0, 0, canvas.width, canvas.height);
           
           // Reset transformation
           ctx.setTransform(1, 0, 0, 1, 0, 0);
