@@ -459,7 +459,7 @@ export default function LoginPage() {
             Absen Cepat dengan <span className="text-[#F6C13B]">Registrasi Sekali</span> &amp; Scan QR
           </h1>
           <p className="text-white/80 text-sm leading-relaxed">
-            Tidak perlu login berulang kali. Cukup daftarkan diri Anda sekali menggunakan HP Anda. Sistem akan mencocokkan identitas Anda otomatis saat pemindaian QR dan selfie.
+            Sistem Absensi Online resmi dari SampulKreativ untuk pencatatan kehadiran karyawan yang cepat dan aman. Cukup daftarkan perangkat Anda sekali, lalu lakukan absensi harian dengan pemindaian kode QR dan verifikasi foto selfie.
           </p>
         </div>
 

@@ -40,12 +40,30 @@ export default function AdminUsersPage() {
   // Notifications
   const [notification, setNotification] = useState("");
 
+  const showToast = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => {
+      setNotification("");
+    }, 3500);
+  };
+
   const fetchUsers = async () => {
     try {
       const res = await fetch("/api/users");
       if (res.ok) {
         const data = await res.json();
-        setUsers(data);
+        setUsers((prevUsers) => {
+          if (prevUsers.length > 0) {
+            const currentPending = prevUsers.filter(u => !u.is_active).map(u => u.username);
+            const newPending = data.filter((u: any) => !u.is_active);
+            newPending.forEach((u: any) => {
+              if (!currentPending.includes(u.username)) {
+                showToast(`🔔 Pendaftaran Baru: "${u.nama_lengkap}" menunggu persetujuan.`);
+              }
+            });
+          }
+          return data;
+        });
       }
     } catch (err) {
       console.error("Gagal mengambil daftar pengguna:", err);
@@ -56,14 +74,13 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     fetchUsers();
+
+    // Poll for new registrations/device bindings every 4 seconds
+    const interval = setInterval(fetchUsers, 4000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  const showToast = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => {
-      setNotification("");
-    }, 3500);
-  };
 
   const resetForm = () => {
     setEditingUserId(null);
@@ -403,6 +420,9 @@ export default function AdminUsersPage() {
                   className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
                   required
                 />
+                <p className="text-[10px] text-gray-400 mt-1 px-1 leading-normal">
+                  * Untuk <strong>Admin</strong>: isi dengan username (huruf). Untuk <strong>User/Karyawan</strong>: isi dengan nomor telepon (angka).
+                </p>
               </div>
               <div>
                 <input
