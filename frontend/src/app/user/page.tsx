@@ -102,9 +102,9 @@ export default function UserHomePage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#F0F2F5] px-5 pt-6 pb-6 select-none">
+    <div className="flex flex-col h-full max-h-full bg-[#F0F2F5] px-5 pt-4 pb-4 select-none overflow-hidden">
       {/* Upper Area */}
-      <div className="flex-1 flex flex-col justify-between">
+      <div className="flex-1 flex flex-col justify-between overflow-hidden">
         <div>
           {/* Greeting */}
           <div className="flex items-center justify-between mb-4">

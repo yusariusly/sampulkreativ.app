@@ -86,7 +86,7 @@ export default function UserLayout({
         )}
 
         {/* Screen Content Viewport */}
-        <div className="flex-1 flex flex-col overflow-y-auto relative">
+        <div className={`flex-1 flex flex-col relative ${pathname === "/user" ? "overflow-hidden" : "overflow-y-auto"}`}>
           {children}
         </div>
 
