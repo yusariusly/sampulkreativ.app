@@ -387,10 +387,8 @@ export default function LoginPage() {
       </div>
     );
   }
-
   return (
-    <main className="min-h-screen w-full flex bg-[#F3F4F6] lg:bg-[#F9FAFB]">
-      {/* Left Column: Premium Branding Banner (Desktop Only) */}
+    <main className="min-h-screen w-full flex bg-white lg:bg-[#F9FAFB]">
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#1C3D3F] via-[#2AB0B2] to-[#209092] p-12 text-white flex-col justify-between relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/5 rounded-full filter blur-3xl -mr-64 -mt-64 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[#F6C13B]/10 rounded-full filter blur-3xl -ml-48 -mb-48 pointer-events-none" />
@@ -421,7 +419,7 @@ export default function LoginPage() {
 
       {/* Right Column: Register/Login Card */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 md:p-12 relative">
-        <div className="w-full max-w-[420px] bg-white lg:shadow-none rounded-[40px] lg:rounded-none shadow-2xl p-8 sm:p-10 border border-gray-100 lg:border-none flex flex-col justify-center">
+        <div className="w-full max-w-[420px] bg-transparent shadow-none p-6 sm:p-10 flex flex-col justify-center">
           
           <div className="lg:hidden mb-6 flex flex-col items-center select-none">
             <AppLogo size={88} />
