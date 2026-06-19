@@ -27,12 +27,21 @@ export default function SelfiePage() {
         return;
       }
 
-      // Check if already clocked in today via LocalStorage
+      const type = sessionStorage.getItem("v2_absen_type") || "masuk";
       const todayStr = new Date().toDateString();
-      const lastClockInDate = localStorage.getItem("v2_clockInDate");
-      if (lastClockInDate === todayStr) {
-        router.replace("/user");
-        return;
+
+      if (type === "pulang") {
+        const lastClockOutDate = localStorage.getItem("v2_clockOutDate");
+        if (lastClockOutDate === todayStr) {
+          router.replace("/user");
+          return;
+        }
+      } else {
+        const lastClockInDate = localStorage.getItem("v2_clockInDate");
+        if (lastClockInDate === todayStr) {
+          router.replace("/user");
+          return;
+        }
       }
 
       try {
@@ -45,13 +54,25 @@ export default function SelfiePage() {
             const logs = await attnRes.json();
             const todayStart = new Date();
             todayStart.setHours(0, 0, 0, 0);
-            const todayLog = logs.find(
+            
+            const todayLogs = logs.filter(
               (log: any) => new Date(log.waktu_absen).getTime() >= todayStart.getTime()
             );
-            if (todayLog) {
-              localStorage.setItem("v2_clockInDate", todayStr);
-              router.replace("/user");
-              return;
+
+            if (type === "pulang") {
+              const hasClockedOut = todayLogs.some((log: any) => log.status === "Pulang");
+              if (hasClockedOut) {
+                localStorage.setItem("v2_clockOutDate", todayStr);
+                router.replace("/user");
+                return;
+              }
+            } else {
+              const hasClockedIn = todayLogs.some((log: any) => log.status === "Hadir" || log.status === "Terlambat");
+              if (hasClockedIn) {
+                localStorage.setItem("v2_clockInDate", todayStr);
+                router.replace("/user");
+                return;
+              }
             }
           }
         }
