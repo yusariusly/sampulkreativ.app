@@ -20,7 +20,7 @@ if (!fs.existsSync(uploadDir)) {
 
 app.use('/uploads', express.static(uploadDir));
 
-async function sendAttendanceEmail({ senderName, status, reason, filePath, fileName }) {
+async function sendAttendanceEmail({ senderName, status, reason, filePath, fileName, fileBuffer }) {
   // Query settings from DB using raw pgPool since pool is not hoisted yet
   let host = process.env.SMTP_HOST;
   let port = process.env.SMTP_PORT || 587;
@@ -88,7 +88,12 @@ Terima kasih.`;
   }
 
   const attachments = [];
-  if (filePath && fs.existsSync(filePath)) {
+  if (fileBuffer) {
+    attachments.push({
+      filename: fileName || 'lampiran.jpg',
+      content: fileBuffer,
+    });
+  } else if (filePath && fs.existsSync(filePath)) {
     attachments.push({
       filename: fileName || 'lampiran.jpg',
       path: filePath,
@@ -881,7 +886,8 @@ app.post('/api/attendance', async (req, res) => {
         status: status,
         reason: reason,
         filePath: localFilePath,
-        fileName: filename
+        fileName: filename,
+        fileBuffer: fileBuffer
       }).catch(err => console.error("Gagal mengirim email absensi:", err));
     }
 
