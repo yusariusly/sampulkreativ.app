@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { QrCode, RefreshCw, Printer, Check, Copy } from "lucide-react";
+import { QrCode, RefreshCw, Printer, Check, Copy, Download } from "lucide-react";
 
 export default function AdminQRPage() {
   const [token, setToken] = useState("");
@@ -64,6 +64,102 @@ export default function AdminQRPage() {
     }
   };
 
+  const handleDownload = () => {
+    if (!qrImageUrl) return;
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Set dimensions for a clean high-res image
+    canvas.width = 800;
+    canvas.height = 1000;
+
+    // 1. Draw background
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. Draw Title: QR CODE ABSENSI SAMPULKREATIV
+    ctx.fillStyle = "#1C3D3F";
+    ctx.font = "bold 36px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("QR CODE ABSENSI SAMPULKREATIV", canvas.width / 2, 120);
+
+    // 3. Draw Subtitle: Scan QR Code ini menggunakan aplikasi Absensi SK
+    ctx.fillStyle = "#6B7280";
+    ctx.font = "medium 20px sans-serif";
+    ctx.fillText("Scan QR Code ini menggunakan aplikasi Absensi SK", canvas.width / 2, 175);
+
+    // 4. Load and draw QR Code Image
+    const qrImg = new Image();
+    qrImg.crossOrigin = "anonymous";
+    qrImg.onload = () => {
+      // Draw outer border (zinc-800 mockup like in print view)
+      const boxSize = 480;
+      const boxX = (canvas.width - boxSize) / 2;
+      const boxY = 250;
+      
+      // Draw dark card background
+      ctx.fillStyle = "#18181B"; // zinc-800
+      
+      // Helper to draw rounded rect
+      const radius = 48;
+      ctx.beginPath();
+      ctx.moveTo(boxX + radius, boxY);
+      ctx.lineTo(boxX + boxSize - radius, boxY);
+      ctx.quadraticCurveTo(boxX + boxSize, boxY, boxX + boxSize, boxY + radius);
+      ctx.lineTo(boxX + boxSize, boxY + boxSize - radius);
+      ctx.quadraticCurveTo(boxX + boxSize, boxY + boxSize, boxX + boxSize - radius, boxY + boxSize);
+      ctx.lineTo(boxX + radius, boxY + boxSize);
+      ctx.quadraticCurveTo(boxX, boxY + boxSize, boxX, boxY + boxSize - radius);
+      ctx.lineTo(boxX, boxY + radius);
+      ctx.quadraticCurveTo(boxX, boxY, boxX + radius, boxY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Draw inner white area and QR code
+      const qrPadding = 36;
+      const innerSize = boxSize - qrPadding * 2;
+      const innerX = boxX + qrPadding;
+      const innerY = boxY + qrPadding;
+      
+      ctx.fillStyle = "#FFFFFF";
+      const innerRadius = 24;
+      ctx.beginPath();
+      ctx.moveTo(innerX + innerRadius, innerY);
+      ctx.lineTo(innerX + innerSize - innerRadius, innerY);
+      ctx.quadraticCurveTo(innerX + innerSize, innerY, innerX + innerSize, innerY + innerRadius);
+      ctx.lineTo(innerX + innerSize, innerY + innerSize - innerRadius);
+      ctx.quadraticCurveTo(innerX + innerSize, innerY + innerSize, innerX + innerSize - innerRadius, innerY + innerSize);
+      ctx.lineTo(innerX + innerRadius, innerY + innerSize);
+      ctx.quadraticCurveTo(innerX, innerY + innerSize, innerX, innerY + innerSize - innerRadius);
+      ctx.lineTo(innerX, innerY + innerRadius);
+      ctx.quadraticCurveTo(innerX, innerY, innerX + innerRadius, innerY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Draw QR image
+      ctx.drawImage(qrImg, innerX + 16, innerY + 16, innerSize - 32, innerSize - 32);
+
+      // 5. Draw Footer (Token and Print Time)
+      ctx.fillStyle = "#9CA3AF";
+      ctx.font = "bold 16px monospace";
+      ctx.fillText(`Token: ${token}`, canvas.width / 2, 800);
+
+      ctx.fillStyle = "#D1D5DB";
+      ctx.font = "16px sans-serif";
+      const printDateStr = `Dicetak pada: ${new Date().toLocaleString("id-ID")}`;
+      ctx.fillText(printDateStr, canvas.width / 2, 840);
+
+      // Trigger download
+      const link = document.createElement("a");
+      link.download = `QR_Absensi_Sampulkreativ_${token}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    };
+    qrImg.src = qrImageUrl;
+  };
+
   const qrDataUrl = token && baseUrl
     ? `${baseUrl}/?token=${encodeURIComponent(token)}`
     : token || "";
@@ -76,8 +172,8 @@ export default function AdminQRPage() {
     <div className="flex-1 bg-[#F0F2F5] p-6 md:p-10 select-none print:bg-white print:p-0">
       {/* Printable Area only */}
       <div className="hidden print:flex flex-col items-center justify-center min-h-screen text-center p-8 bg-white">
-        <h1 className="text-3xl font-extrabold text-[#1C3D3F] mb-2">QR CODE ABSENSI</h1>
-        <p className="text-gray-500 text-sm mb-8 font-medium">Scan QR Code ini menggunakan aplikasi PWA Absensi Kantor</p>
+        <h1 className="text-3xl font-extrabold text-[#1C3D3F] mb-2">QR CODE ABSENSI SAMPULKREATIV</h1>
+        <p className="text-gray-500 text-sm mb-8 font-medium">Scan QR Code ini menggunakan aplikasi Absensi SK</p>
         
         {qrImageUrl && (
           <div className="border-[12px] border-zinc-800 p-6 rounded-[36px] bg-white shadow-xl mb-8">
@@ -89,6 +185,17 @@ export default function AdminQRPage() {
         <p className="text-xs text-gray-400 font-mono">Token: {token}</p>
         <p className="text-xs text-gray-300 mt-1">Dicetak pada: {new Date().toLocaleString("id-ID")}</p>
       </div>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          @page {
+            margin: 0 !important;
+          }
+          body {
+            margin: 1.6cm !important;
+          }
+        }
+      `}} />
 
       {/* Main dashboard view */}
       <div className="print:hidden">
@@ -160,6 +267,14 @@ export default function AdminQRPage() {
                 >
                   <Printer size={18} />
                   Cetak QR Code
+                </button>
+                <button
+                  onClick={handleDownload}
+                  disabled={loading || !token}
+                  className="w-full py-3.5 rounded-xl border-2 border-[#2AB0B2] text-[#2AB0B2] hover:bg-[#2AB0B2]/5 font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors disabled:opacity-50"
+                >
+                  <Download size={18} />
+                  Download Gambar QR
                 </button>
               </div>
             </div>
