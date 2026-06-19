@@ -130,25 +130,6 @@ export default function UserHomePage() {
     return false;
   };
 
-  const getCheckoutCountdown = () => {
-    if (!checkoutTime) return "";
-    const [chkH, chkM] = checkoutTime.split(":").map(Number);
-    const target = new Date(now);
-    target.setHours(chkH, chkM, 0, 0);
-
-    let diffMs = target.getTime() - now.getTime();
-    if (diffMs <= 0) return "";
-
-    const hrs = Math.floor(diffMs / (3600 * 1000));
-    diffMs %= 3600 * 1000;
-    const mins = Math.floor(diffMs / (60 * 1000));
-    diffMs %= 60 * 1000;
-    const secs = Math.floor(diffMs / 1000);
-
-    const padZero = (x: number) => String(x).padStart(2, "0");
-    return `${padZero(hrs)}:${padZero(mins)}:${padZero(secs)}`;
-  };
-
   const isAlpaStatus = !clockInTime && isPastDeadline();
 
   const handleStartAbsen = () => {
@@ -247,19 +228,8 @@ export default function UserHomePage() {
                     <Camera size={20} /> Absen Pulang
                   </button>
                 ) : clockInTime ? (
-                  <div className="space-y-3">
-                    <div className="text-center text-xs text-gray-400 font-semibold py-2.5 bg-gray-50 border border-dashed border-gray-200 rounded-2xl">
-                      ✅ Kehadiran terverifikasi untuk hari ini
-                    </div>
-                    {/* Add Countdown here if before checkout time */}
-                    {getCheckoutCountdown() && (
-                      <div className="w-full text-center py-3 px-4 bg-indigo-50/50 border border-dashed border-indigo-100 rounded-2xl flex items-center justify-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                        <span className="text-xs font-semibold text-indigo-700">
-                          Absen Pulang dalam <span className="font-mono font-bold text-sm ml-1 text-indigo-900 bg-indigo-100/50 px-2 py-0.5 rounded-lg border border-indigo-200">{getCheckoutCountdown()}</span>
-                        </span>
-                      </div>
-                    )}
+                  <div className="text-center text-xs text-gray-400 font-semibold py-2 bg-gray-50 border border-dashed border-gray-200 rounded-2xl">
+                    ✅ Kehadiran terverifikasi untuk hari ini
                   </div>
                 ) : isAlpaStatus ? (
                   <div className="flex flex-col gap-2">
@@ -272,34 +242,14 @@ export default function UserHomePage() {
                     <p className="text-center text-[10px] text-red-500 font-medium">
                       ⚠️ Batas absen masuk ({deadlineTime}) telah berakhir
                     </p>
-                    {/* Add Countdown here if before checkout time */}
-                    {getCheckoutCountdown() && (
-                      <div className="w-full text-center py-3 px-4 bg-indigo-50/50 border border-dashed border-indigo-100 rounded-2xl flex items-center justify-center gap-2 mt-1">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                        <span className="text-xs font-semibold text-indigo-700">
-                          Absen Pulang dalam <span className="font-mono font-bold text-sm ml-1 text-indigo-900 bg-indigo-100/50 px-2 py-0.5 rounded-lg border border-indigo-200">{getCheckoutCountdown()}</span>
-                        </span>
-                      </div>
-                    )}
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <button
-                      onClick={handleStartAbsen}
-                      className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-[#2AB0B2] hover:bg-[#209092] cursor-pointer"
-                    >
-                      <Camera size={20} /> Mulai Absen
-                    </button>
-                    {/* Add Countdown here if before checkout time */}
-                    {getCheckoutCountdown() && (
-                      <div className="w-full text-center py-3 px-4 bg-indigo-50/50 border border-dashed border-indigo-100 rounded-2xl flex items-center justify-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                        <span className="text-xs font-semibold text-indigo-700">
-                          Absen Pulang dalam <span className="font-mono font-bold text-sm ml-1 text-indigo-900 bg-indigo-100/50 px-2 py-0.5 rounded-lg border border-indigo-200">{getCheckoutCountdown()}</span>
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    onClick={handleStartAbsen}
+                    className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-[#2AB0B2] hover:bg-[#209092] cursor-pointer"
+                  >
+                    <Camera size={20} /> Mulai Absen
+                  </button>
                 )}
               </div>
             )}
