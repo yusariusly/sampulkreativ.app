@@ -64,11 +64,25 @@ export default function AdminLayout({
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (typeof window !== "undefined") {
+      const deviceId = localStorage.getItem("v2_device_id");
+      if (deviceId) {
+        try {
+          const response = await fetch(`/api/auth/check-device?device_id=${deviceId}`);
+          const data = await response.json();
+          if (response.ok && data.registered && data.user.is_active === 1) {
+            localStorage.setItem("v2_user", JSON.stringify(data.user));
+            router.push("/user");
+            return;
+          }
+        } catch (e) {
+          console.error("Gagal mencocokkan kembali perangkat saat logout admin:", e);
+        }
+      }
       localStorage.removeItem("v2_user");
+      router.push("/");
     }
-    router.push("/");
   };
 
   const navItems = [

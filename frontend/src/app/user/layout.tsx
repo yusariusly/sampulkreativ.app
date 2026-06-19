@@ -37,9 +37,43 @@ export default function UserLayout({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const storedUser = localStorage.getItem("v2_user");
+      const storedUserStr = localStorage.getItem("v2_user");
+      let storedUser = null;
+      if (storedUserStr) {
+        try {
+          storedUser = JSON.parse(storedUserStr);
+        } catch (e) {}
+      }
+
+      const deviceId = localStorage.getItem("v2_device_id");
+
+      const recheckDevice = async () => {
+        if (!deviceId) {
+          router.push("/");
+          return;
+        }
+        try {
+          const response = await fetch(`/api/auth/check-device?device_id=${deviceId}`);
+          const data = await response.json();
+          if (response.ok && data.registered && data.user.is_active === 1) {
+            localStorage.setItem("v2_user", JSON.stringify(data.user));
+            setAuthorized(true);
+          } else {
+            router.push("/");
+          }
+        } catch (err) {
+          router.push("/");
+        }
+      };
+
       if (!storedUser) {
-        router.push("/");
+        setAuthorized(false);
+        recheckDevice();
+      } else if (storedUser.role === "admin") {
+        // Sesi saat ini adalah admin, tetapi sedang mengakses halaman user.
+        // Kembalikan ke akun karyawan yang terikat pada perangkat ini.
+        setAuthorized(false);
+        recheckDevice();
       } else {
         setAuthorized(true);
       }
