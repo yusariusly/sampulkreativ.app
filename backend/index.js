@@ -81,47 +81,29 @@ Attachment: ${filePath || 'None'}`);
 
 Dengan hormat,
 
-Bersama email ini, kami menginformasikan permohonan izin ketidakhadiran karena Sakit yang diajukan oleh karyawan berikut:
+Melalui email ini, saya mengajukan permohonan izin ketidakhadiran kerja karena sakit pada hari ini, ${formattedDate}.
 
-==================================================
-DETAIL PENGAJUAN
-==================================================
-• Nama Karyawan    : ${senderName}
-• Jenis Pengajuan  : Sakit
-• Hari / Tanggal   : ${formattedDate}
-• Keterangan       : Mengajukan izin sakit. Surat keterangan dokter telah dilampirkan pada email ini.
-==================================================
+Sebagai bukti pendukung, saya melampirkan foto surat keterangan sakit dari dokter bersama email ini.
 
-Mohon untuk memeriksa dokumen bukti pendukung yang terlampir untuk keperluan verifikasi dan pencatatan absensi.
+Atas perhatian Bapak/Ibu, saya ucapkan terima kasih.
 
-Atas perhatian dan kerja sama Bapak/Ibu, kami ucapkan terima kasih.
-
-Hormat kami,
-Sistem Absensi Online
-Sampul Kreativ`;
+Hormat saya,
+${senderName}`;
   } else {
     text = `Yth. HRD / Administrator,
 
 Dengan hormat,
 
-Bersama email ini, kami menginformasikan permohonan izin/cuti ketidakhadiran yang diajukan oleh karyawan berikut:
+Melalui email ini, saya mengajukan permohonan izin ketidakhadiran kerja pada hari ini, ${formattedDate}, dengan alasan/keperluan sebagai berikut:
 
-==================================================
-DETAIL PENGAJUAN
-==================================================
-• Nama Karyawan    : ${senderName}
-• Jenis Pengajuan  : Izin / Cuti
-• Hari / Tanggal   : ${formattedDate}
-• Alasan/Keperluan : "${reason}"
-==================================================
+"${reason}"
 
-Dokumen/foto bukti pendukung telah kami lampirkan bersama email ini untuk memudahkan proses peninjauan dan persetujuan lebih lanjut.
+Sebagai bukti pendukung, saya melampirkan foto/dokumen pendukung bersama email ini.
 
-Atas perhatian dan kerja sama Bapak/Ibu, kami ucapkan terima kasih.
+Atas perhatian dan izin yang diberikan Bapak/Ibu, saya ucapkan terima kasih.
 
-Hormat kami,
-Sistem Absensi Online
-Sampul Kreativ`;
+Hormat saya,
+${senderName}`;
   }
 
   const attachments = [];
