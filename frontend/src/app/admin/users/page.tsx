@@ -104,11 +104,13 @@ export default function AdminUsersPage() {
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullname.trim() || !username.trim()) {
-      showToast("⚠️ Nama lengkap dan username wajib diisi");
+      showToast(role.toLowerCase() === "admin" ? "⚠️ Nama lengkap dan username wajib diisi" : "⚠️ Nama lengkap dan nomor telepon wajib diisi");
       return;
     }
 
-    if (!editingUserId && !password.trim()) {
+    const isUserRole = role.toLowerCase() === "user";
+
+    if (!isUserRole && !editingUserId && !password.trim()) {
       showToast("⚠️ Password wajib diisi untuk akun baru");
       return;
     }
@@ -122,12 +124,12 @@ export default function AdminUsersPage() {
             username: username.trim().toLowerCase(),
             role: role,
             is_active: isActive,
-            password: password.trim() !== "" ? password : undefined,
+            password: isUserRole ? "no_password" : (password.trim() !== "" ? password : undefined),
           }
         : {
             nama_lengkap: fullname.trim(),
             username: username.trim().toLowerCase(),
-            password: password,
+            password: isUserRole ? "no_password" : password.trim(),
             role: role,
           };
 
@@ -402,39 +404,6 @@ export default function AdminUsersPage() {
             
             <form onSubmit={handleSaveUser} className="space-y-3">
               <div>
-                <input
-                  type="text"
-                  placeholder="Nama Lengkap"
-                  value={fullname}
-                  onChange={(e) => setFullname(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
-                  required
-                />
-              </div>
-              <div>
-                <input
-                  type="text"
-                  placeholder="Username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
-                  required
-                />
-                <p className="text-[10px] text-gray-400 mt-1 px-1 leading-normal">
-                  * Untuk <strong>Admin</strong>: isi dengan username (huruf). Untuk <strong>User/Karyawan</strong>: isi dengan nomor telepon (angka).
-                </p>
-              </div>
-              <div>
-                <input
-                  type="password"
-                  placeholder={editingUserId ? "Password Baru (Kosongkan jika tidak diubah)" : "Password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
-                  required={!editingUserId}
-                />
-              </div>
-              <div>
                 <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wider">
                   Role Akses
                 </label>
@@ -447,6 +416,55 @@ export default function AdminUsersPage() {
                   <option>Admin</option>
                 </select>
               </div>
+
+              <div>
+                <input
+                  type="text"
+                  placeholder="Nama Lengkap"
+                  value={fullname}
+                  onChange={(e) => setFullname(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
+                  required
+                />
+              </div>
+
+              {role.toLowerCase() === "admin" ? (
+                <>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Username Admin"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="password"
+                      placeholder={editingUserId ? "Password Baru (Kosongkan jika tidak diubah)" : "Password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
+                      required={!editingUserId}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Nomor Telepon (HP)"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
+                      required
+                    />
+                  </div>
+                </>
+              )}
 
               {/* Status Aktif Toggle (Only displayed when editing) */}
               {editingUserId && (
