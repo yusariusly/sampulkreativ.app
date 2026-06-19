@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { User, Camera } from "lucide-react";
+import { User, Camera, Settings } from "lucide-react";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -153,6 +153,18 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col h-full bg-[#F0F2F5] px-5 py-8 overflow-y-auto select-none">
+      {/* Header Navigation */}
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
+        <h1 className="text-xl font-bold text-[#1C3D3F]">Profil Anda</h1>
+        <button
+          onClick={() => router.push("/admin")}
+          className="px-3 py-1.5 rounded-xl bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold transition-all cursor-pointer border border-gray-200 flex items-center gap-1.5 active:scale-95 shadow-xs"
+        >
+          <Settings size={14} className="text-[#2AB0B2]" />
+          Admin Panel
+        </button>
+      </div>
+
       {/* Upper Profile Info */}
       <div>
         {/* Avatar Section */}
