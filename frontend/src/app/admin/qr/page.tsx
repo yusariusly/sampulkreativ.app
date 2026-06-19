@@ -8,6 +8,7 @@ export default function AdminQRPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [baseUrl, setBaseUrl] = useState("");
 
   const fetchToken = async () => {
     try {
@@ -25,6 +26,9 @@ export default function AdminQRPage() {
 
   useEffect(() => {
     fetchToken();
+    if (typeof window !== "undefined") {
+      setBaseUrl(window.location.origin);
+    }
   }, []);
 
   const handleGenerate = async () => {
@@ -60,8 +64,12 @@ export default function AdminQRPage() {
     }
   };
 
-  const qrImageUrl = token
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=1c3d3f&data=${encodeURIComponent(token)}`
+  const qrDataUrl = token && baseUrl
+    ? `${baseUrl}/?token=${encodeURIComponent(token)}`
+    : token || "";
+
+  const qrImageUrl = qrDataUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=1c3d3f&data=${encodeURIComponent(qrDataUrl)}`
     : "";
 
   return (

@@ -16,6 +16,35 @@ export default function SelfiePage() {
   const [loading, setLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState("Mencari GPS...");
 
+  // Validate QR Token on Mount
+  useEffect(() => {
+    const validateToken = async () => {
+      if (typeof window === "undefined") return;
+
+      const scannedToken = sessionStorage.getItem("v2_scanned_token");
+      if (!scannedToken) {
+        router.replace("/user");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/qr");
+        if (res.ok) {
+          const data = await res.json();
+          const officialToken = data.token ? data.token.trim() : "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026";
+          if (scannedToken.trim() !== officialToken && scannedToken.trim() !== "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026") {
+            sessionStorage.removeItem("v2_scanned_token");
+            router.replace("/user");
+          }
+        }
+      } catch (err) {
+        console.error("Gagal memvalidasi token QR:", err);
+      }
+    };
+
+    validateToken();
+  }, [router]);
+
   // Initialize & Restart Webcam Stream based on facingMode
   useEffect(() => {
     let currentStream: MediaStream | null = null;
@@ -167,7 +196,13 @@ export default function SelfiePage() {
   };
 
   const handleBack = () => {
-    router.push("/user/qr-scan");
+    // If they scanned QR from outside, they didn't come from in-app qr-scan, so go back to /user
+    const hasToken = sessionStorage.getItem("v2_scanned_token");
+    if (hasToken) {
+      router.push("/user");
+    } else {
+      router.push("/user/qr-scan");
+    }
   };
 
   const handleToggleCamera = () => {

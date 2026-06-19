@@ -144,6 +144,13 @@ export default function LoginPage() {
       const deviceId = getOrCreateDeviceId();
       const stored = localStorage.getItem("v2_user");
 
+      // Extract and save token from URL query params
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+      if (token) {
+        sessionStorage.setItem("v2_scanned_token", token);
+      }
+
       try {
         const response = await fetch(`/api/auth/check-device?device_id=${deviceId}`);
         const data = await response.json();
@@ -156,7 +163,12 @@ export default function LoginPage() {
               return;
             }
             if (data.user.is_active === 1) {
-              router.replace("/user");
+              const activeToken = token || sessionStorage.getItem("v2_scanned_token");
+              if (activeToken) {
+                router.replace("/user/selfie");
+              } else {
+                router.replace("/user");
+              }
               return;
             } else {
               setIsPendingApproval(true);
@@ -177,7 +189,12 @@ export default function LoginPage() {
               return;
             }
             if (parsed.is_active === 1) {
-              router.replace("/user");
+              const activeToken = token || sessionStorage.getItem("v2_scanned_token");
+              if (activeToken) {
+                router.replace("/user/selfie");
+              } else {
+                router.replace("/user");
+              }
               return;
             } else {
               setIsPendingApproval(true);
@@ -226,7 +243,12 @@ export default function LoginPage() {
           const data = await response.json();
           if (active && response.ok && data.registered && data.user.is_active === 1) {
             localStorage.setItem("v2_user", JSON.stringify(data.user));
-            router.replace("/user");
+            const activeToken = sessionStorage.getItem("v2_scanned_token");
+            if (activeToken) {
+              router.replace("/user/selfie");
+            } else {
+              router.replace("/user");
+            }
           }
         } catch (e) {
           console.error("Gagal melakukan pencocokan latar belakang:", e);
@@ -278,7 +300,12 @@ export default function LoginPage() {
       localStorage.setItem("v2_user", JSON.stringify(data));
       
       if (data.is_active === 1) {
-        router.push("/user");
+        const activeToken = sessionStorage.getItem("v2_scanned_token");
+        if (activeToken) {
+          router.push("/user/selfie");
+        } else {
+          router.push("/user");
+        }
       } else {
         setIsPendingApproval(true);
         setPendingUser(data);

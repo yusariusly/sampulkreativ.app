@@ -111,7 +111,20 @@ export default function QRScanPage() {
             const scannedData = code.data.trim();
             const officialToken = qrToken ? qrToken.trim() : "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026";
 
-            if (scannedData === officialToken || scannedData === "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026") {
+            let token = scannedData;
+            try {
+              if (scannedData.startsWith("http://") || scannedData.startsWith("https://")) {
+                const urlObj = new URL(scannedData);
+                const tokenParam = urlObj.searchParams.get("token");
+                if (tokenParam) {
+                  token = tokenParam.trim();
+                }
+              }
+            } catch (e) {
+              console.error("Gagal parse URL dari scan QR:", e);
+            }
+
+            if (token === officialToken || token === "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026") {
               setScanning(false);
               stopCamera();
 
@@ -120,7 +133,7 @@ export default function QRScanPage() {
               }
 
               if (typeof window !== "undefined") {
-                sessionStorage.setItem("v2_scanned_token", scannedData);
+                sessionStorage.setItem("v2_scanned_token", token);
               }
               router.push("/user/selfie");
               return;
