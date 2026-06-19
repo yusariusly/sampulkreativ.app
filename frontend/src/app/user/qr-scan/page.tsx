@@ -37,6 +37,22 @@ export default function QRScanPage() {
       setLoading(true);
       setCameraError(null);
       setScanning(true);
+
+      if (typeof window !== "undefined" && !window.isSecureContext) {
+        setCameraError(
+          "Kamera diblokir karena koneksi tidak aman (HTTP). Sistem absensi wajib menggunakan HTTPS agar browser mengizinkan akses kamera HP Anda."
+        );
+        setLoading(false);
+        return;
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError(
+          "Kamera tidak didukung oleh browser Anda atau diblokir karena protokol HTTP. Silakan gunakan protokol HTTPS yang aman."
+        );
+        setLoading(false);
+        return;
+      }
       
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 

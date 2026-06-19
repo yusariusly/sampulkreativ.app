@@ -15,6 +15,8 @@ export default function SelfiePage() {
   const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [loading, setLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState("Mencari GPS...");
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState("");
 
   // Validate QR Token on Mount
   useEffect(() => {
@@ -100,6 +102,23 @@ export default function SelfiePage() {
 
     const startCamera = async () => {
       try {
+        setCameraError(null);
+        if (typeof window !== "undefined" && !window.isSecureContext) {
+          setCameraError(
+            "Kamera diblokir karena koneksi tidak aman (HTTP). Silakan gunakan protokol HTTPS agar dapat mengambil foto selfie kehadiran."
+          );
+          setHasCamera(false);
+          return;
+        }
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setCameraError(
+            "Kamera tidak didukung oleh browser Anda atau diblokir karena protokol HTTP. Silakan gunakan protokol HTTPS yang aman."
+          );
+          setHasCamera(false);
+          return;
+        }
+
         const mediaStream = await navigator.mediaDevices.getUserMedia({
           video: { 
             facingMode: facingMode, 
@@ -117,7 +136,8 @@ export default function SelfiePage() {
           await videoRef.current.play().catch(err => console.error("Selfie video play error:", err));
         }
       } catch (err) {
-        console.warn(`Kamera (${facingMode}) tidak dapat diakses, menggunakan simulasi:`, err);
+        console.warn(`Kamera (${facingMode}) tidak dapat diakses:`, err);
+        setCameraError("Gagal mengakses kamera. Silakan pastikan izin kamera diizinkan untuk situs ini.");
         setHasCamera(false);
       }
     };
@@ -162,6 +182,7 @@ export default function SelfiePage() {
   const handleCapture = async () => {
     if (loading) return;
     setLoading(true);
+    setErrorMsg("");
 
     let base64Image = "";
 
@@ -229,10 +250,31 @@ export default function SelfiePage() {
 
       const userObj = JSON.parse(storedUser);
       const deviceId = localStorage.getItem("v2_device_id") || userObj.device_id || "";
-
-      // 1. Save clock-in or clock-out state immediately
       const type = sessionStorage.getItem("v2_absen_type") || "masuk";
       const isCheckout = type === "pulang";
+
+      // 1. Perform fetch and AWAIT it to ensure the database successfully records it!
+      const res = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userObj.id,
+          device_id: deviceId,
+          foto_base64: base64Image,
+          latitude: coords.lat,
+          longitude: coords.lng,
+          status: isCheckout ? "Pulang" : "Hadir",
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.error || "Gagal mencatatkan absensi di server");
+        setLoading(false);
+        return;
+      }
+
+      // 2. Save clock-in or clock-out state to local storage ONLY after backend response OK
       sessionStorage.setItem("v2_last_absen_type", isCheckout ? "pulang" : "masuk");
 
       const now = new Date();
@@ -261,29 +303,12 @@ export default function SelfiePage() {
       sessionStorage.removeItem("v2_scanned_token");
       sessionStorage.removeItem("v2_absen_type");
 
-      // 2. Perform background fetch with keepalive: true (do NOT await it)
-      fetch("/api/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userObj.id,
-          device_id: deviceId,
-          foto_base64: base64Image,
-          latitude: coords.lat,
-          longitude: coords.lng,
-          status: isCheckout ? "Pulang" : "Hadir",
-        }),
-        keepalive: true,
-      }).catch((err) => {
-        console.error("Gagal mengirim absensi di latar belakang:", err);
-      });
-
-      // 3. Immediately redirect user to success page (Optimistic UI)
+      // 3. Redirect user to success page
       router.replace("/user/success");
     } catch (err) {
       console.error("Terjadi kesalahan absensi:", err);
-      // Fallback redirect even if canvas fails
-      router.replace("/user/success");
+      setErrorMsg("⚠️ Terjadi kesalahan koneksi internet atau server.");
+      setLoading(false);
     }
   };
 
@@ -317,10 +342,18 @@ export default function SelfiePage() {
         className={`absolute inset-0 w-full h-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""} ${hasCamera ? "" : "hidden"}`}
       />
       {!hasCamera && (
-        <div className="absolute inset-0 bg-gradient-to-b from-gray-700 to-gray-900 flex items-center justify-center">
-          <div className="flex flex-col items-center text-white/50">
-            <User size={88} className="mb-2" />
-            <p className="text-xs">Streaming kamera tidak tersedia</p>
+        <div className="absolute inset-0 bg-gradient-to-b from-gray-700 to-gray-900 flex flex-col items-center justify-center p-6 text-center z-5">
+          <div className="flex flex-col items-center text-white/50 max-w-xs">
+            <User size={88} className="mb-4" />
+            <p className="text-sm font-semibold mb-2">Streaming Kamera Tidak Tersedia</p>
+            <p className="text-xs text-white/40 leading-relaxed mb-6">
+              {cameraError || "Silakan pastikan izin kamera diaktifkan atau gunakan browser modern dengan protokol HTTPS."}
+            </p>
+            {cameraError && cameraError.includes("HTTP") && (
+              <div className="bg-amber-500/20 text-[#F6C13B] border border-amber-500/30 rounded-xl p-3 text-xs text-left">
+                ⚠️ <b>Peringatan Keamanan:</b> Browser memblokir akses kamera pada situs non-HTTPS demi alasan privasi. Hubungi Admin untuk mengaktifkan SSL/HTTPS.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -329,22 +362,29 @@ export default function SelfiePage() {
       <div className="absolute top-6 left-0 right-0 flex items-center justify-between px-5 z-10">
         <button
           onClick={handleBack}
-          className="text-white hover:opacity-80 transition-opacity cursor-pointer bg-black/45 p-2.5 rounded-full"
+          className="text-white hover:opacity-80 transition-opacity cursor-pointer bg-black/45 p-2.5 rounded-full z-10"
         >
           <ChevronLeft size={24} />
         </button>
-        <div className="flex items-center gap-2 bg-black/50 backdrop-blur-md rounded-full px-4 py-2.5 border border-white/10">
+        <div className="flex items-center gap-2 bg-black/50 backdrop-blur-md rounded-full px-4 py-2.5 border border-white/10 z-10">
           <MapPin size={14} color="#2AB0B2" />
           <span className="text-white text-xs font-semibold">{gpsStatus}</span>
         </div>
         <button
           onClick={handleToggleCamera}
-          className="text-white hover:opacity-80 transition-opacity cursor-pointer bg-black/45 p-2.5 rounded-full border border-white/10 flex items-center justify-center"
+          className="text-white hover:opacity-80 transition-opacity cursor-pointer bg-black/45 p-2.5 rounded-full border border-white/10 flex items-center justify-center z-10"
           title="Ganti Kamera"
         >
           <SwitchCamera size={20} />
         </button>
       </div>
+
+      {/* Error Toast */}
+      {errorMsg && (
+        <div className="absolute top-22 left-5 right-5 z-30 bg-red-600/95 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-xl text-center border border-red-500/30 animate-bounce">
+          {errorMsg}
+        </div>
+      )}
 
       {/* Bottom Shutter Controls */}
       <div
