@@ -10,6 +10,7 @@ const STATUS_STYLES: Record<string, string> = {
   Alpa: "bg-red-500 text-white shadow-xs",
   Sakit: "bg-blue-500 text-white shadow-xs",
   Izin: "bg-orange-400 text-white shadow-xs",
+  Pulang: "bg-indigo-600 text-white shadow-xs",
 };
 
 function StatusBadge({ status }: { status: string }) {

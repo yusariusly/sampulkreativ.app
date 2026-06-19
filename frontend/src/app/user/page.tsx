@@ -9,7 +9,9 @@ export default function UserHomePage() {
   const [fullname, setFullname] = useState("Karyawan");
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [clockInTime, setClockInTime] = useState<string | null>(null);
+  const [clockOutTime, setClockOutTime] = useState<string | null>(null);
   const [deadlineTime, setDeadlineTime] = useState("08:30");
+  const [checkoutTime, setCheckoutTime] = useState("17:00");
   const [loading, setLoading] = useState(true);
   
   // Clock state
@@ -30,12 +32,15 @@ export default function UserHomePage() {
         setFullname(userObj.nama_lengkap);
         setProfilePhoto(userObj.foto_profile || null);
 
-        // 1. Fetch settings (deadline time)
+        // 1. Fetch settings (deadline & checkout time)
         const settingsRes = await fetch("/api/settings");
         if (settingsRes.ok) {
           const settings = await settingsRes.json();
           if (settings.deadline_time) {
             setDeadlineTime(settings.deadline_time);
+          }
+          if (settings.checkout_time) {
+            setCheckoutTime(settings.checkout_time);
           }
         }
 
@@ -44,21 +49,40 @@ export default function UserHomePage() {
         if (res.ok) {
           const logs = await res.json();
           
-          // Check if today has a check-in record
+          // Check if today has check-in & check-out records
           const todayStart = new Date();
           todayStart.setHours(0, 0, 0, 0);
 
-          const todayLog = logs.find(
+          const todayLogs = logs.filter(
             (log: any) => new Date(log.waktu_absen).getTime() >= todayStart.getTime()
           );
 
-          if (todayLog) {
-            const timeObj = new Date(todayLog.waktu_absen);
+          // Find check-in log (status === 'Hadir' or status === 'Terlambat')
+          const checkInLog = todayLogs.find(
+            (log: any) => log.status === 'Hadir' || log.status === 'Terlambat'
+          );
+
+          // Find check-out log (status === 'Pulang')
+          const checkOutLog = todayLogs.find(
+            (log: any) => log.status === 'Pulang'
+          );
+
+          if (checkInLog) {
+            const timeObj = new Date(checkInLog.waktu_absen);
             const hh = String(timeObj.getHours()).padStart(2, "0");
             const mm = String(timeObj.getMinutes()).padStart(2, "0");
             setClockInTime(`${hh}:${mm}`);
           } else {
             setClockInTime(null);
+          }
+
+          if (checkOutLog) {
+            const timeObj = new Date(checkOutLog.waktu_absen);
+            const hh = String(timeObj.getHours()).padStart(2, "0");
+            const mm = String(timeObj.getMinutes()).padStart(2, "0");
+            setClockOutTime(`${hh}:${mm}`);
+          } else {
+            setClockOutTime(null);
           }
         }
       } catch (err) {
@@ -95,9 +119,45 @@ export default function UserHomePage() {
     return false;
   };
 
+  // Check if current time exceeds checkout time
+  const isPastCheckout = () => {
+    const [chkH, chkM] = checkoutTime.split(":").map(Number);
+    const currentH = now.getHours();
+    const currentM = now.getMinutes();
+
+    if (currentH > chkH) return true;
+    if (currentH === chkH && currentM >= chkM) return true;
+    return false;
+  };
+
+  const getCheckoutCountdown = () => {
+    if (!checkoutTime) return "";
+    const [chkH, chkM] = checkoutTime.split(":").map(Number);
+    const target = new Date(now);
+    target.setHours(chkH, chkM, 0, 0);
+
+    let diffMs = target.getTime() - now.getTime();
+    if (diffMs <= 0) return "";
+
+    const hrs = Math.floor(diffMs / (3600 * 1000));
+    diffMs %= 3600 * 1000;
+    const mins = Math.floor(diffMs / (60 * 1000));
+    diffMs %= 60 * 1000;
+    const secs = Math.floor(diffMs / 1000);
+
+    const padZero = (x: number) => String(x).padStart(2, "0");
+    return `${padZero(hrs)}:${padZero(mins)}:${padZero(secs)}`;
+  };
+
   const isAlpaStatus = !clockInTime && isPastDeadline();
 
   const handleStartAbsen = () => {
+    sessionStorage.setItem("v2_absen_type", "masuk");
+    router.push("/user/qr-scan");
+  };
+
+  const handleStartAbsenPulang = () => {
+    sessionStorage.setItem("v2_absen_type", "pulang");
     router.push("/user/qr-scan");
   };
 
@@ -149,6 +209,14 @@ export default function UserHomePage() {
             <div className="flex justify-center mb-5">
               {loading ? (
                 <span className="text-gray-400 text-xs font-medium">Memuat data...</span>
+              ) : clockOutTime ? (
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Sudah Absen Pulang ({clockOutTime})
+                </span>
+              ) : isPastCheckout() ? (
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#F6C13B] animate-pulse" /> Waktunya Absen Pulang
+                </span>
               ) : clockInTime ? (
                 <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Sudah Absen Masuk ({clockInTime})
@@ -167,9 +235,31 @@ export default function UserHomePage() {
             {/* CTA Button moved under Waktu Sekarang */}
             {!loading && (
               <div className="w-full">
-                {clockInTime ? (
-                  <div className="text-center text-xs text-gray-400 font-semibold py-2 bg-gray-50 border border-dashed border-gray-200 rounded-2xl">
-                    ✅ Kehadiran terverifikasi untuk hari ini
+                {clockOutTime ? (
+                  <div className="text-center text-xs text-gray-400 font-semibold py-2.5 bg-gray-50 border border-dashed border-gray-200 rounded-2xl">
+                    ✅ Anda telah menyelesaikan absen pulang untuk hari ini
+                  </div>
+                ) : isPastCheckout() ? (
+                  <button
+                    onClick={handleStartAbsenPulang}
+                    className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
+                  >
+                    <Camera size={20} /> Absen Pulang
+                  </button>
+                ) : clockInTime ? (
+                  <div className="space-y-3">
+                    <div className="text-center text-xs text-gray-400 font-semibold py-2.5 bg-gray-50 border border-dashed border-gray-200 rounded-2xl">
+                      ✅ Kehadiran terverifikasi untuk hari ini
+                    </div>
+                    {/* Add Countdown here if before checkout time */}
+                    {getCheckoutCountdown() && (
+                      <div className="w-full text-center py-3 px-4 bg-indigo-50/50 border border-dashed border-indigo-100 rounded-2xl flex items-center justify-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                        <span className="text-xs font-semibold text-indigo-700">
+                          Absen Pulang dalam <span className="font-mono font-bold text-sm ml-1 text-indigo-900 bg-indigo-100/50 px-2 py-0.5 rounded-lg border border-indigo-200">{getCheckoutCountdown()}</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ) : isAlpaStatus ? (
                   <div className="flex flex-col gap-2">
@@ -182,29 +272,51 @@ export default function UserHomePage() {
                     <p className="text-center text-[10px] text-red-500 font-medium">
                       ⚠️ Batas absen masuk ({deadlineTime}) telah berakhir
                     </p>
+                    {/* Add Countdown here if before checkout time */}
+                    {getCheckoutCountdown() && (
+                      <div className="w-full text-center py-3 px-4 bg-indigo-50/50 border border-dashed border-indigo-100 rounded-2xl flex items-center justify-center gap-2 mt-1">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                        <span className="text-xs font-semibold text-indigo-700">
+                          Absen Pulang dalam <span className="font-mono font-bold text-sm ml-1 text-indigo-900 bg-indigo-100/50 px-2 py-0.5 rounded-lg border border-indigo-200">{getCheckoutCountdown()}</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <button
-                    onClick={handleStartAbsen}
-                    className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-[#2AB0B2] hover:bg-[#209092] cursor-pointer"
-                  >
-                    <Camera size={20} /> Mulai Absen
-                  </button>
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleStartAbsen}
+                      className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-[#2AB0B2] hover:bg-[#209092] cursor-pointer"
+                    >
+                      <Camera size={20} /> Mulai Absen
+                    </button>
+                    {/* Add Countdown here if before checkout time */}
+                    {getCheckoutCountdown() && (
+                      <div className="w-full text-center py-3 px-4 bg-indigo-50/50 border border-dashed border-indigo-100 rounded-2xl flex items-center justify-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                        <span className="text-xs font-semibold text-indigo-700">
+                          Absen Pulang dalam <span className="font-mono font-bold text-sm ml-1 text-indigo-900 bg-indigo-100/50 px-2 py-0.5 rounded-lg border border-indigo-200">{getCheckoutCountdown()}</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
           </div>
         </div>
 
-        {/* Info Box for deadline */}
-        <div className="bg-[#2AB0B2]/5 border border-[#2AB0B2]/10 rounded-2xl p-4 text-xs text-gray-500 space-y-1.5">
-          <p className="font-bold text-[#1C3D3F]">Batas Waktu Absen Masuk:</p>
-          <p>
-            • Paling lambat pukul <strong className="text-[#2AB0B2]">{deadlineTime} WIB</strong>.
-          </p>
-          <p>
-            • Melewati jam tersebut tanpa absen masuk akan otomatis terhitung sebagai <strong className="text-red-500">Alpa</strong> untuk hari ini.
-          </p>
+        {/* Info Box for deadline & checkout */}
+        <div className="bg-[#2AB0B2]/5 border border-[#2AB0B2]/10 rounded-2xl p-4 text-xs text-gray-500 space-y-2">
+          <p className="font-bold text-[#1C3D3F] mb-0.5">Informasi Jadwal Absensi:</p>
+          <div className="space-y-1">
+            <p>
+              • <strong>Batas Absen Masuk</strong>: Paling lambat pukul <strong className="text-[#2AB0B2]">{deadlineTime} WIB</strong>. Melewati jam tersebut otomatis terhitung <strong className="text-red-500">Alpa</strong>.
+            </p>
+            <p>
+              • <strong>Waktu Absen Pulang</strong>: Dapat dilakukan mulai pukul <strong className="text-indigo-600">{checkoutTime} WIB</strong>.
+            </p>
+          </div>
         </div>
 
         {/* Copyright */}

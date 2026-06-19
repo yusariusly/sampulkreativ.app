@@ -5,6 +5,7 @@ import { Settings, Clock, CheckCircle2, Save, MapPin, Send } from "lucide-react"
 
 export default function AdminSettingsPage() {
   const [deadlineTime, setDeadlineTime] = useState("08:30");
+  const [checkoutTime, setCheckoutTime] = useState("17:00");
   const [officeLatitude, setOfficeLatitude] = useState("");
   const [officeLongitude, setOfficeLongitude] = useState("");
   const [telegramBotToken, setTelegramBotToken] = useState("");
@@ -20,6 +21,9 @@ export default function AdminSettingsPage() {
         const data = await res.json();
         if (data.deadline_time) {
           setDeadlineTime(data.deadline_time);
+        }
+        if (data.checkout_time) {
+          setCheckoutTime(data.checkout_time);
         }
         if (data.office_latitude !== undefined) {
           setOfficeLatitude(data.office_latitude);
@@ -62,6 +66,7 @@ export default function AdminSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           deadline_time: deadlineTime,
+          checkout_time: checkoutTime,
           office_latitude: officeLatitude,
           office_longitude: officeLongitude,
           telegram_bot_token: telegramBotToken,
@@ -121,16 +126,35 @@ export default function AdminSettingsPage() {
                 </label>
                 <div className="flex items-center gap-2.5 max-w-[200px]">
                   <input
-                    type="time"
-                    value={deadlineTime}
-                    onChange={(e) => setDeadlineTime(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold text-center text-lg bg-gray-50 focus:bg-white transition-all cursor-pointer"
-                    required
+                     type="time"
+                     value={deadlineTime}
+                     onChange={(e) => setDeadlineTime(e.target.value)}
+                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold text-center text-lg bg-gray-50 focus:bg-white transition-all cursor-pointer"
+                     required
                   />
                   <span className="text-sm font-bold text-gray-500">WIB</span>
                 </div>
                 <p className="text-gray-400 text-xs mt-2 leading-relaxed">
                   Semua karyawan yang belum melakukan absen masuk melewati jam ini akan otomatis terhitung sebagai <strong className="text-red-500">Alpa</strong> pada dashboard beranda mereka.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Jam Pulang (Absen Pulang)
+                </label>
+                <div className="flex items-center gap-2.5 max-w-[200px]">
+                  <input
+                     type="time"
+                     value={checkoutTime}
+                     onChange={(e) => setCheckoutTime(e.target.value)}
+                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold text-center text-lg bg-gray-50 focus:bg-white transition-all cursor-pointer"
+                     required
+                  />
+                  <span className="text-sm font-bold text-gray-500">WIB</span>
+                </div>
+                <p className="text-gray-400 text-xs mt-2 leading-relaxed">
+                  Setelah melewati jam ini, karyawan akan melihat tombol <strong className="text-[#2AB0B2]">Absen Pulang</strong> pada dashboard mereka untuk mengakhiri waktu kerja hari ini.
                 </p>
               </div>
 

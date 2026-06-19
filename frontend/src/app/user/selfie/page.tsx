@@ -209,17 +209,36 @@ export default function SelfiePage() {
       const userObj = JSON.parse(storedUser);
       const deviceId = localStorage.getItem("v2_device_id") || userObj.device_id || "";
 
-      // 1. Save clock-in state immediately so user sees it on dashboard/success page
+      // 1. Save clock-in or clock-out state immediately
+      const type = sessionStorage.getItem("v2_absen_type") || "masuk";
+      const isCheckout = type === "pulang";
+      sessionStorage.setItem("v2_last_absen_type", isCheckout ? "pulang" : "masuk");
+
       const now = new Date();
       const hh = String(now.getHours()).padStart(2, "0");
       const mm = String(now.getMinutes()).padStart(2, "0");
-      localStorage.setItem("v2_clockInTime", `${hh}:${mm}`);
-      localStorage.setItem("v2_clockInDate", now.toDateString());
-      if (coords && coords.lat !== null && coords.lng !== null) {
-        localStorage.setItem("v2_clockInCoords", `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
+
+      if (isCheckout) {
+        localStorage.setItem("v2_clockOutTime", `${hh}:${mm}`);
+        localStorage.setItem("v2_clockOutDate", now.toDateString());
+        if (coords && coords.lat !== null && coords.lng !== null) {
+          localStorage.setItem("v2_clockOutCoords", `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
+        } else {
+          localStorage.setItem("v2_clockOutCoords", "Tanpa GPS");
+        }
       } else {
-        localStorage.setItem("v2_clockInCoords", "Tanpa GPS");
+        localStorage.setItem("v2_clockInTime", `${hh}:${mm}`);
+        localStorage.setItem("v2_clockInDate", now.toDateString());
+        if (coords && coords.lat !== null && coords.lng !== null) {
+          localStorage.setItem("v2_clockInCoords", `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
+        } else {
+          localStorage.setItem("v2_clockInCoords", "Tanpa GPS");
+        }
       }
+
+      // Clear the scanned token and type after successful capture
+      sessionStorage.removeItem("v2_scanned_token");
+      sessionStorage.removeItem("v2_absen_type");
 
       // 2. Perform background fetch with keepalive: true (do NOT await it)
       fetch("/api/attendance", {
@@ -231,7 +250,7 @@ export default function SelfiePage() {
           foto_base64: base64Image,
           latitude: coords.lat,
           longitude: coords.lng,
-          status: "Hadir",
+          status: isCheckout ? "Pulang" : "Hadir",
         }),
         keepalive: true,
       }).catch((err) => {

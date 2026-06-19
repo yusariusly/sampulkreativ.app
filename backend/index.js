@@ -169,6 +169,7 @@ async function initDb() {
     if (settingRows[0].cnt === 0) {
       await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('deadline_time', '08:30')");
     }
+    await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('checkout_time', '17:00') ON DUPLICATE KEY UPDATE key_value = key_value");
     await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('telegram_bot_token', '') ON DUPLICATE KEY UPDATE key_value = key_value");
     await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('telegram_chat_id', '') ON DUPLICATE KEY UPDATE key_value = key_value");
 
@@ -921,6 +922,7 @@ app.get('/api/settings', async (req, res) => {
     const [rows] = await pool.query("SELECT key_name, key_value FROM settings");
     const settings = {
       deadline_time: '08:30',
+      checkout_time: '17:00',
       office_latitude: '',
       office_longitude: '',
       telegram_bot_token: '',
@@ -937,7 +939,7 @@ app.get('/api/settings', async (req, res) => {
 
 app.post('/api/settings', async (req, res) => {
   try {
-    const { deadline_time, office_latitude, office_longitude, telegram_bot_token, telegram_chat_id } = req.body;
+    const { deadline_time, checkout_time, office_latitude, office_longitude, telegram_bot_token, telegram_chat_id } = req.body;
     
     if (deadline_time) {
       if (!/^\d{2}:\d{2}$/.test(deadline_time)) {
@@ -946,6 +948,16 @@ app.post('/api/settings', async (req, res) => {
       await pool.query(
         "INSERT INTO settings (key_name, key_value) VALUES ('deadline_time', ?) ON DUPLICATE KEY UPDATE key_value = ?",
         [deadline_time, deadline_time]
+      );
+    }
+
+    if (checkout_time) {
+      if (!/^\d{2}:\d{2}$/.test(checkout_time)) {
+        return res.status(400).json({ error: 'Format jam pulang tidak valid (HH:MM)' });
+      }
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('checkout_time', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [checkout_time, checkout_time]
       );
     }
     
@@ -983,7 +995,7 @@ app.post('/api/settings', async (req, res) => {
       );
     }
 
-    res.json({ success: true, settings: { deadline_time, office_latitude, office_longitude, telegram_bot_token, telegram_chat_id } });
+    res.json({ success: true, settings: { deadline_time, checkout_time, office_latitude, office_longitude, telegram_bot_token, telegram_chat_id } });
   } catch (error) {
     res.status(500).json({ error: 'Gagal menyimpan pengaturan' });
   }

@@ -13,6 +13,7 @@ const STATUS_STYLES: Record<string, string> = {
   Alpa: "bg-red-500 text-white",
   Sakit: "bg-blue-500 text-white",
   Izin: "bg-orange-400 text-white",
+  Pulang: "bg-indigo-600 text-white",
 };
 
 function StatusBadge({ status, small }: { status: string; small?: boolean }) {
