@@ -23,62 +23,15 @@ export default function SelfiePage() {
     const validateToken = async () => {
       if (typeof window === "undefined") return;
 
+      // Only check: do we have a valid scanned token?
       const scannedToken = sessionStorage.getItem("v2_scanned_token");
       if (!scannedToken) {
         router.replace("/user");
         return;
       }
 
-      const type = sessionStorage.getItem("v2_absen_type") || "masuk";
-      const todayStr = new Date().toDateString();
-
-      if (type === "pulang") {
-        const lastClockOutDate = localStorage.getItem("v2_clockOutDate");
-        if (lastClockOutDate === todayStr) {
-          router.replace("/user");
-          return;
-        }
-      } else {
-        const lastClockInDate = localStorage.getItem("v2_clockInDate");
-        if (lastClockInDate === todayStr) {
-          router.replace("/user");
-          return;
-        }
-      }
-
       try {
-        // Also fetch to check online logs in case localStorage was cleared
-        const storedUser = localStorage.getItem("v2_user");
-        if (storedUser) {
-          const userObj = JSON.parse(storedUser);
-          const attnRes = await fetch(`/api/attendance?user_id=${userObj.id}`);
-          if (attnRes.ok) {
-            const logs = await attnRes.json();
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
-            
-            const todayLogs = logs.filter(
-              (log: any) => new Date(log.waktu_absen).getTime() >= todayStart.getTime()
-            );
-
-            if (type === "pulang") {
-              const hasClockedOut = todayLogs.some((log: any) => log.status === "Pulang");
-              if (hasClockedOut) {
-                localStorage.setItem("v2_clockOutDate", todayStr);
-                router.replace("/user");
-                return;
-              }
-            } else {
-              const hasClockedIn = todayLogs.some((log: any) => log.status === "Hadir" || log.status === "Terlambat");
-              if (hasClockedIn) {
-                localStorage.setItem("v2_clockInDate", todayStr);
-                router.replace("/user");
-                return;
-              }
-            }
-          }
-        }
-
+        // Validate the token against the official QR token
         const res = await fetch("/api/qr");
         if (res.ok) {
           const data = await res.json();
@@ -88,6 +41,7 @@ export default function SelfiePage() {
             router.replace("/user");
           }
         }
+        // If fetch fails, allow through (network issue shouldn't block selfie)
       } catch (err) {
         console.error("Gagal memvalidasi token QR:", err);
       }
