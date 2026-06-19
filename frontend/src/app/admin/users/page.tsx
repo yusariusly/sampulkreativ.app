@@ -190,7 +190,7 @@ export default function AdminUsersPage() {
   };
 
   const handleDeleteUser = async (usr: string) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus permanen pengguna @${usr} beserta seluruh data absensinya? Tindakan ini tidak dapat dibatalkan!`)) {
+    if (confirm(`Apakah Anda yakin ingin menghapus permanen akun pengguna @${usr}? (Catatan: Data absensi lama tidak akan terhapus dan tetap tersimpan di riwayat).`)) {
       try {
         const res = await fetch("/api/users", {
           method: "DELETE",
@@ -280,7 +280,7 @@ export default function AdminUsersPage() {
             <table className="w-full min-w-[550px]">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">
-                  {["Username / HP", "Nama Lengkap", "Role", "Perangkat Terikat", "Status", "Aksi"].map((h) => (
+                  {["Username / HP", "Nama Lengkap", "Role", "Perangkat Terikat", "Aksi"].map((h) => (
                     <th key={h} className="text-left px-5 py-4 text-sm font-semibold text-gray-700">
                       {h}
                     </th>
@@ -301,7 +301,14 @@ export default function AdminUsersPage() {
                       className="border-b border-gray-55 last:border-0 hover:bg-gray-50/30 transition-colors"
                     >
                       <td className="px-5 py-4 text-sm font-mono text-[#1C3D3F] font-semibold">{u.username.match(/^\d+$/) ? u.username : `@${u.username}`}</td>
-                      <td className="px-5 py-4 text-sm text-gray-600 font-medium">{u.nama_lengkap}</td>
+                      <td className="px-5 py-4 text-sm text-gray-600 font-medium">
+                        {u.nama_lengkap}
+                        {!u.is_active && (
+                          <span className="ml-2 px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded animate-pulse">
+                            Menunggu Persetujuan
+                          </span>
+                        )}
+                      </td>
                       <td className="px-5 py-4">
                         <span
                           className={`px-2.5 py-1 rounded text-xs font-semibold capitalize ${
@@ -321,17 +328,6 @@ export default function AdminUsersPage() {
                             Belum Terikat
                           </span>
                         )}
-                      </td>
-                      <td className="px-5 py-4 text-sm">
-                        <span
-                          className={`font-bold px-2.5 py-1 rounded text-xs select-none ${
-                            u.is_active
-                              ? "text-emerald-600 bg-emerald-50"
-                              : "text-amber-600 bg-amber-50"
-                          }`}
-                        >
-                          {u.is_active ? "Aktif" : "Menunggu Persetujuan"}
-                        </span>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex gap-3">
@@ -466,22 +462,7 @@ export default function AdminUsersPage() {
                 </>
               )}
 
-              {/* Status Aktif Toggle (Only displayed when editing) */}
-              {editingUserId && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wider">
-                    Status Keaktifan
-                  </label>
-                  <select
-                    value={isActive ? "Aktif" : "Nonaktif"}
-                    onChange={(e) => setIsActive(e.target.value === "Aktif")}
-                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-600 bg-white transition-colors cursor-pointer"
-                  >
-                    <option>Aktif</option>
-                    <option>Nonaktif</option>
-                  </select>
-                </div>
-              )}
+
               
               <div className="flex gap-2 pt-2">
                 {editingUserId && (
