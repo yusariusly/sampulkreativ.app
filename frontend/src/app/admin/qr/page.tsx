@@ -88,7 +88,7 @@ export default function AdminQRPage() {
 
     // 3. Draw Subtitle: Scan QR Code ini menggunakan aplikasi Absensi SK
     ctx.fillStyle = "#6B7280";
-    ctx.font = "medium 20px sans-serif";
+    ctx.font = "500 20px sans-serif";
     ctx.fillText("Scan QR Code ini menggunakan aplikasi Absensi SK", canvas.width / 2, 200);
 
     // 4. Load and draw QR Code Image
