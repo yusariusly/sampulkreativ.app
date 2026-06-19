@@ -141,28 +141,28 @@ export default function AdminDashboardPage() {
       <h1 className="text-2xl md:text-3xl font-bold mb-6 md:mb-9 text-[#1C3D3F]">Dashboard Admin</h1>
 
       {/* Stat Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
-        <div className="bg-white rounded-2xl shadow-xs p-6 md:p-8 flex flex-col items-center border border-gray-100/50">
-          <p className="text-gray-500 font-medium mb-2 md:mb-4 text-xs md:text-sm">Total Karyawan</p>
-          <p className="font-black text-[#1C3D3F] text-5xl md:text-7xl leading-none">
+      <div className="grid grid-cols-3 gap-2 md:gap-6 mb-6 md:mb-8">
+        <div className="bg-white rounded-2xl shadow-xs p-3 md:p-8 flex flex-col items-center justify-center border border-gray-100/50 text-center">
+          <p className="text-gray-500 font-medium mb-1.5 md:mb-4 text-[10px] md:text-sm leading-tight">Total Karyawan</p>
+          <p className="font-black text-[#1C3D3F] text-2xl md:text-7xl leading-none">
             {loading ? "..." : totalUsers}
           </p>
         </div>
         <div
-          className="bg-white rounded-2xl shadow-xs p-6 md:p-8 flex flex-col items-center border border-gray-100/50"
+          className="bg-white rounded-2xl shadow-xs p-3 md:p-8 flex flex-col items-center justify-center border border-gray-100/50 text-center"
           style={{ borderTop: `5px solid ${TEAL}` }}
         >
-          <p className="text-gray-500 font-medium mb-2 md:mb-4 text-xs md:text-sm">Hadir Hari Ini</p>
-          <p className="font-black text-[#1C3D3F] text-5xl md:text-7xl leading-none">
+          <p className="text-gray-500 font-medium mb-1.5 md:mb-4 text-[10px] md:text-sm leading-tight">Hadir Hari Ini</p>
+          <p className="font-black text-[#1C3D3F] text-2xl md:text-7xl leading-none">
             {loading ? "..." : presentToday}
           </p>
         </div>
         <div
-          className="bg-white rounded-2xl shadow-xs p-6 md:p-8 flex flex-col items-center border border-gray-100/50"
+          className="bg-white rounded-2xl shadow-xs p-3 md:p-8 flex flex-col items-center justify-center border border-gray-100/50 text-center"
           style={{ borderTop: `5px solid ${AMBER}` }}
         >
-          <p className="text-gray-500 font-medium mb-2 md:mb-4 text-xs md:text-sm">Belum Hadir</p>
-          <p className="font-black text-[#1C3D3F] text-5xl md:text-7xl leading-none">
+          <p className="text-gray-500 font-medium mb-1.5 md:mb-4 text-[10px] md:text-sm leading-tight">Belum Hadir</p>
+          <p className="font-black text-[#1C3D3F] text-2xl md:text-7xl leading-none">
             {loading ? "..." : absentToday}
           </p>
         </div>

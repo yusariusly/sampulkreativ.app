@@ -194,8 +194,8 @@ export default function AdminLayout({
 
       {/* Mobile Slide-out Drawer Panel */}
       <aside 
-        className={`md:hidden fixed top-0 bottom-0 left-0 z-50 w-[270px] bg-white p-6 shadow-2xl border-r border-gray-100 flex flex-col transition-transform duration-300 ease-in-out transform ${
-          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        className={`md:hidden fixed top-0 bottom-0 right-0 z-50 w-[270px] bg-white p-6 shadow-2xl border-l border-gray-100 flex flex-col transition-transform duration-300 ease-in-out transform ${
+          isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         <SidebarContent />
