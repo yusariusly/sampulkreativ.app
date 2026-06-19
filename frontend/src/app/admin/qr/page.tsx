@@ -79,16 +79,17 @@ export default function AdminQRPage() {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 2. Draw Title: QR CODE ABSENSI SAMPULKREATIV
+    // 2. Draw Title: QR CODE ABSENSI (line 1) & SAMPULKREATIV (line 2)
     ctx.fillStyle = "#1C3D3F";
     ctx.font = "bold 36px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("QR CODE ABSENSI SAMPULKREATIV", canvas.width / 2, 120);
+    ctx.fillText("QR CODE ABSENSI", canvas.width / 2, 90);
+    ctx.fillText("SAMPULKREATIV", canvas.width / 2, 140);
 
     // 3. Draw Subtitle: Scan QR Code ini menggunakan aplikasi Absensi SK
     ctx.fillStyle = "#6B7280";
     ctx.font = "medium 20px sans-serif";
-    ctx.fillText("Scan QR Code ini menggunakan aplikasi Absensi SK", canvas.width / 2, 175);
+    ctx.fillText("Scan QR Code ini menggunakan aplikasi Absensi SK", canvas.width / 2, 200);
 
     // 4. Load and draw QR Code Image
     const qrImg = new Image();
@@ -97,7 +98,7 @@ export default function AdminQRPage() {
       // Draw outer border (zinc-800 mockup like in print view)
       const boxSize = 480;
       const boxX = (canvas.width - boxSize) / 2;
-      const boxY = 250;
+      const boxY = 270;
       
       // Draw dark card background
       ctx.fillStyle = "#18181B"; // zinc-800
@@ -171,8 +172,11 @@ export default function AdminQRPage() {
   return (
     <div className="flex-1 bg-[#F0F2F5] p-6 md:p-10 select-none print:bg-white print:p-0">
       {/* Printable Area only */}
-      <div className="hidden print:flex flex-col items-center justify-center min-h-screen text-center p-8 bg-white">
-        <h1 className="text-3xl font-extrabold text-[#1C3D3F] mb-2">QR CODE ABSENSI SAMPULKREATIV</h1>
+      <div className="hidden print:flex print-container flex-col items-center justify-center text-center p-8 bg-white">
+        <h1 className="text-3xl font-extrabold text-[#1C3D3F] mb-1">
+          QR CODE ABSENSI
+          <span className="block mt-1">SAMPULKREATIV</span>
+        </h1>
         <p className="text-gray-500 text-sm mb-8 font-medium">Scan QR Code ini menggunakan aplikasi Absensi SK</p>
         
         {qrImageUrl && (
@@ -191,8 +195,18 @@ export default function AdminQRPage() {
           @page {
             margin: 0 !important;
           }
-          body {
-            margin: 1.6cm !important;
+          html, body {
+            height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+          }
+          .print-container {
+            height: 100vh !important;
+            min-height: 100vh !important;
+            page-break-inside: avoid !important;
+            page-break-after: avoid !important;
+            display: flex !important;
           }
         }
       `}} />
