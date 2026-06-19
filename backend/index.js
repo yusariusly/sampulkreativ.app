@@ -66,25 +66,62 @@ Attachment: ${filePath || 'None'}`);
     },
   });
 
-  const subject = `[Absensi] Pengajuan Izin ${status} - ${senderName}`;
+  const formattedDate = new Date().toLocaleDateString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  const subject = `[Pengajuan ${status}] ${senderName} - ${formattedDate}`;
   let text = '';
   
   if (status === 'Sakit') {
-    text = `Yth. Administrator,
+    text = `Yth. HRD / Administrator,
 
-Dengan ini saya memberitahukan bahwa saya (atas nama ${senderName}) mengajukan izin Sakit pada hari ini. 
-Berikut saya lampirkan surat keterangan sakit dari dokter.
+Dengan hormat,
 
-Terima kasih.`;
+Bersama email ini, kami menginformasikan permohonan izin ketidakhadiran karena Sakit yang diajukan oleh karyawan berikut:
+
+==================================================
+DETAIL PENGAJUAN
+==================================================
+• Nama Karyawan    : ${senderName}
+• Jenis Pengajuan  : Sakit
+• Hari / Tanggal   : ${formattedDate}
+• Keterangan       : Mengajukan izin sakit. Surat keterangan dokter telah dilampirkan pada email ini.
+==================================================
+
+Mohon untuk memeriksa dokumen bukti pendukung yang terlampir untuk keperluan verifikasi dan pencatatan absensi.
+
+Atas perhatian dan kerja sama Bapak/Ibu, kami ucapkan terima kasih.
+
+Hormat kami,
+Sistem Absensi Online
+Sampul Kreativ`;
   } else {
-    text = `Yth. Administrator,
+    text = `Yth. HRD / Administrator,
 
-Dengan ini saya memberitahukan bahwa saya (atas nama ${senderName}) mengajukan izin cuti/keperluan dengan alasan:
-"${reason}"
+Dengan hormat,
 
-Berikut saya lampirkan foto/dokumen pendukung.
+Bersama email ini, kami menginformasikan permohonan izin/cuti ketidakhadiran yang diajukan oleh karyawan berikut:
 
-Terima kasih.`;
+==================================================
+DETAIL PENGAJUAN
+==================================================
+• Nama Karyawan    : ${senderName}
+• Jenis Pengajuan  : Izin / Cuti
+• Hari / Tanggal   : ${formattedDate}
+• Alasan/Keperluan : "${reason}"
+==================================================
+
+Dokumen/foto bukti pendukung telah kami lampirkan bersama email ini untuk memudahkan proses peninjauan dan persetujuan lebih lanjut.
+
+Atas perhatian dan kerja sama Bapak/Ibu, kami ucapkan terima kasih.
+
+Hormat kami,
+Sistem Absensi Online
+Sampul Kreativ`;
   }
 
   const attachments = [];
