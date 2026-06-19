@@ -252,7 +252,9 @@ export default function AdminSettingsPage() {
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
                     />
                   </div>
-                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       SMTP Username / Login
