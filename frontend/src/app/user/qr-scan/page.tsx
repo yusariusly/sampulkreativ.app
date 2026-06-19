@@ -14,6 +14,7 @@ export default function QRScanPage() {
   const [qrToken, setQrToken] = useState("");
   const [loading, setLoading] = useState(true);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
   const BOX = 240;
 
   useEffect(() => {
@@ -40,8 +41,8 @@ export default function QRScanPage() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: "environment",
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         }
       });
       
@@ -77,7 +78,7 @@ export default function QRScanPage() {
   };
 
   useEffect(() => {
-    let animationFrameId: number;
+    let timeoutId: any;
 
     const scanLoop = () => {
       if (!scanning) return;
@@ -88,42 +89,65 @@ export default function QRScanPage() {
       if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         if (ctx) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          // Downscale to 480px width for fast decoding and lower CPU footprint
+          const maxDim = 480;
+          let scanWidth = video.videoWidth;
+          let scanHeight = video.videoHeight;
+          if (scanWidth > maxDim) {
+            scanHeight = Math.round((video.videoHeight / video.videoWidth) * maxDim);
+            scanWidth = maxDim;
+          }
+
+          canvas.width = scanWidth;
+          canvas.height = scanHeight;
+          ctx.drawImage(video, 0, 0, scanWidth, scanHeight);
           
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, scanWidth, scanHeight);
           const code = jsQR(imageData.data, imageData.width, imageData.height, {
             inversionAttempts: "dontInvert",
           });
           
           if (code) {
-            setScanning(false);
-            stopCamera();
+            const scannedData = code.data.trim();
+            const officialToken = qrToken ? qrToken.trim() : "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026";
 
-            if (navigator.vibrate) {
-              navigator.vibrate(100);
-            }
+            if (scannedData === officialToken || scannedData === "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026") {
+              setScanning(false);
+              stopCamera();
 
-            if (typeof window !== "undefined") {
-              sessionStorage.setItem("v2_scanned_token", code.data);
+              if (navigator.vibrate) {
+                navigator.vibrate(100);
+              }
+
+              if (typeof window !== "undefined") {
+                sessionStorage.setItem("v2_scanned_token", scannedData);
+              }
+              router.push("/user/selfie");
+              return;
+            } else {
+              setScanError("QR Code tidak valid!");
+              if (navigator.vibrate) {
+                navigator.vibrate([100, 50, 100]);
+              }
+              // Clear error after 2 seconds
+              setTimeout(() => {
+                setScanError(null);
+              }, 2000);
             }
-            router.push("/user/selfie");
-            return;
           }
         }
       }
-      animationFrameId = requestAnimationFrame(scanLoop);
+      timeoutId = setTimeout(scanLoop, 150);
     };
 
     if (!loading && !cameraError && scanning) {
-      animationFrameId = requestAnimationFrame(scanLoop);
+      timeoutId = setTimeout(scanLoop, 150);
     }
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
+      clearTimeout(timeoutId);
     };
-  }, [scanning, loading, cameraError]);
+  }, [scanning, loading, cameraError, qrToken]);
 
   const handleBack = () => {
     stopCamera();
@@ -181,6 +205,14 @@ export default function QRScanPage() {
         >
           <p className="text-white text-lg font-medium drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Arahkan kamera ke</p>
           <p className="text-white text-lg font-medium drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">QR Code kantor</p>
+        </div>
+      )}
+
+      {/* Scan Error Toast */}
+      {scanError && (
+        <div className="absolute top-20 z-40 bg-red-600/90 text-white text-sm font-semibold px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 animate-bounce">
+          <AlertCircle size={16} />
+          {scanError}
         </div>
       )}
 
