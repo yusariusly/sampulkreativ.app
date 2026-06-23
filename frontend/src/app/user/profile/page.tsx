@@ -291,41 +291,14 @@ export default function ProfilePage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
-                Tanggal Lahir
-              </label>
-              <input
-                type="date"
-                value={tanggalLahir}
-                onChange={(e) => setTanggalLahir(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-gray-50/50"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
-                Jenis Kelamin
-              </label>
-              <select
-                value={gender}
-                onChange={(e) => setGender(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white cursor-pointer"
-              >
-                <option value="">Pilih Jenis Kelamin</option>
-                <option value="Laki-laki">Laki-laki</option>
-                <option value="Perempuan">Perempuan</option>
-              </select>
-            </div>
-
-            <div>
               <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between items-center">
-                <span>{userRole === "pkl" ? "Keterangan PKL / Magang" : "Jabatan"}</span>
+                <span>Jabatan</span>
                 <span className="text-[10px] text-red-500 font-bold lowercase tracking-normal bg-red-50 px-1.5 py-0.5 rounded">Wajib diisi</span>
               </label>
               <input
                 type="text"
                 required
-                placeholder={userRole === "pkl" ? "Contoh: Praktik Kerja Lapangan / Magang" : "Contoh: Frontend Developer"}
+                placeholder="Contoh: Frontend Developer / Praktik Kerja Lapangan"
                 value={jabatan === "Karyawan" ? "" : jabatan}
                 onChange={(e) => setJabatan(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium"
@@ -359,19 +332,6 @@ export default function ProfilePage() {
                 value={noTelp}
                 onChange={(e) => setNoTelp(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
-                Alamat
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Masukkan alamat lengkap"
-                value={alamat}
-                onChange={(e) => setAlamat(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-gray-50/50 resize-none"
               />
             </div>
             
@@ -447,12 +407,12 @@ export default function ProfilePage() {
 
                 {/* Bottom Diagonal Block */}
                 <div
-                  className="w-full bg-[#1C3D3F] text-center pt-7 pb-4 px-3 mt-auto relative z-10 flex flex-col items-center"
+                  className="w-full bg-[#1C3D3F] text-center pt-8 pb-4 px-3 mt-auto relative z-10 flex flex-col items-center"
                   style={{
                     clipPath: "polygon(0 12px, 100% 0, 100% 100%, 0 100%)",
                   }}
                 >
-                  <h5 className="font-extrabold text-[#F6C13B] text-[13px] tracking-wide uppercase leading-tight truncate w-full max-w-[210px]">
+                  <h5 className="font-extrabold text-[#F6C13B] text-[13px] tracking-wide uppercase leading-tight truncate w-full max-w-[210px] mt-1">
                     {fullname}
                   </h5>
                   
@@ -464,16 +424,13 @@ export default function ProfilePage() {
                   </span>
 
                   {/* Address & Contacts */}
-                  <div className="w-full mt-1.5 text-center text-white/95">
-                    <p className="text-[6px] font-bold tracking-wider text-gray-300 uppercase">SAMPULKREATIV TECHNOLOGY</p>
-                    <p className="text-[5px] text-gray-400 font-medium leading-tight mt-0.5 max-w-[200px] mx-auto">Gedung BITC, Jl. HMS Mintareja, Baros, Cimahi Tengah, Jawa Barat 40521</p>
-                    <div className="flex justify-center items-center gap-1.5 mt-2 text-[4.5px] font-mono text-gray-300 font-bold border-t border-white/10 pt-1.5">
-                      <span className="flex items-center gap-0.5 truncate max-w-[90px]">
-                        <span className="text-[#F6C13B]">✉️</span> {email}
+                  <div className="w-full mt-2 text-center text-white/95">
+                    <div className="flex flex-col items-center gap-1 border-t border-white/10 pt-2.5">
+                      <span className="text-[6.5px] font-black tracking-widest text-[#F6C13B] uppercase">
+                        SAMPULKREATIV TECHNOLOGY
                       </span>
-                      <span className="text-white/20">|</span>
-                      <span className="flex items-center gap-0.5">
-                        <span className="text-[#F6C13B]">📞</span> {noTelp}
+                      <span className="text-[5px] text-gray-300 font-medium leading-tight max-w-[200px] mx-auto">
+                        Gedung BITC, Jl. HMS Mintareja, Baros, Cimahi Tengah, Jawa Barat 40521
                       </span>
                     </div>
                   </div>
