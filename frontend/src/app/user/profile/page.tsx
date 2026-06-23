@@ -429,11 +429,13 @@ export default function ProfilePage() {
                   <div className="absolute -bottom-10 -right-10 w-24 h-24 bg-[#2AB0B2]/10 rounded-full filter blur-xl" />
                   
                   {/* App Name/Logo */}
-                  <div className="flex items-center gap-1.5 mt-0.5 z-10">
-                    <svg viewBox="0 0 80 80" className="w-4 h-4">
-                      <path d="M 5,42 L 68,18 Q 72,16 71,22 L 65,37 Q 63,41 58,42 L 5,55 Z" fill="#2AB0B2" />
-                      <path d="M 5,56 L 68,32 Q 72,30 71,36 L 65,51 Q 63,55 58,56 L 5,69 Z" fill="#F6C13B" />
-                    </svg>
+                  <div className="flex items-center gap-2 mt-0.5 z-10">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/logo.png"
+                      alt="Logo"
+                      className="w-7 h-7 object-contain"
+                    />
                     <div className="flex flex-col items-start leading-none text-left">
                       <span className="text-[8px] font-black text-white tracking-wider">SAMPULKREATIV</span>
                       <span className="text-[5.5px] text-gray-300 tracking-widest font-semibold mt-0.5">TECHNOLOGY</span>
@@ -534,32 +536,16 @@ export default function ProfilePage() {
 
                 {/* Center Content: Logo */}
                 <div className="flex-1 flex flex-col items-center justify-center z-10 px-4 mt-6">
-                  <svg viewBox="0 0 280 90" className="w-[180px] h-auto">
-                    <defs>
-                      <linearGradient id="cyanGradBack" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#25A5A7" />
-                        <stop offset="100%" stopColor="#31C1C3" />
-                      </linearGradient>
-                      <linearGradient id="yellowGradBack" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#EAA41D" />
-                        <stop offset="100%" stopColor="#F5C43A" />
-                      </linearGradient>
-                    </defs>
-                    <g transform="translate(10, 5)">
-                      {/* Top Ribbon (Teal) */}
-                      <path d="M 5,42 L 68,18 Q 72,16 71,22 L 65,37 Q 63,41 58,42 L 5,55 Z" fill="url(#cyanGradBack)" />
-                      <path d="M 5,42 Q 1,43 2,48 L 5,55 Z" fill="#1C7D7F" opacity="0.4" />
-                      
-                      {/* Bottom Ribbon (Yellow) */}
-                      <path d="M 5,56 L 68,32 Q 72,30 71,36 L 65,51 Q 63,55 58,56 L 5,69 Z" fill="url(#yellowGradBack)" />
-                      <path d="M 5,56 Q 1,57 2,62 L 5,69 Z" fill="#B3780D" opacity="0.4" />
-                    </g>
-                    {/* Text Group */}
-                    <g transform="translate(90, 48)">
-                      <text x="0" y="0" fill="#FFFFFF" fontSize="18" fontWeight="900" fontFamily="Arial, Helvetica, sans-serif" letterSpacing="0.2">SAMPULKREATIV</text>
-                      <text x="0" y="15" fill="#F6C13B" fontSize="12" fontWeight="bold" fontFamily="Arial, Helvetica, sans-serif" letterSpacing="2.8">TECHNOLOGY</text>
-                    </g>
-                  </svg>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/logo.png"
+                    alt="Logo"
+                    className="w-16 h-16 object-contain"
+                  />
+                  <div className="flex flex-col items-center leading-none mt-3">
+                    <span className="text-[12px] font-black text-white tracking-wider">SAMPULKREATIV</span>
+                    <span className="text-[8px] text-[#F6C13B] tracking-widest font-bold mt-1">TECHNOLOGY</span>
+                  </div>
                 </div>
 
                 {/* Bottom Footer Band */}
