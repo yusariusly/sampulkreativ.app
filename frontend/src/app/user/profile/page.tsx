@@ -444,7 +444,7 @@ export default function ProfilePage() {
                 <div className="relative z-10 mx-4 h-px" style={{background:"linear-gradient(90deg,transparent,#F6C13B55,transparent)"}} />
 
                 {/* Photo + Name block */}
-                <div className="relative z-10 flex flex-col items-center mt-6 px-4">
+                <div className="relative z-10 flex flex-col items-center mt-12 px-4">
                   <div className="relative">
                     <div className="w-[84px] h-[84px] rounded-2xl overflow-hidden flex items-center justify-center shadow-xl"
                       style={{border:"2.5px solid #2AB0B2", background:"#0f2d2e"}}>
@@ -468,21 +468,6 @@ export default function ProfilePage() {
                   <div className="mt-2 px-3.5 py-0.5 rounded-full text-[7.5px] font-bold tracking-wider uppercase"
                     style={{background:"rgba(42,176,178,0.2)", border:"1px solid rgba(42,176,178,0.5)", color:"#7EDFE0"}}>
                     {jabatan}
-                  </div>
-                </div>
-
-                {/* Info grid */}
-                <div className="relative z-10 mx-4 mt-5 rounded-xl overflow-hidden"
-                  style={{background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)"}}>
-                  <div className="flex justify-between items-center px-3.5 py-2.5 border-b" style={{borderColor:"rgba(255,255,255,0.07)"}}>
-                    <span className="text-[7.5px] font-semibold" style={{color:"rgba(255,255,255,0.45)"}}>No. Karyawan</span>
-                    <span className="text-[8px] font-bold font-mono text-white">{username}</span>
-                  </div>
-                  <div className="flex justify-between items-center px-3.5 py-2.5">
-                    <span className="text-[7.5px] font-semibold" style={{color:"rgba(255,255,255,0.45)"}}>Status</span>
-                    <span className="text-[8px] font-bold capitalize text-white">
-                      {userRole === "user" || userRole === "Karyawan" ? "Karyawan" : userRole === "pkl" ? "PKL / Magang" : userRole}
-                    </span>
                   </div>
                 </div>
 
