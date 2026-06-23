@@ -14,6 +14,8 @@ export default function ProfilePage() {
   const [tanggalLahir, setTanggalLahir] = useState("");
   const [gender, setGender] = useState("");
   const [alamat, setAlamat] = useState("");
+  const [email, setEmail] = useState("");
+  const [noTelp, setNoTelp] = useState("");
   
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -38,8 +40,10 @@ export default function ProfilePage() {
         setAlamat(userObj.alamat || "");
         setUserRole(userObj.role || "Karyawan");
         setJabatan(userObj.jabatan || "Karyawan");
+        setEmail(userObj.email || "");
+        setNoTelp(userObj.no_telp || "");
 
-        // Fetch current user details to get real-time role & jabatan updates
+        // Fetch current user details to get real-time updates
         fetch("/api/users")
           .then((res) => res.json())
           .then((usersList) => {
@@ -50,13 +54,17 @@ export default function ProfilePage() {
                 setFullname(currentMe.nama_lengkap);
                 setUserRole(currentMe.role || "Karyawan");
                 setJabatan(currentMe.jabatan || "Karyawan");
+                setEmail(currentMe.email || "");
+                setNoTelp(currentMe.no_telp || "");
                 
                 // Keep localstorage synced
                 const updatedUserObj = {
                   ...userObj,
                   nama_lengkap: currentMe.nama_lengkap,
                   role: currentMe.role,
-                  jabatan: currentMe.jabatan || "Karyawan"
+                  jabatan: currentMe.jabatan || "Karyawan",
+                  email: currentMe.email || "",
+                  no_telp: currentMe.no_telp || ""
                 };
                 localStorage.setItem("v2_user", JSON.stringify(updatedUserObj));
               }
@@ -154,7 +162,9 @@ export default function ProfilePage() {
           tanggal_lahir: tanggalLahir,
           gender: gender,
           alamat: alamat,
-          jabatan: jabatan
+          jabatan: jabatan,
+          email: email,
+          no_telp: noTelp
         }),
       });
 
@@ -172,6 +182,8 @@ export default function ProfilePage() {
           userObj.gender = data.user.gender;
           userObj.alamat = data.user.alamat;
           userObj.jabatan = data.user.jabatan;
+          userObj.email = data.user.email;
+          userObj.no_telp = data.user.no_telp;
           localStorage.setItem("v2_user", JSON.stringify(userObj));
         }
       } else {
@@ -235,6 +247,18 @@ export default function ProfilePage() {
             onClick={() => {
               if (!jabatan || jabatan.trim() === "" || jabatan.trim().toLowerCase() === "karyawan") {
                 setError("⚠️ Silakan isi kolom Jabatan / Keterangan Status Anda di profil terlebih dahulu sebelum mencetak kartu.");
+                const bioCard = document.getElementById("biodata-card");
+                if (bioCard) {
+                  bioCard.scrollIntoView({ behavior: "smooth" });
+                }
+              } else if (!email || email.trim() === "") {
+                setError("⚠️ Silakan isi kolom Email Anda di profil terlebih dahulu sebelum mencetak kartu.");
+                const bioCard = document.getElementById("biodata-card");
+                if (bioCard) {
+                  bioCard.scrollIntoView({ behavior: "smooth" });
+                }
+              } else if (!noTelp || noTelp.trim() === "") {
+                setError("⚠️ Silakan isi kolom No. Telepon Anda di profil terlebih dahulu sebelum mencetak kartu.");
                 const bioCard = document.getElementById("biodata-card");
                 if (bioCard) {
                   bioCard.scrollIntoView({ behavior: "smooth" });
@@ -309,6 +333,36 @@ export default function ProfilePage() {
             </div>
 
             <div>
+              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between items-center">
+                <span>Email</span>
+                <span className="text-[10px] text-red-500 font-bold lowercase tracking-normal bg-red-50 px-1.5 py-0.5 rounded">Wajib diisi</span>
+              </label>
+              <input
+                type="email"
+                required
+                placeholder="Contoh: nama@domain.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between items-center">
+                <span>No. Telepon</span>
+                <span className="text-[10px] text-red-500 font-bold lowercase tracking-normal bg-red-50 px-1.5 py-0.5 rounded">Wajib diisi</span>
+              </label>
+              <input
+                type="tel"
+                required
+                placeholder="Contoh: 08123456789"
+                value={noTelp}
+                onChange={(e) => setNoTelp(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
                 Alamat
               </label>
@@ -334,8 +388,8 @@ export default function ProfilePage() {
 
       {/* Employee ID Card Preview Modal */}
       {showCardModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in print:hidden">
-          <div className="bg-white rounded-3xl w-full max-w-[360px] overflow-hidden shadow-2xl border border-gray-100 flex flex-col items-center p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in print:hidden">
+          <div className="bg-white rounded-3xl w-full max-w-[360px] md:max-w-[600px] overflow-hidden shadow-2xl border border-gray-100 flex flex-col items-center p-6 relative my-8">
             
             {/* Close Button */}
             <button
@@ -348,105 +402,155 @@ export default function ProfilePage() {
             {/* Header info */}
             <div className="text-center mb-5">
               <h4 className="font-bold text-[#1C3D3F] text-base">Pratinjau Kartu Karyawan</h4>
-              <p className="text-xs text-gray-400">Siap untuk dicetak sebagai kartu fisik</p>
+              <p className="text-xs text-gray-400">Siap untuk dicetak sebagai kartu fisik depan & belakang</p>
             </div>
 
-            {/* The Actual ID Card Element (CR80 Portrait Mockup) */}
-            <div
-              id="printable-id-card"
-              className="w-[240px] h-[380px] bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden flex flex-col justify-between relative"
-              style={{
-                fontFamily: "Arial, sans-serif",
-              }}
-            >
-              {/* Card Header Background Block */}
-              <div 
-                className="bg-[#1C3D3F] pt-4 pb-10 px-3 text-center flex flex-col items-center relative overflow-hidden"
+            {/* The Actual ID Card Elements wrapper */}
+            <div id="printable-id-card-wrapper" className="flex flex-col md:flex-row gap-6 items-center justify-center my-3 print:my-0 print:gap-0">
+              
+              {/* CARD FRONT */}
+              <div
+                id="printable-id-card-front"
+                className="printable-card-side w-[240px] h-[380px] bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden flex flex-col justify-between relative"
                 style={{
-                  borderBottomLeftRadius: "15% 30%",
-                  borderBottomRightRadius: "15% 30%",
+                  fontFamily: "Arial, sans-serif",
                 }}
               >
-                {/* Curved Design Overlay */}
-                <div className="absolute -top-10 -left-10 w-24 h-24 bg-white/5 rounded-full filter blur-xl" />
-                <div className="absolute -bottom-10 -right-10 w-24 h-24 bg-[#2AB0B2]/10 rounded-full filter blur-xl" />
-                
-                {/* App Name/Logo */}
-                <span className="text-[10px] font-extrabold text-white tracking-widest uppercase">SAMPUL KREATIV</span>
-                <span className="text-[7px] text-[#F6C13B] tracking-wider uppercase font-semibold mt-0.5">KARTU KARYAWAN</span>
-              </div>
-
-              {/* Photo Frame (half hanging over the curved header) */}
-              <div className="relative -mt-8 flex justify-center z-10">
+                {/* Card Header Background Block */}
                 <div 
-                  className="w-[76px] h-[76px] rounded-full overflow-hidden bg-white shadow-md flex items-center justify-center"
+                  className="bg-[#1C3D3F] pt-4 pb-10 px-3 text-center flex flex-col items-center relative overflow-hidden"
                   style={{
-                    border: "3px solid #2AB0B2",
-                    outline: "2px solid white",
+                    borderBottomLeftRadius: "15% 30%",
+                    borderBottomRightRadius: "15% 30%",
                   }}
                 >
-                  {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" />
-                  ) : (
-                    <User size={36} className="text-gray-300" />
-                  )}
-                </div>
-              </div>
-
-              {/* Employee Information */}
-              <div className="flex-1 flex flex-col justify-between items-center px-4 py-2 mt-1">
-                {/* Name & Title */}
-                <div className="text-center w-full">
-                  <h5 className="font-extrabold text-[#1C3D3F] text-xs tracking-wide leading-tight truncate max-w-full">
-                    {fullname}
-                  </h5>
-                  <span className="bg-teal-50/70 text-[#209092] px-2 py-0.5 rounded-full text-[8px] font-bold mt-1 tracking-wider uppercase border border-teal-100/50 inline-block">
-                    {jabatan}
-                  </span>
+                  {/* Curved Design Overlay */}
+                  <div className="absolute -top-10 -left-10 w-24 h-24 bg-white/5 rounded-full filter blur-xl" />
+                  <div className="absolute -bottom-10 -right-10 w-24 h-24 bg-[#2AB0B2]/10 rounded-full filter blur-xl" />
+                  
+                  {/* App Name/Logo */}
+                  <span className="text-[10px] font-extrabold text-white tracking-widest uppercase">SAMPUL KREATIV</span>
+                  <span className="text-[7px] text-[#F6C13B] tracking-wider uppercase font-semibold mt-0.5">KARTU KARYAWAN</span>
                 </div>
 
-                {/* Grid Details (No Karyawan, Status) */}
-                <div className="w-full text-[8px] text-[#1C3D3F] space-y-1 bg-gray-50/70 p-1.5 rounded-xl border border-gray-200/50 mt-2">
-                  <div className="flex justify-between border-b border-gray-200/40 pb-0.5">
-                    <span className="text-gray-400 font-semibold">No. Karyawan</span>
-                    <span className="font-bold font-mono">{username}</span>
+                {/* Photo Frame (half hanging over the curved header) */}
+                <div className="relative -mt-8 flex justify-center z-10">
+                  <div 
+                    className="w-[76px] h-[76px] rounded-full overflow-hidden bg-white shadow-md flex items-center justify-center"
+                    style={{
+                      border: "3px solid #2AB0B2",
+                      outline: "2px solid white",
+                    }}
+                  >
+                    {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={36} className="text-gray-300" />
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400 font-semibold">Status Kerja</span>
-                    <span className="font-bold capitalize">
-                      {userRole === "user" || userRole === "Karyawan" ? "Karyawan" : userRole === "pkl" ? "PKL / Magang" : userRole}
+                </div>
+
+                {/* Employee Information */}
+                <div className="flex-1 flex flex-col justify-between items-center px-4 py-2 mt-1">
+                  {/* Name & Title */}
+                  <div className="text-center w-full">
+                    <h5 className="font-extrabold text-[#1C3D3F] text-xs tracking-wide leading-tight truncate max-w-full">
+                      {fullname}
+                    </h5>
+                    <span className="bg-teal-50/70 text-[#209092] px-2 py-0.5 rounded-full text-[8px] font-bold mt-1 tracking-wider uppercase border border-teal-100/50 inline-block">
+                      {jabatan}
+                    </span>
+                  </div>
+
+                  {/* Grid Details (No Karyawan, Status) */}
+                  <div className="w-full text-[8px] text-[#1C3D3F] space-y-1 bg-gray-50/70 p-1.5 rounded-xl border border-gray-200/50 mt-2">
+                    <div className="flex justify-between border-b border-gray-200/40 pb-0.5">
+                      <span className="text-gray-400 font-semibold">No. Karyawan</span>
+                      <span className="font-bold font-mono">{username}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 font-semibold">Status Kerja</span>
+                      <span className="font-bold capitalize">
+                        {userRole === "user" || userRole === "Karyawan" ? "Karyawan" : userRole === "pkl" ? "PKL / Magang" : userRole}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* QR Code for scanning */}
+                  <div className="mt-2 flex flex-col items-center">
+                    <div className="border border-gray-150 p-1 rounded-lg bg-white shadow-xs">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&color=1c3d3f&data=${encodeURIComponent(username)}`}
+                        alt="QR Code Karyawan"
+                        className="w-12 h-12"
+                      />
+                    </div>
+                    <span className="text-[6px] font-mono font-bold text-gray-400 mt-0.5 select-all">
+                      SCAN UNTUK ABSEN
                     </span>
                   </div>
                 </div>
 
-                {/* QR Code for scanning */}
-                <div className="mt-2 flex flex-col items-center">
-                  <div className="border border-gray-150 p-1 rounded-lg bg-white shadow-xs">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&color=1c3d3f&data=${encodeURIComponent(username)}`}
-                      alt="QR Code Karyawan"
-                      className="w-12 h-12"
-                    />
+                {/* Bottom Footer Band */}
+                <div>
+                  {/* Gold Stripe */}
+                  <div className="h-[3px] bg-[#F6C13B] w-full" />
+                  {/* Deep Teal Band */}
+                  <div className="bg-[#1C3D3F] py-1 text-center">
+                    <span className="text-white text-[7px] tracking-widest uppercase font-bold">
+                      ABSENSI SK · SAMPULKREATIV
+                    </span>
                   </div>
-                  <span className="text-[6px] font-mono font-bold text-gray-400 mt-0.5 select-all">
-                    SCAN UNTUK ABSEN
-                  </span>
                 </div>
               </div>
 
-              {/* Bottom Footer Band */}
-              <div>
-                {/* Gold Stripe */}
-                <div className="h-[3px] bg-[#F6C13B] w-full" />
-                {/* Deep Teal Band */}
-                <div className="bg-[#1C3D3F] py-1 text-center">
-                  <span className="text-white text-[7px] tracking-widest uppercase font-bold">
-                    ABSENSI SK · SAMPULKREATIV
-                  </span>
+              {/* CARD BACK */}
+              <div
+                id="printable-id-card-back"
+                className="printable-card-side w-[240px] h-[380px] bg-[#1C3D3F] rounded-2xl shadow-lg border border-gray-900 overflow-hidden flex flex-col justify-between relative"
+                style={{
+                  fontFamily: "Arial, sans-serif",
+                }}
+              >
+                {/* Circular Pattern Overlays */}
+                <div className="absolute top-[-50px] left-[-50px] w-48 h-48 rounded-full border border-white/5 bg-white/2" />
+                <div className="absolute top-[-20px] left-[-20px] w-64 h-64 rounded-full border border-white/5 bg-transparent" />
+                <div className="absolute bottom-[-100px] right-[-100px] w-72 h-72 rounded-full border border-white/5 bg-[#2AB0B2]/5" />
+                <div className="absolute top-[40%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-white/2" />
+                
+                {/* Slot punch line at the top */}
+                <div className="w-12 h-2.5 bg-black/30 rounded-full mx-auto mt-3 border border-white/10 z-10" />
+
+                {/* Center Content: Logo */}
+                <div className="flex-1 flex flex-col items-center justify-center z-10 px-4 mt-6">
+                  <svg viewBox="0 0 200 95" className="w-36 h-auto">
+                    <text x="50%" y="25" textAnchor="middle" fill="#F6C13B" fontSize="15" fontWeight="900" letterSpacing="2.5" fontFamily="'Arial Black', sans-serif">PUTRA</text>
+                    <text x="50%" y="50" textAnchor="middle" fill="#F6C13B" fontSize="25" fontWeight="900" letterSpacing="1.5" fontFamily="'Arial Black', sans-serif">JAWAMAS</text>
+                    {/* Arc Teeth decoration */}
+                    <path d="M25,58 L30,68 L37,59 L43,69 L51,60 L58,70 L66,61 L74,71 L82,62 L91,72 L100,62 L109,72 L118,62 L126,71 L134,61 L142,70 L149,60 L157,69 L163,59 L170,68 L175,58 Z" fill="#F6C13B" />
+                    <path d="M25,58 Q100,74 175,58 L175,61 Q100,77 25,61 Z" fill="#F6C13B" />
+                    <text x="50%" y="85" textAnchor="middle" fill="#F6C13B" fontSize="9" fontWeight="bold" letterSpacing="1" fontFamily="sans-serif">PT. PUTRA JAWAMAS</text>
+                  </svg>
+                </div>
+
+                {/* Bottom Footer Band */}
+                <div className="w-full text-center text-white px-3 pb-5 pt-2 bg-gradient-to-t from-black/40 to-transparent z-10">
+                  <p className="text-[7px] font-bold tracking-wider text-gray-200 uppercase">PT. PUTRA JAWAMAS</p>
+                  <p className="text-[5px] text-gray-300 font-semibold leading-tight mt-0.5">JL. Kutisari Utara I / 56 D Surabaya 60291</p>
+                  <div className="flex justify-center items-center gap-1.5 mt-2.5 text-[5px] font-mono text-gray-200 font-bold border-t border-white/10 pt-2">
+                    <span className="flex items-center gap-0.5 truncate max-w-[100px]">
+                      <span className="text-[#F6C13B]">✉️</span> {email}
+                    </span>
+                    <span className="text-white/20">|</span>
+                    <span className="flex items-center gap-0.5">
+                      <span className="text-[#F6C13B]">📞</span> {noTelp}
+                    </span>
+                  </div>
                 </div>
               </div>
+
             </div>
 
             {/* Print Controls */}
@@ -467,13 +571,13 @@ export default function ProfilePage() {
                   className="flex-2 py-3 text-xs font-bold text-white bg-[#2AB0B2] hover:bg-[#209092] rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
                 >
                   <Printer size={13} />
-                  Cetak / Simpan PDF
+                  Cetak Depan & Belakang
                 </button>
               </div>
               
               {/* Help/Tip under print button */}
               <p className="text-[9px] text-gray-400 text-center mt-3 leading-normal">
-                💡 <b>Tips PDF:</b> Pada dialog cetak browser, pilih tujuan <b>"Simpan sebagai PDF"</b> (Save as PDF) untuk mengunduh kartu karyawan dalam format dokumen PDF.
+                💡 <b>Tips PDF:</b> Pada dialog cetak browser, pilih tujuan <b>"Simpan sebagai PDF"</b> untuk mengunduh kedua halaman kartu dalam satu file dokumen.
               </p>
             </div>
           </div>
@@ -487,26 +591,39 @@ export default function ProfilePage() {
           body * {
             visibility: hidden;
           }
-          /* Show only print ID card */
-          #printable-id-card, #printable-id-card * {
+          /* Show only print ID card wrapper and its children */
+          #printable-id-card-wrapper, #printable-id-card-wrapper * {
             visibility: visible;
           }
-          #printable-id-card {
-            position: fixed;
-            left: 50% !important;
-            top: 50% !important;
-            transform: translate(-50%, -50%) !important;
+          #printable-id-card-wrapper {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            display: block !important;
+          }
+          .printable-card-side {
             width: 54mm !important;
             height: 86mm !important;
             border: 1px solid #e5e7eb !important;
             border-radius: 12px !important;
             box-shadow: none !important;
-            margin: 0 !important;
+            margin: 0 auto 10mm auto !important;
             padding: 0 !important;
             background-color: white !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            z-index: 99999;
+            page-break-after: always !important;
+            break-after: page !important;
+          }
+          /* Ensure Card Back background colors print correctly */
+          #printable-id-card-back {
+            background-color: #1C3D3F !important;
+          }
+          .printable-card-side:last-child {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            margin-bottom: 0 !important;
           }
           @page {
             size: portrait;

@@ -245,6 +245,18 @@ async function initDb() {
       // Column already exists, safe to ignore
     }
 
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN email VARCHAR(150) NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN no_telp VARCHAR(50) NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS absensi (
         id VARCHAR(50) PRIMARY KEY,
@@ -407,7 +419,9 @@ app.post('/api/auth/login', async (req, res) => {
       tanggal_lahir: user.tanggal_lahir || '',
       gender: user.gender || '',
       alamat: user.alamat || '',
-      jabatan: user.jabatan || 'Karyawan'
+      jabatan: user.jabatan || 'Karyawan',
+      email: user.email || '',
+      no_telp: user.no_telp || ''
     });
   } catch (error) {
     res.status(500).json({ error: 'Terjadi kesalahan internal server' });
@@ -1036,7 +1050,7 @@ app.post('/api/attendance/override', async (req, res) => {
 // 4. Users CRUD API
 app.get('/api/users', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan FROM users');
+    const [rows] = await pool.query('SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan, email, no_telp FROM users');
     const mapped = rows.map(u => ({
       ...u,
       is_active: u.is_active === 1
@@ -1049,7 +1063,7 @@ app.get('/api/users', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   try {
-    const { nama_lengkap, username, password, role, jabatan } = req.body;
+    const { nama_lengkap, username, password, role, jabatan, email, no_telp } = req.body;
     if (!nama_lengkap || !username || !password || !role) {
       return res.status(400).json({ error: 'Data pengguna tidak lengkap' });
     }
@@ -1075,13 +1089,15 @@ app.post('/api/users', async (req, res) => {
       role: dbRole,
       is_active: 1,
       foto_profile: '/uploads/placeholder.jpg',
-      jabatan: jabatan ? jabatan.trim() : 'Karyawan'
+      jabatan: jabatan ? jabatan.trim() : 'Karyawan',
+      email: email ? email.trim() : '',
+      no_telp: no_telp ? no_telp.trim() : ''
     };
 
     await pool.query(
-      `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, jabatan) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile, newUser.jabatan]
+      `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, jabatan, email, no_telp) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile, newUser.jabatan, newUser.email, newUser.no_telp]
     );
 
     const { password: _, ...safeUser } = newUser;
@@ -1093,7 +1109,7 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users', async (req, res) => {
   try {
-    const { id, nama_lengkap, username, password, is_active, role, jabatan } = req.body;
+    const { id, nama_lengkap, username, password, is_active, role, jabatan, email, no_telp } = req.body;
     if (!id || !nama_lengkap || !username) {
       return res.status(400).json({ error: 'Data update tidak lengkap' });
     }
@@ -1140,6 +1156,16 @@ app.put('/api/users', async (req, res) => {
     if (jabatan !== undefined) {
       updateFields += ', jabatan = ?';
       params.push(jabatan.trim());
+    }
+
+    if (email !== undefined) {
+      updateFields += ', email = ?';
+      params.push(email.trim());
+    }
+
+    if (no_telp !== undefined) {
+      updateFields += ', no_telp = ?';
+      params.push(no_telp.trim());
     }
 
     params.push(id);
@@ -1482,7 +1508,7 @@ app.post('/api/users/update-profile', async (req, res) => {
 // 9. Update Bio Data
 app.post('/api/users/update-bio', async (req, res) => {
   try {
-    const { user_id, tanggal_lahir, gender, alamat, jabatan } = req.body;
+    const { user_id, tanggal_lahir, gender, alamat, jabatan, email, no_telp } = req.body;
     if (!user_id) {
       return res.status(400).json({ error: 'User ID wajib disertakan' });
     }
@@ -1500,6 +1526,16 @@ app.post('/api/users/update-bio', async (req, res) => {
       params.push(jabatan.trim());
     }
 
+    if (email !== undefined) {
+      updateFields += ', email = ?';
+      params.push(email.trim());
+    }
+
+    if (no_telp !== undefined) {
+      updateFields += ', no_telp = ?';
+      params.push(no_telp.trim());
+    }
+
     params.push(user_id);
 
     await pool.query(
@@ -1509,7 +1545,7 @@ app.post('/api/users/update-bio', async (req, res) => {
 
     // Fetch updated user to return
     const [updatedRows] = await pool.query(
-      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan FROM users WHERE id = ?',
+      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan, email, no_telp FROM users WHERE id = ?',
       [user_id]
     );
     const updatedUser = updatedRows[0];

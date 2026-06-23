@@ -20,6 +20,8 @@ interface UserAccount {
   device_id?: string;
   device_info?: string;
   jabatan?: string;
+  email?: string;
+  no_telp?: string;
 }
 
 export default function AdminUsersPage() {
