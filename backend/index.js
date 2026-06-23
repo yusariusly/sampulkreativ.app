@@ -239,6 +239,12 @@ async function initDb() {
       // Column already exists, safe to ignore
     }
 
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN jabatan VARCHAR(100) DEFAULT 'Karyawan'");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS absensi (
         id VARCHAR(50) PRIMARY KEY,
@@ -400,7 +406,8 @@ app.post('/api/auth/login', async (req, res) => {
       foto_profile: user.foto_profile || '/uploads/placeholder.jpg',
       tanggal_lahir: user.tanggal_lahir || '',
       gender: user.gender || '',
-      alamat: user.alamat || ''
+      alamat: user.alamat || '',
+      jabatan: user.jabatan || 'Karyawan'
     });
   } catch (error) {
     res.status(500).json({ error: 'Terjadi kesalahan internal server' });
@@ -1029,7 +1036,7 @@ app.post('/api/attendance/override', async (req, res) => {
 // 4. Users CRUD API
 app.get('/api/users', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat FROM users');
+    const [rows] = await pool.query('SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan FROM users');
     const mapped = rows.map(u => ({
       ...u,
       is_active: u.is_active === 1
@@ -1042,7 +1049,7 @@ app.get('/api/users', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   try {
-    const { nama_lengkap, username, password, role } = req.body;
+    const { nama_lengkap, username, password, role, jabatan } = req.body;
     if (!nama_lengkap || !username || !password || !role) {
       return res.status(400).json({ error: 'Data pengguna tidak lengkap' });
     }
@@ -1052,20 +1059,29 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ error: 'Username sudah digunakan' });
     }
 
+    let dbRole = 'user';
+    const lowRole = role.toLowerCase();
+    if (lowRole === 'admin') {
+      dbRole = 'admin';
+    } else if (lowRole === 'pkl' || lowRole === 'pkl/magang') {
+      dbRole = 'pkl';
+    }
+
     const newUser = {
       id: `usr-${Date.now()}`,
       username: username.trim().toLowerCase(),
       password: password,
       nama_lengkap: nama_lengkap.trim(),
-      role: role.toLowerCase() === 'admin' ? 'admin' : 'user',
+      role: dbRole,
       is_active: 1,
-      foto_profile: '/uploads/placeholder.jpg'
+      foto_profile: '/uploads/placeholder.jpg',
+      jabatan: jabatan ? jabatan.trim() : 'Karyawan'
     };
 
     await pool.query(
-      `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile]
+      `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, jabatan) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile, newUser.jabatan]
     );
 
     const { password: _, ...safeUser } = newUser;
@@ -1077,7 +1093,7 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users', async (req, res) => {
   try {
-    const { id, nama_lengkap, username, password, is_active } = req.body;
+    const { id, nama_lengkap, username, password, is_active, role, jabatan } = req.body;
     if (!id || !nama_lengkap || !username) {
       return res.status(400).json({ error: 'Data update tidak lengkap' });
     }
@@ -1088,7 +1104,6 @@ app.put('/api/users', async (req, res) => {
     }
     const user = userRows[0];
 
-    // Role is permanently locked after account creation — cannot be changed
     const [dupRows] = await pool.query('SELECT * FROM users WHERE id != ? AND LOWER(username) = ?', [id, username.trim().toLowerCase()]);
     if (dupRows.length > 0) {
       return res.status(400).json({ error: 'Username/nomor HP sudah digunakan oleh akun lain' });
@@ -1108,6 +1123,23 @@ app.put('/api/users', async (req, res) => {
     if (password && password.trim() !== '' && password !== 'no_password') {
       updateFields += ', password = ?';
       params.push(password);
+    }
+
+    if (role) {
+      let dbRole = 'user';
+      const lowRole = role.toLowerCase();
+      if (lowRole === 'admin') {
+        dbRole = 'admin';
+      } else if (lowRole === 'pkl' || lowRole === 'pkl/magang') {
+        dbRole = 'pkl';
+      }
+      updateFields += ', role = ?';
+      params.push(dbRole);
+    }
+
+    if (jabatan !== undefined) {
+      updateFields += ', jabatan = ?';
+      params.push(jabatan.trim());
     }
 
     params.push(id);
@@ -1467,7 +1499,7 @@ app.post('/api/users/update-bio', async (req, res) => {
 
     // Fetch updated user to return
     const [updatedRows] = await pool.query(
-      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat FROM users WHERE id = ?',
+      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan FROM users WHERE id = ?',
       [user_id]
     );
     const updatedUser = updatedRows[0];

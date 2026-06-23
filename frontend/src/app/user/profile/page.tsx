@@ -37,19 +37,32 @@ export default function ProfilePage() {
         setGender(userObj.gender || "");
         setAlamat(userObj.alamat || "");
         setUserRole(userObj.role || "Karyawan");
+        setJabatan(userObj.jabatan || "Karyawan");
 
-        // Fetch payroll config to get jabatan
-        fetch("/api/payroll/config")
+        // Fetch current user details to get real-time role & jabatan updates
+        fetch("/api/users")
           .then((res) => res.json())
-          .then((data) => {
-            if (Array.isArray(data)) {
-              const cfg = data.find((c: any) => c.user_id === userObj.id);
-              if (cfg && cfg.jabatan) {
-                setJabatan(cfg.jabatan);
+          .then((usersList) => {
+            if (Array.isArray(usersList)) {
+              const currentMe = usersList.find((u: any) => u.id === userObj.id);
+              if (currentMe) {
+                // Update local states
+                setFullname(currentMe.nama_lengkap);
+                setUserRole(currentMe.role || "Karyawan");
+                setJabatan(currentMe.jabatan || "Karyawan");
+                
+                // Keep localstorage synced
+                const updatedUserObj = {
+                  ...userObj,
+                  nama_lengkap: currentMe.nama_lengkap,
+                  role: currentMe.role,
+                  jabatan: currentMe.jabatan || "Karyawan"
+                };
+                localStorage.setItem("v2_user", JSON.stringify(updatedUserObj));
               }
             }
           })
-          .catch((err) => console.error("Gagal memuat konfigurasi payroll:", err));
+          .catch((err) => console.error("Gagal sinkronisasi data user:", err));
       }
     }
   }, []);
@@ -374,7 +387,9 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400 font-semibold">Status Kerja</span>
-                    <span className="font-bold capitalize">{userRole === "user" ? "Karyawan" : userRole}</span>
+                    <span className="font-bold capitalize">
+                      {userRole === "user" || userRole === "Karyawan" ? "Karyawan" : userRole === "pkl" ? "PKL / Magang" : userRole}
+                    </span>
                   </div>
                 </div>
 

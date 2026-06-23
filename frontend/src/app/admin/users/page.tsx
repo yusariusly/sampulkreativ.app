@@ -19,6 +19,7 @@ interface UserAccount {
   foto_profile?: string;
   device_id?: string;
   device_info?: string;
+  jabatan?: string;
 }
 
 export default function AdminUsersPage() {
@@ -31,7 +32,8 @@ export default function AdminUsersPage() {
   const [fullname, setFullname] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"Admin" | "User">("User");
+  const [role, setRole] = useState<string>("user");
+  const [jabatan, setJabatan] = useState<string>("");
   const [isActive, setIsActive] = useState(true);
 
   // Override states
@@ -85,7 +87,8 @@ export default function AdminUsersPage() {
     setFullname("");
     setUsername("");
     setPassword("");
-    setRole("User");
+    setRole("user");
+    setJabatan("");
     setIsActive(true);
   };
 
@@ -95,6 +98,7 @@ export default function AdminUsersPage() {
     setFullname(u.nama_lengkap);
     setUsername(u.username);
     setIsActive(u.is_active);
+    setJabatan(u.jabatan || "");
     setPassword("");
     showToast(`✏️ Mode edit untuk "${u.nama_lengkap}" aktif`);
   };
@@ -111,9 +115,7 @@ export default function AdminUsersPage() {
       return;
     }
 
-    const isAdminRole = editingUserId
-      ? editingUserRole === "admin"
-      : role === "Admin";
+    const isAdminRole = (editingUserId ? editingUserRole : role) === "admin";
 
     if (isAdminRole && !editingUserId && !password.trim()) {
       showToast("⚠️ Password wajib diisi untuk akun admin baru");
@@ -122,12 +124,13 @@ export default function AdminUsersPage() {
 
     try {
       if (editingUserId) {
-        // PUT — role is NOT sent (locked permanently)
         const bodyPayload: any = {
           id: editingUserId,
           nama_lengkap: fullname.trim(),
           username: username.trim().toLowerCase(),
           is_active: isActive,
+          role: editingUserRole,
+          jabatan: jabatan.trim()
         };
         if (isAdminRole && password.trim() !== "") {
           bodyPayload.password = password.trim();
@@ -147,12 +150,12 @@ export default function AdminUsersPage() {
           showToast(`⚠️ ${data.error || "Gagal menyimpan pengguna"}`);
         }
       } else {
-        // POST — include role
         const bodyPayload = {
           nama_lengkap: fullname.trim(),
           username: username.trim().toLowerCase(),
           password: isAdminRole ? password.trim() : "no_password",
           role: role,
+          jabatan: jabatan.trim()
         };
 
         const res = await fetch("/api/users", {
@@ -308,9 +311,12 @@ export default function AdminUsersPage() {
                         {u.username.match(/^\d+$/) ? u.username : `@${u.username}`}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 font-medium">
-                        {u.nama_lengkap}
+                        <div className="font-bold text-[#1C3D3F]">{u.nama_lengkap}</div>
+                        {u.jabatan && (
+                          <div className="text-xs text-gray-400 font-normal mt-0.5">{u.jabatan}</div>
+                        )}
                         {!u.is_active && (
-                          <span className="ml-2 px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded animate-pulse">
+                          <span className="mt-1 inline-block px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded animate-pulse">
                             Menunggu Persetujuan
                           </span>
                         )}
@@ -396,45 +402,72 @@ export default function AdminUsersPage() {
               )}
             </div>
 
-            {/* Role Selector — only shown when creating a new account */}
-            {!editingUserId && (
-              <div className="flex gap-2 mb-4">
+            {/* Role Selector */}
+            <div className="flex flex-col gap-1.5 mb-4">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Role / Status Kerja</label>
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => { setRole("User"); setUsername(""); setPassword(""); }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition-all cursor-pointer ${
-                    role === "User"
+                  onClick={() => {
+                    if (editingUserId) {
+                      setEditingUserRole("user");
+                    } else {
+                      setRole("user");
+                      setUsername("");
+                      setPassword("");
+                    }
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                    (editingUserId ? editingUserRole : role) === "user"
                       ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
                       : "bg-white text-gray-500 border-gray-200 hover:border-[#2AB0B2] hover:text-[#2AB0B2]"
                   }`}
                 >
-                  <Users size={15} />
+                  <Users size={13} />
                   Karyawan
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setRole("Admin"); setUsername(""); setPassword(""); }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition-all cursor-pointer ${
-                    role === "Admin"
+                  onClick={() => {
+                    if (editingUserId) {
+                      setEditingUserRole("pkl");
+                    } else {
+                      setRole("pkl");
+                      setUsername("");
+                      setPassword("");
+                    }
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                    (editingUserId ? editingUserRole : role) === "pkl"
+                      ? "bg-amber-500 text-white border-amber-500 shadow-xs"
+                      : "bg-white text-gray-500 border-gray-200 hover:border-amber-500 hover:text-amber-500"
+                  }`}
+                >
+                  <Users size={13} />
+                  PKL / Magang
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editingUserId) {
+                      setEditingUserRole("admin");
+                    } else {
+                      setRole("admin");
+                      setUsername("");
+                      setPassword("");
+                    }
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                    (editingUserId ? editingUserRole : role) === "admin"
                       ? "bg-[#1C3D3F] text-white border-[#1C3D3F]"
                       : "bg-white text-gray-500 border-gray-200 hover:border-[#1C3D3F] hover:text-[#1C3D3F]"
                   }`}
                 >
-                  <ShieldCheck size={15} />
+                  <ShieldCheck size={13} />
                   Admin
                 </button>
               </div>
-            )}
-
-            {/* Role badge when editing — just display, cannot change */}
-            {editingUserId && (
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold mb-4 w-fit ${
-                editingUserRole === "admin" ? "bg-teal-50 text-teal-700" : "bg-gray-100 text-gray-600"
-              }`}>
-                {editingUserRole === "admin" ? <ShieldCheck size={13} /> : <Users size={13} />}
-                Role: {editingUserRole === "admin" ? "Admin" : "Karyawan"} · tidak dapat diubah
-              </div>
-            )}
+            </div>
 
             <form onSubmit={handleSaveUser} className="space-y-3">
               {/* Nama Lengkap */}
@@ -446,6 +479,21 @@ export default function AdminUsersPage() {
                   onChange={(e) => setFullname(e.target.value)}
                   className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
                   required
+                />
+              </div>
+
+              {/* Jabatan / Keterangan Status */}
+              <div>
+                <input
+                  type="text"
+                  placeholder={
+                    (editingUserId ? editingUserRole : role) === "pkl"
+                      ? "Keterangan PKL (contoh: Praktik Kerja Lapangan / Magang)"
+                      : "Jabatan (contoh: Frontend Developer)"
+                  }
+                  value={jabatan}
+                  onChange={(e) => setJabatan(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
                 />
               </div>
 
