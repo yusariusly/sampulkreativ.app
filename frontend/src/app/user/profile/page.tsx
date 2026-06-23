@@ -418,7 +418,7 @@ export default function ProfilePage() {
               >
                 {/* Card Header Background Block */}
                 <div 
-                  className="bg-[#1C3D3F] pt-4 pb-10 px-3 text-center flex flex-col items-center relative overflow-hidden"
+                  className="bg-[#1C3D3F] pt-3.5 pb-9 px-3 text-center flex flex-col items-center relative overflow-hidden"
                   style={{
                     borderBottomLeftRadius: "15% 30%",
                     borderBottomRightRadius: "15% 30%",
@@ -429,8 +429,17 @@ export default function ProfilePage() {
                   <div className="absolute -bottom-10 -right-10 w-24 h-24 bg-[#2AB0B2]/10 rounded-full filter blur-xl" />
                   
                   {/* App Name/Logo */}
-                  <span className="text-[10px] font-extrabold text-white tracking-widest uppercase">SAMPUL KREATIV</span>
-                  <span className="text-[7px] text-[#F6C13B] tracking-wider uppercase font-semibold mt-0.5">KARTU KARYAWAN</span>
+                  <div className="flex items-center gap-1.5 mt-0.5 z-10">
+                    <svg viewBox="0 0 80 80" className="w-4 h-4">
+                      <path d="M 5,42 L 68,18 Q 72,16 71,22 L 65,37 Q 63,41 58,42 L 5,55 Z" fill="#2AB0B2" />
+                      <path d="M 5,56 L 68,32 Q 72,30 71,36 L 65,51 Q 63,55 58,56 L 5,69 Z" fill="#F6C13B" />
+                    </svg>
+                    <div className="flex flex-col items-start leading-none text-left">
+                      <span className="text-[8px] font-black text-white tracking-wider">SAMPULKREATIV</span>
+                      <span className="text-[5.5px] text-gray-300 tracking-widest font-semibold mt-0.5">TECHNOLOGY</span>
+                    </div>
+                  </div>
+                  <span className="text-[6px] text-[#F6C13B] tracking-widest uppercase font-bold mt-2 z-10">KARTU KARYAWAN</span>
                 </div>
 
                 {/* Photo Frame (half hanging over the curved header) */}
@@ -525,20 +534,38 @@ export default function ProfilePage() {
 
                 {/* Center Content: Logo */}
                 <div className="flex-1 flex flex-col items-center justify-center z-10 px-4 mt-6">
-                  <svg viewBox="0 0 200 95" className="w-36 h-auto">
-                    <text x="50%" y="25" textAnchor="middle" fill="#F6C13B" fontSize="15" fontWeight="900" letterSpacing="2.5" fontFamily="'Arial Black', sans-serif">PUTRA</text>
-                    <text x="50%" y="50" textAnchor="middle" fill="#F6C13B" fontSize="25" fontWeight="900" letterSpacing="1.5" fontFamily="'Arial Black', sans-serif">JAWAMAS</text>
-                    {/* Arc Teeth decoration */}
-                    <path d="M25,58 L30,68 L37,59 L43,69 L51,60 L58,70 L66,61 L74,71 L82,62 L91,72 L100,62 L109,72 L118,62 L126,71 L134,61 L142,70 L149,60 L157,69 L163,59 L170,68 L175,58 Z" fill="#F6C13B" />
-                    <path d="M25,58 Q100,74 175,58 L175,61 Q100,77 25,61 Z" fill="#F6C13B" />
-                    <text x="50%" y="85" textAnchor="middle" fill="#F6C13B" fontSize="9" fontWeight="bold" letterSpacing="1" fontFamily="sans-serif">PT. PUTRA JAWAMAS</text>
+                  <svg viewBox="0 0 280 90" className="w-[180px] h-auto">
+                    <defs>
+                      <linearGradient id="cyanGradBack" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#25A5A7" />
+                        <stop offset="100%" stopColor="#31C1C3" />
+                      </linearGradient>
+                      <linearGradient id="yellowGradBack" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#EAA41D" />
+                        <stop offset="100%" stopColor="#F5C43A" />
+                      </linearGradient>
+                    </defs>
+                    <g transform="translate(10, 5)">
+                      {/* Top Ribbon (Teal) */}
+                      <path d="M 5,42 L 68,18 Q 72,16 71,22 L 65,37 Q 63,41 58,42 L 5,55 Z" fill="url(#cyanGradBack)" />
+                      <path d="M 5,42 Q 1,43 2,48 L 5,55 Z" fill="#1C7D7F" opacity="0.4" />
+                      
+                      {/* Bottom Ribbon (Yellow) */}
+                      <path d="M 5,56 L 68,32 Q 72,30 71,36 L 65,51 Q 63,55 58,56 L 5,69 Z" fill="url(#yellowGradBack)" />
+                      <path d="M 5,56 Q 1,57 2,62 L 5,69 Z" fill="#B3780D" opacity="0.4" />
+                    </g>
+                    {/* Text Group */}
+                    <g transform="translate(90, 48)">
+                      <text x="0" y="0" fill="#FFFFFF" fontSize="18" fontWeight="900" fontFamily="Arial, Helvetica, sans-serif" letterSpacing="0.2">SAMPULKREATIV</text>
+                      <text x="0" y="15" fill="#F6C13B" fontSize="12" fontWeight="bold" fontFamily="Arial, Helvetica, sans-serif" letterSpacing="2.8">TECHNOLOGY</text>
+                    </g>
                   </svg>
                 </div>
 
                 {/* Bottom Footer Band */}
                 <div className="w-full text-center text-white px-3 pb-5 pt-2 bg-gradient-to-t from-black/40 to-transparent z-10">
-                  <p className="text-[7px] font-bold tracking-wider text-gray-200 uppercase">PT. PUTRA JAWAMAS</p>
-                  <p className="text-[5px] text-gray-300 font-semibold leading-tight mt-0.5">JL. Kutisari Utara I / 56 D Surabaya 60291</p>
+                  <p className="text-[7px] font-bold tracking-wider text-gray-200 uppercase">SAMPULKREATIV TECHNOLOGY</p>
+                  <p className="text-[5px] text-gray-300 font-semibold leading-tight mt-0.5">Surabaya, Jawa Timur, Indonesia</p>
                   <div className="flex justify-center items-center gap-1.5 mt-2.5 text-[5px] font-mono text-gray-200 font-bold border-t border-white/10 pt-2">
                     <span className="flex items-center gap-0.5 truncate max-w-[100px]">
                       <span className="text-[#F6C13B]">✉️</span> {email}
