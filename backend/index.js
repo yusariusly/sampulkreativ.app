@@ -858,8 +858,8 @@ app.post('/api/attendance', async (req, res) => {
       }
     }
 
-    // Distance/Coordinate verification (only if status is Hadir)
-    if (status === 'Hadir') {
+    // Distance/Coordinate verification (only if status is Hadir or Pulang)
+    if (status === 'Hadir' || status === 'Pulang') {
       const [latSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'office_latitude'");
       const [lngSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'office_longitude'");
       

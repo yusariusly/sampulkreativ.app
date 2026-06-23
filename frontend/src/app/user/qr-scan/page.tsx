@@ -140,7 +140,20 @@ export default function QRScanPage() {
               console.error("Gagal parse URL dari scan QR:", e);
             }
 
-            if (token === officialToken || token === "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026") {
+            let myUsername = "";
+            if (typeof window !== "undefined") {
+              const storedUser = localStorage.getItem("v2_user");
+              if (storedUser) {
+                myUsername = JSON.parse(storedUser).username || "";
+              }
+            }
+
+            const isValidToken = 
+              token === officialToken || 
+              token === "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026" || 
+              (myUsername && token === myUsername.trim());
+
+            if (isValidToken) {
               setScanning(false);
               stopCamera();
 

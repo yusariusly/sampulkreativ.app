@@ -36,7 +36,16 @@ export default function SelfiePage() {
         if (res.ok) {
           const data = await res.json();
           const officialToken = data.token ? data.token.trim() : "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026";
-          if (scannedToken.trim() !== officialToken && scannedToken.trim() !== "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026") {
+          
+          const storedUser = localStorage.getItem("v2_user");
+          const myUsername = storedUser ? JSON.parse(storedUser).username : null;
+
+          const isValid = 
+            scannedToken.trim() === officialToken || 
+            scannedToken.trim() === "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026" ||
+            (myUsername && scannedToken.trim() === myUsername.trim());
+
+          if (!isValid) {
             sessionStorage.removeItem("v2_scanned_token");
             router.replace("/user");
           }
