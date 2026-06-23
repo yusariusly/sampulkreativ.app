@@ -432,7 +432,7 @@ app.post('/api/auth/register-device', async (req, res) => {
   try {
     const { nama_lengkap, username, device_id, device_info } = req.body;
     if (!nama_lengkap || !username || !device_id) {
-      return res.status(400).json({ error: 'Nama Lengkap, Nomor HP, dan Perangkat wajib diisi' });
+      return res.status(400).json({ error: 'Nama Lengkap, Username, dan Perangkat wajib diisi' });
     }
 
     const trimmedUsername = username.trim().toLowerCase();
@@ -451,7 +451,7 @@ app.post('/api/auth/register-device', async (req, res) => {
       // Lock to device: check if device_id matches
       if (user.device_id && user.device_id.trim() !== '' && user.device_id !== device_id) {
         return res.status(403).json({ 
-          error: `Nomor HP ini sudah terikat pada HP lain (${user.device_info || 'Perangkat lain'}). Silakan hubungi Administrator untuk mereset perangkat Anda.` 
+          error: `Username ini sudah terikat pada HP lain (${user.device_info || 'Perangkat lain'}). Silakan hubungi Administrator untuk mereset perangkat Anda.` 
         });
       }
 

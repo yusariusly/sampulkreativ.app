@@ -312,7 +312,7 @@ export default function LoginPage() {
     setError("");
 
     if (!namaLengkap.trim() || !noHp.trim()) {
-      setError("Nama Lengkap dan Nomor Telepon wajib diisi");
+      setError("Nama Lengkap dan Username wajib diisi");
       return;
     }
 
@@ -532,11 +532,11 @@ export default function LoginPage() {
               
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider pl-1 flex items-center gap-1.5">
-                  <Phone size={13} className="text-[#2AB0B2]" /> Nomor Telepon
+                  <User size={13} className="text-[#2AB0B2]" /> Username
                 </label>
                 <input
-                  type="tel"
-                  placeholder="Contoh: 08123456789"
+                  type="text"
+                  placeholder="Contoh: yusarius"
                   value={noHp}
                   onChange={(e) => setNoHp(e.target.value)}
                   className="w-full px-4 py-3.5 rounded-2xl bg-[#F3F4F6] border-2 border-transparent focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors placeholder:text-gray-400"
