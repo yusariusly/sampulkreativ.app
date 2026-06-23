@@ -270,15 +270,66 @@ async function initDb() {
       )
     `);
 
-    // 2. Seed default users if empty
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payroll_config (
+        user_id VARCHAR(50) PRIMARY KEY,
+        gaji_pokok DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        tunjangan_makan DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        tunjangan_transport DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        potongan_alpha DECIMAL(12, 2) NOT NULL DEFAULT 0.00
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payroll_slips (
+        id VARCHAR(50) PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        username VARCHAR(50) NOT NULL,
+        nama_lengkap VARCHAR(100) NOT NULL,
+        periode VARCHAR(20) NOT NULL,
+        slip_no VARCHAR(50) NOT NULL UNIQUE,
+        tanggal_cetak VARCHAR(50) NOT NULL,
+        hari_kantor INTEGER NOT NULL,
+        hari_remote INTEGER NOT NULL,
+        hari_sakit INTEGER NOT NULL,
+        hari_izin INTEGER NOT NULL,
+        hari_alpha INTEGER NOT NULL,
+        gaji_pokok DECIMAL(12, 2) NOT NULL,
+        tunjangan_makan DECIMAL(12, 2) NOT NULL,
+        tunjangan_transport DECIMAL(12, 2) NOT NULL,
+        potongan_alpha DECIMAL(12, 2) NOT NULL,
+        potongan_sakit DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        potongan_izin DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        total_pendapatan DECIMAL(12, 2) NOT NULL,
+        total_potongan DECIMAL(12, 2) NOT NULL,
+        gaji_bersih DECIMAL(12, 2) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'Dibayar',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    try {
+      await pool.query("ALTER TABLE payroll_config ADD COLUMN jabatan VARCHAR(100) DEFAULT 'Karyawan'");
+    } catch (err) {}
+
+    try {
+      await pool.query("ALTER TABLE payroll_slips ADD COLUMN jabatan VARCHAR(100) DEFAULT 'Karyawan'");
+    } catch (err) {}
+
+    try {
+      await pool.query("ALTER TABLE payroll_config ADD COLUMN bonus DECIMAL(12, 2) DEFAULT 0.00");
+    } catch (err) {}
+
+    try {
+      await pool.query("ALTER TABLE payroll_slips ADD COLUMN bonus DECIMAL(12, 2) DEFAULT 0.00");
+    } catch (err) {}
+
+    // 2. Seed admin user if no users exist
     const [userRows] = await pool.query("SELECT COUNT(*) as cnt FROM users");
     if (userRows[0].cnt === 0) {
       await pool.query(`
         INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile) VALUES
-        ('usr-admin', 'admin', 'admin', 'Administrator', 'admin', 1, '/uploads/placeholder.jpg'),
-        ('usr-ghani', 'ghani', 'ghani', 'Muhammad Yusar Ghani', 'user', 1, '/uploads/placeholder.jpg'),
-        ('usr-john', 'jdoe123', '123', 'John Doe', 'user', 1, '/uploads/placeholder.jpg'),
-        ('usr-smyth', 'smyth.j', '123', 'Sarah Smyth', 'user', 1, '/uploads/placeholder.jpg')
+        ('usr-admin', 'admin', 'admin', 'Administrator', 'admin', 1, '/uploads/placeholder.jpg')
       `);
     }
 
@@ -305,6 +356,8 @@ async function initDb() {
         ('qr-default', 'ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026', NOW(), 1)
       `);
     }
+
+
 
     isDbInitialized = true;
     console.log("Database initialized and verified successfully.");
@@ -1138,6 +1191,8 @@ app.get('/api/settings', async (req, res) => {
       smtp_pass: '',
       smtp_to: '',
       smtp_sender: '',
+      payroll_approver_name: 'M. Firas Faisal',
+      payroll_approver_role: 'Direktur Utama',
     };
     rows.forEach(row => {
       settings[row.key_name] = row.key_value;
@@ -1162,7 +1217,9 @@ app.post('/api/settings', async (req, res) => {
       smtp_user,
       smtp_pass,
       smtp_to,
-      smtp_sender
+      smtp_sender,
+      payroll_approver_name,
+      payroll_approver_role
     } = req.body;
     
     if (deadline_time) {
@@ -1267,6 +1324,22 @@ app.post('/api/settings', async (req, res) => {
       );
     }
 
+    if (payroll_approver_name !== undefined) {
+      const val = payroll_approver_name.toString().trim();
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('payroll_approver_name', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [val, val]
+      );
+    }
+
+    if (payroll_approver_role !== undefined) {
+      const val = payroll_approver_role.toString().trim();
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('payroll_approver_role', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [val, val]
+      );
+    }
+
     res.json({ 
       success: true, 
       settings: { 
@@ -1280,7 +1353,9 @@ app.post('/api/settings', async (req, res) => {
         smtp_port,
         smtp_user,
         smtp_pass,
-        smtp_to
+        smtp_to,
+        payroll_approver_name,
+        payroll_approver_role
       } 
     });
   } catch (error) {
@@ -1403,6 +1478,166 @@ app.post('/api/users/update-bio', async (req, res) => {
     res.status(500).json({ error: 'Gagal memperbarui biodata' });
   }
 });
+
+// ==========================================
+// 10. PAYROLL MANAGEMENT ENDPOINTS
+// ==========================================
+
+// Get all payroll configs (Admin settings list)
+app.get('/api/payroll/config', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT 
+        u.id as user_id, 
+        u.username, 
+        u.nama_lengkap, 
+        u.role, 
+        COALESCE(c.gaji_pokok, 0.00) as gaji_pokok, 
+        COALESCE(c.tunjangan_makan, 0.00) as tunjangan_makan, 
+        COALESCE(c.tunjangan_transport, 0.00) as tunjangan_transport, 
+        COALESCE(c.potongan_alpha, 0.00) as potongan_alpha,
+        COALESCE(c.jabatan, 'Karyawan') as jabatan,
+        COALESCE(c.bonus, 0.00) as bonus
+      FROM users u 
+      LEFT JOIN payroll_config c ON u.id = c.user_id 
+      WHERE u.role = 'user' AND u.is_active = 1
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('Gagal mengambil konfigurasi payroll:', error);
+    res.status(500).json({ error: 'Gagal mengambil konfigurasi payroll' });
+  }
+});
+
+// Create or update payroll config
+app.post('/api/payroll/config', async (req, res) => {
+  try {
+    const { user_id, gaji_pokok, tunjangan_makan, tunjangan_transport, potongan_alpha, jabatan, bonus } = req.body;
+    if (!user_id) {
+      return res.status(400).json({ error: 'User ID wajib disertakan' });
+    }
+
+    await pool.query(`
+      INSERT INTO payroll_config (user_id, gaji_pokok, tunjangan_makan, tunjangan_transport, potongan_alpha, jabatan, bonus)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (user_id) DO UPDATE SET
+        gaji_pokok = EXCLUDED.gaji_pokok,
+        tunjangan_makan = EXCLUDED.tunjangan_makan,
+        tunjangan_transport = EXCLUDED.tunjangan_transport,
+        potongan_alpha = EXCLUDED.potongan_alpha,
+        jabatan = EXCLUDED.jabatan,
+        bonus = EXCLUDED.bonus
+    `, [user_id, gaji_pokok || 0, tunjangan_makan || 0, tunjangan_transport || 0, potongan_alpha || 0, jabatan || 'Karyawan', bonus || 0]);
+
+    res.json({ success: true, message: 'Konfigurasi payroll berhasil disimpan' });
+  } catch (error) {
+    console.error('Gagal menyimpan konfigurasi payroll:', error);
+    res.status(500).json({ error: 'Gagal menyimpan konfigurasi payroll' });
+  }
+});
+
+// Get payroll slips (can filter by user_id)
+app.get('/api/payroll/slips', async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    let query = 'SELECT * FROM payroll_slips';
+    const params = [];
+
+    if (user_id) {
+      query += ' WHERE user_id = ?';
+      params.push(user_id);
+    }
+    query += ' ORDER BY created_at DESC';
+
+    const [rows] = await pool.query(query, params);
+    
+    // Convert string decimals to numbers
+    const mapped = rows.map(s => ({
+      ...s,
+      gaji_pokok: Number(s.gaji_pokok),
+      tunjangan_makan: Number(s.tunjangan_makan),
+      tunjangan_transport: Number(s.tunjangan_transport),
+      potongan_alpha: Number(s.potongan_alpha),
+      potongan_sakit: Number(s.potongan_sakit),
+      potongan_izin: Number(s.potongan_izin),
+      total_pendapatan: Number(s.total_pendapatan),
+      total_potongan: Number(s.total_potongan),
+      gaji_bersih: Number(s.gaji_bersih),
+      bonus: Number(s.bonus || 0)
+    }));
+
+    res.json(mapped);
+  } catch (error) {
+    console.error('Gagal mengambil data slip gaji:', error);
+    res.status(500).json({ error: 'Gagal mengambil data slip gaji' });
+  }
+});
+
+// Create/Generate payroll slip
+app.post('/api/payroll/slips', async (req, res) => {
+  try {
+    const {
+      user_id,
+      periode,
+      slip_no,
+      tanggal_cetak,
+      hari_kantor,
+      hari_remote,
+      hari_sakit,
+      hari_izin,
+      hari_alpha,
+      gaji_pokok,
+      tunjangan_makan,
+      tunjangan_transport,
+      potongan_alpha,
+      potongan_sakit,
+      potongan_izin,
+      total_pendapatan,
+      total_potongan,
+      gaji_bersih,
+      status,
+      bonus
+    } = req.body;
+
+    if (!user_id || !periode || !slip_no) {
+      return res.status(400).json({ error: 'User ID, Periode, dan Slip No wajib disertakan' });
+    }
+
+    // Get user details
+    const [userRows] = await pool.query('SELECT username, nama_lengkap FROM users WHERE id = ?', [user_id]);
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+    }
+    const { username, nama_lengkap } = userRows[0];
+
+    // Get user's jabatan
+    const [configRows] = await pool.query('SELECT COALESCE(jabatan, \'Karyawan\') as jabatan FROM payroll_config WHERE user_id = ?', [user_id]);
+    const jabatan = configRows.length > 0 ? configRows[0].jabatan : 'Karyawan';
+
+    const slipId = `slip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    await pool.query(`
+      INSERT INTO payroll_slips (
+        id, user_id, username, nama_lengkap, periode, slip_no, tanggal_cetak,
+        hari_kantor, hari_remote, hari_sakit, hari_izin, hari_alpha,
+        gaji_pokok, tunjangan_makan, tunjangan_transport, potongan_alpha,
+        potongan_sakit, potongan_izin, total_pendapatan, total_potongan, gaji_bersih, status, jabatan, bonus
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      slipId, user_id, username, nama_lengkap, periode, slip_no, tanggal_cetak,
+      hari_kantor || 0, hari_remote || 0, hari_sakit || 0, hari_izin || 0, hari_alpha || 0,
+      gaji_pokok || 0, tunjangan_makan || 0, tunjangan_transport || 0, potongan_alpha || 0,
+      potongan_sakit || 0, potongan_izin || 0, total_pendapatan || 0, total_potongan || 0, gaji_bersih || 0,
+      status || 'Dibayar', jabatan, bonus || 0
+    ]);
+
+    res.json({ success: true, message: 'Slip gaji berhasil digenerate', id: slipId });
+  } catch (error) {
+    console.error('Gagal membuat slip gaji:', error);
+    res.status(500).json({ error: 'Gagal membuat slip gaji' });
+  }
+});
+
 
 if (process.env.VERCEL) {
   initDb().catch(err => console.error("Gagal melakukan inisialisasi basis data PostgreSQL di Vercel:", err));
