@@ -371,63 +371,68 @@ export default function ProfilePage() {
               {/* CARD FRONT */}
               <div
                 id="printable-id-card-front"
-                className="printable-card-side w-[240px] h-[380px] rounded-2xl shadow-xl overflow-hidden flex flex-col relative bg-[#121416] border border-[#25282C]"
+                className="printable-card-side w-[240px] h-[380px] rounded-2xl shadow-xl overflow-hidden flex flex-col relative bg-gradient-to-b from-[#FFFFFF] to-[#F5F7F8] border border-gray-200"
                 style={{ fontFamily: "Arial, sans-serif" }}
               >
-                {/* Charcoal geometric background accents */}
-                <div className="absolute top-0 left-0 w-full h-[180px] bg-[#1E2022] z-0 pointer-events-none" style={{ clipPath: "polygon(0 0, 75% 0, 45% 100%, 0 100%)" }} />
-                <div className="absolute top-0 left-0 w-full h-[180px] bg-[#2A2D30]/60 z-0 pointer-events-none" style={{ clipPath: "polygon(0 0, 50% 0, 25% 100%, 0 100%)" }} />
+                {/* Yellow circle backdrop for the photo */}
+                <div 
+                  className="absolute top-[80px] left-1/2 -translate-x-1/2 w-[125px] h-[125px] rounded-full"
+                  style={{ background: "#F6C13B" }}
+                />
 
-                {/* Right diagonal teal stripes */}
-                <div className="absolute right-0 top-[110px] flex flex-col gap-1.5 z-0 pointer-events-none">
-                  <div className="w-5 h-2.5 bg-[#2AB0B2] transform -skew-x-[25deg] translate-x-1.5" />
-                  <div className="w-6.5 h-2.5 bg-[#2AB0B2] transform -skew-x-[25deg] translate-x-1.5" />
-                  <div className="w-8 h-2.5 bg-[#2AB0B2] transform -skew-x-[25deg] translate-x-1.5" />
+                {/* Top Header */}
+                <div className="relative z-10 flex flex-col items-center pt-5 pb-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+                  <div className="leading-none text-center mt-1.5">
+                    <div className="text-[8.5px] font-black text-[#1C3D3F] tracking-widest">SAMPULKREATIV</div>
+                    <div className="text-[5.5px] text-[#2AB0B2] tracking-widest font-black mt-0.5">TECHNOLOGY</div>
+                  </div>
                 </div>
-
-                {/* Slot punch detail at the top */}
-                <div className="w-12 h-2 bg-black/40 rounded-full mx-auto mt-3 border border-white/5 z-10" />
 
                 {/* Photo block */}
-                <div className="relative z-10 flex flex-col items-center mt-7">
-                  <div className="w-[100px] h-[100px] rounded-full overflow-hidden flex items-center justify-center shadow-lg border-[3.5px] border-[#121416] bg-[#1E2022]">
-                    {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" />
-                    ) : (
-                      <User size={48} className="text-gray-500" />
-                    )}
-                  </div>
-                </div>
-
-                {/* Middle Branding */}
-                <div className="relative z-10 flex items-center justify-center gap-2 mt-4 px-4">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain filter brightness-0 invert" />
-                  <div className="leading-none text-left">
-                    <div className="text-[10px] font-black text-white tracking-widest uppercase">SAMPULKREATIV</div>
-                    <div className="text-[6.5px] text-[#2AB0B2] tracking-widest font-black mt-0.5 uppercase">TECHNOLOGY</div>
-                  </div>
-                </div>
-
-                {/* Bottom Info Section */}
-                <div className="mt-auto w-full px-4 pb-5 pt-3 z-10 flex justify-between items-end relative">
-                  {/* Left Bottom: Name Banner & Designation */}
-                  <div className="flex flex-col items-start text-left max-w-[130px]">
-                    <div className="bg-[#2AB0B2] text-white font-black text-[9.5px] uppercase tracking-wider pl-4 pr-3 py-1.5 rounded-r shadow-md leading-none mb-2 -ml-4">
-                      {fullname}
+                <div className="relative z-10 flex flex-col items-center mt-3 px-4">
+                  <div className="relative">
+                    <div className="w-[86px] h-[86px] rounded-full overflow-hidden flex items-center justify-center shadow-lg"
+                      style={{border:"3px solid #white", background:"#E5E7EB"}}>
+                      {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" />
+                      ) : (
+                        <User size={40} className="text-gray-400" />
+                      )}
                     </div>
-                    <span className="text-[7.5px] font-bold text-[#F6C13B] tracking-wider uppercase pl-0.5">
-                      {jabatan}
-                    </span>
                   </div>
+                </div>
 
-                  {/* Right Bottom: Address (replaces QR code) */}
-                  <div className="text-right flex flex-col items-end max-w-[85px] border-l border-white/10 pl-2">
-                    <span className="text-[6.5px] font-bold text-[#F6C13B] tracking-wider leading-none uppercase">SAMPULKREATIV</span>
-                    <span className="text-[4.5px] text-gray-400 font-semibold leading-tight mt-1">
-                      Gedung BITC, Jl. HMS Mintareja, Baros, Cimahi Tengah, Jawa Barat 40521
-                    </span>
+                {/* Bottom Diagonal Block */}
+                <div
+                  className="w-full bg-[#1C3D3F] text-center pt-8 pb-4 px-3 mt-auto relative z-10 flex flex-col items-center"
+                  style={{
+                    clipPath: "polygon(0 12px, 100% 0, 100% 100%, 0 100%)",
+                  }}
+                >
+                  <h5 className="font-extrabold text-[#F6C13B] text-[13px] tracking-wide uppercase leading-tight truncate w-full max-w-[210px] mt-1">
+                    {fullname}
+                  </h5>
+                  
+                  {/* Gold divider line */}
+                  <div className="h-[1px] bg-[#F6C13B]/70 w-32 mx-auto my-1.5" />
+                  
+                  <span className="text-white text-[8px] font-bold tracking-widest uppercase block leading-none mb-2">
+                    {jabatan}
+                  </span>
+
+                  {/* Address & Contacts */}
+                  <div className="w-full mt-2 text-center text-white/95">
+                    <div className="flex flex-col items-center gap-1 border-t border-white/10 pt-2.5">
+                      <span className="text-[6.5px] font-black tracking-widest text-[#F6C13B] uppercase">
+                        SAMPULKREATIV TECHNOLOGY
+                      </span>
+                      <span className="text-[5px] text-gray-300 font-medium leading-tight max-w-[200px] mx-auto">
+                        Gedung BITC, Jl. HMS Mintareja, Baros, Cimahi Tengah, Jawa Barat 40521
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
