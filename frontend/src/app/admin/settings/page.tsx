@@ -181,7 +181,7 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
               <p className="text-gray-400 text-xs leading-relaxed">
-                Kosongkan koordinat di atas untuk menonaktifkan batasan jarak absensi. Jika koordinat diisi, karyawan wajib berada dalam jangkauan <strong className="text-[#2AB0B2]">100 meter</strong> dari koordinat tersebut untuk dapat melakukan absensi masuk.
+                Kosongkan koordinat di atas untuk menonaktifkan batasan jarak absensi. Jika koordinat diisi, karyawan wajib berada dalam jangkauan <strong className="text-[#2AB0B2]">30 meter</strong> dari koordinat tersebut untuk dapat melakukan absensi masuk.
               </p>
 
               {/* Telegram Integration Section */}
@@ -335,7 +335,7 @@ export default function AdminSettingsPage() {
             • <strong>Sinkronisasi Dashboard</strong>: Begitu pengaturan disimpan, perubahan akan langsung diterapkan di perangkat karyawan pada render berikutnya.
           </p>
           <p className="leading-relaxed">
-            • <strong>Radius Jarak GPS (100m)</strong>: Jika koordinat diatur, server akan secara otomatis memverifikasi GPS karyawan dan menolak absensi jika jarak melebihi 100 meter dari kantor.
+            • <strong>Radius Jarak GPS (30m)</strong>: Jika koordinat diatur, server akan secara otomatis memverifikasi GPS karyawan dan menolak absensi jika jarak melebihi 30 meter dari kantor.
           </p>
           <p className="leading-relaxed">
             • <strong>Generator Otomatis Status Alpa</strong>: Setiap kali pengguna memuat beranda mereka pada hari baru, sistem akan mendeteksi hari-hari yang terlewat dan secara otomatis mengisi status kehadiran mereka sebagai <strong>Alpa</strong>.

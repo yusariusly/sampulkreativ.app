@@ -875,9 +875,9 @@ app.post('/api/attendance', async (req, res) => {
         }
         
         const distance = getDistanceInMeters(parseFloat(latitude), parseFloat(longitude), officeLat, officeLng);
-        if (distance > 100) {
+        if (distance > 30) {
           return res.status(400).json({ 
-            error: `Jarak Anda terlalu jauh (${Math.round(distance)} meter dari kantor). Maksimal diperbolehkan: 100 meter.` 
+            error: `Jarak Anda terlalu jauh (${Math.round(distance)} meter dari kantor). Maksimal diperbolehkan: 30 meter.` 
           });
         }
       }
