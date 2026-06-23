@@ -1482,7 +1482,7 @@ app.post('/api/users/update-profile', async (req, res) => {
 // 9. Update Bio Data
 app.post('/api/users/update-bio', async (req, res) => {
   try {
-    const { user_id, tanggal_lahir, gender, alamat } = req.body;
+    const { user_id, tanggal_lahir, gender, alamat, jabatan } = req.body;
     if (!user_id) {
       return res.status(400).json({ error: 'User ID wajib disertakan' });
     }
@@ -1492,9 +1492,19 @@ app.post('/api/users/update-bio', async (req, res) => {
       return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
     }
 
+    let updateFields = 'tanggal_lahir = ?, gender = ?, alamat = ?';
+    let params = [tanggal_lahir || null, gender || null, alamat || null];
+
+    if (jabatan !== undefined) {
+      updateFields += ', jabatan = ?';
+      params.push(jabatan.trim());
+    }
+
+    params.push(user_id);
+
     await pool.query(
-      'UPDATE users SET tanggal_lahir = ?, gender = ?, alamat = ? WHERE id = ?',
-      [tanggal_lahir || null, gender || null, alamat || null, user_id]
+      `UPDATE users SET ${updateFields} WHERE id = ?`,
+      params
     );
 
     // Fetch updated user to return

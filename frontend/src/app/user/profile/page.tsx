@@ -153,7 +153,8 @@ export default function ProfilePage() {
           user_id: userId,
           tanggal_lahir: tanggalLahir,
           gender: gender,
-          alamat: alamat
+          alamat: alamat,
+          jabatan: jabatan
         }),
       });
 
@@ -170,6 +171,7 @@ export default function ProfilePage() {
           userObj.tanggal_lahir = data.user.tanggal_lahir;
           userObj.gender = data.user.gender;
           userObj.alamat = data.user.alamat;
+          userObj.jabatan = data.user.jabatan;
           localStorage.setItem("v2_user", JSON.stringify(userObj));
         }
       } else {
@@ -230,7 +232,17 @@ export default function ProfilePage() {
           
           <button
             type="button"
-            onClick={() => setShowCardModal(true)}
+            onClick={() => {
+              if (!jabatan || jabatan.trim() === "" || jabatan.trim().toLowerCase() === "karyawan") {
+                setError("⚠️ Silakan isi kolom Jabatan / Keterangan Status Anda di profil terlebih dahulu sebelum mencetak kartu.");
+                const bioCard = document.getElementById("biodata-card");
+                if (bioCard) {
+                  bioCard.scrollIntoView({ behavior: "smooth" });
+                }
+              } else {
+                setShowCardModal(true);
+              }
+            }}
             className="mt-4 px-4 py-2 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
           >
             <Printer size={13} />
@@ -239,7 +251,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Biodata Card */}
-        <div className="bg-white rounded-2xl shadow-xs p-5 mb-4 border border-gray-100/50">
+        <div id="biodata-card" className="bg-white rounded-2xl shadow-xs p-5 mb-4 border border-gray-100/50">
           <h3 className="font-bold text-gray-800 mb-5 text-base">Bio Data</h3>
           
           {submitted && successMsg && (
@@ -279,6 +291,21 @@ export default function ProfilePage() {
                 <option value="Laki-laki">Laki-laki</option>
                 <option value="Perempuan">Perempuan</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between items-center">
+                <span>{userRole === "pkl" ? "Keterangan PKL / Magang" : "Jabatan"}</span>
+                <span className="text-[10px] text-red-500 font-bold lowercase tracking-normal bg-red-50 px-1.5 py-0.5 rounded">Wajib diisi</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder={userRole === "pkl" ? "Contoh: Praktik Kerja Lapangan / Magang" : "Contoh: Frontend Developer"}
+                value={jabatan === "Karyawan" ? "" : jabatan}
+                onChange={(e) => setJabatan(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium"
+              />
             </div>
 
             <div>
