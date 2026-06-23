@@ -411,106 +411,106 @@ export default function ProfilePage() {
               {/* CARD FRONT */}
               <div
                 id="printable-id-card-front"
-                className="printable-card-side w-[240px] h-[380px] bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden flex flex-col justify-between relative"
-                style={{
-                  fontFamily: "Arial, sans-serif",
-                }}
+                className="printable-card-side w-[240px] h-[380px] rounded-2xl shadow-xl overflow-hidden flex flex-col relative"
+                style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(160deg, #0f2d2e 0%, #1C3D3F 45%, #1a4547 100%)" }}
               >
-                {/* Card Header Background Block */}
-                <div 
-                  className="bg-[#1C3D3F] pt-3.5 pb-9 px-3 text-center flex flex-col items-center relative overflow-hidden"
-                  style={{
-                    borderBottomLeftRadius: "15% 30%",
-                    borderBottomRightRadius: "15% 30%",
-                  }}
-                >
-                  {/* Curved Design Overlay */}
-                  <div className="absolute -top-10 -left-10 w-24 h-24 bg-white/5 rounded-full filter blur-xl" />
-                  <div className="absolute -bottom-10 -right-10 w-24 h-24 bg-[#2AB0B2]/10 rounded-full filter blur-xl" />
-                  
-                  {/* App Name/Logo */}
-                  <div className="flex items-center gap-2 mt-0.5 z-10">
+                {/* Decorative circles */}
+                <div className="absolute top-[-30px] right-[-30px] w-28 h-28 rounded-full opacity-10" style={{background:"#2AB0B2"}} />
+                <div className="absolute top-[60px] right-[-50px] w-40 h-40 rounded-full opacity-5" style={{background:"#F6C13B"}} />
+                <div className="absolute bottom-[60px] left-[-40px] w-36 h-36 rounded-full opacity-10" style={{background:"#2AB0B2"}} />
+
+                {/* Diagonal accent band */}
+                <div className="absolute top-0 left-0 w-full overflow-hidden" style={{height:"100%", zIndex:0, pointerEvents:"none"}}>
+                  <div style={{
+                    position:"absolute", bottom:0, left:"-10%", width:"120%", height:"42%",
+                    background:"rgba(255,255,255,0.04)",
+                    transform:"skewY(-8deg)", transformOrigin:"bottom left"
+                  }} />
+                </div>
+
+                {/* Top Header */}
+                <div className="relative z-10 flex items-center justify-between px-4 pt-4 pb-2">
+                  <div className="flex items-center gap-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain" />
+                    <div className="leading-none">
+                      <div className="text-[7px] font-black text-white tracking-widest">SAMPULKREATIV</div>
+                      <div className="text-[4.5px] text-[#2AB0B2] tracking-widest font-bold mt-0.5">TECHNOLOGY</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div style={{background:"rgba(246,193,59,0.15)", border:"1px solid rgba(246,193,59,0.4)"}}
+                      className="px-2 py-0.5 rounded-full">
+                      <span className="text-[5.5px] font-extrabold tracking-widest uppercase" style={{color:"#F6C13B"}}>KARTU KARYAWAN</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Gold divider */}
+                <div className="relative z-10 mx-4 h-px" style={{background:"linear-gradient(90deg,transparent,#F6C13B55,transparent)"}} />
+
+                {/* Photo + Name block */}
+                <div className="relative z-10 flex flex-col items-center mt-5 px-4">
+                  <div className="relative">
+                    <div className="w-[78px] h-[78px] rounded-2xl overflow-hidden flex items-center justify-center shadow-lg"
+                      style={{border:"2.5px solid #2AB0B2", background:"#0f2d2e"}}>
+                      {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" />
+                      ) : (
+                        <User size={34} className="text-gray-500" />
+                      )}
+                    </div>
+                    {/* Status dot */}
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
+                      style={{background:"#2AB0B2", border:"2px solid #1C3D3F"}}>
+                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                    </div>
+                  </div>
+
+                  <h5 className="font-extrabold text-white text-[11px] tracking-wide mt-3 text-center leading-tight">
+                    {fullname}
+                  </h5>
+                  <div className="mt-1.5 px-3 py-0.5 rounded-full text-[7px] font-bold tracking-wider uppercase"
+                    style={{background:"rgba(42,176,178,0.2)", border:"1px solid rgba(42,176,178,0.5)", color:"#7EDFE0"}}>
+                    {jabatan}
+                  </div>
+                </div>
+
+                {/* Info grid */}
+                <div className="relative z-10 mx-4 mt-4 rounded-xl overflow-hidden"
+                  style={{background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)"}}>
+                  <div className="flex justify-between items-center px-3 py-2 border-b" style={{borderColor:"rgba(255,255,255,0.07)"}}>
+                    <span className="text-[7px] font-semibold" style={{color:"rgba(255,255,255,0.45)"}}>No. Karyawan</span>
+                    <span className="text-[7.5px] font-bold font-mono text-white">{username}</span>
+                  </div>
+                  <div className="flex justify-between items-center px-3 py-2">
+                    <span className="text-[7px] font-semibold" style={{color:"rgba(255,255,255,0.45)"}}>Status</span>
+                    <span className="text-[7.5px] font-bold capitalize text-white">
+                      {userRole === "user" || userRole === "Karyawan" ? "Karyawan" : userRole === "pkl" ? "PKL / Magang" : userRole}
+                    </span>
+                  </div>
+                </div>
+
+                {/* QR Code */}
+                <div className="relative z-10 flex flex-col items-center mt-4">
+                  <div className="p-1.5 rounded-xl bg-white shadow-md">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="/logo.png"
-                      alt="Logo"
-                      className="w-7 h-7 object-contain"
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&color=1c3d3f&data=${encodeURIComponent(username)}`}
+                      alt="QR Code" className="w-11 h-11"
                     />
-                    <div className="flex flex-col items-start leading-none text-left">
-                      <span className="text-[8px] font-black text-white tracking-wider">SAMPULKREATIV</span>
-                      <span className="text-[5.5px] text-gray-300 tracking-widest font-semibold mt-0.5">TECHNOLOGY</span>
-                    </div>
                   </div>
-                  <span className="text-[6px] text-[#F6C13B] tracking-widest uppercase font-bold mt-2 z-10">KARTU KARYAWAN</span>
+                  <span className="text-[5.5px] font-mono font-bold mt-1" style={{color:"rgba(255,255,255,0.35)", letterSpacing:"0.15em"}}>
+                    SCAN UNTUK ABSEN
+                  </span>
                 </div>
 
-                {/* Photo Frame (half hanging over the curved header) */}
-                <div className="relative -mt-8 flex justify-center z-10">
-                  <div 
-                    className="w-[76px] h-[76px] rounded-full overflow-hidden bg-white shadow-md flex items-center justify-center"
-                    style={{
-                      border: "3px solid #2AB0B2",
-                      outline: "2px solid white",
-                    }}
-                  >
-                    {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" />
-                    ) : (
-                      <User size={36} className="text-gray-300" />
-                    )}
-                  </div>
-                </div>
-
-                {/* Employee Information */}
-                <div className="flex-1 flex flex-col justify-between items-center px-4 py-2 mt-1">
-                  {/* Name & Title */}
-                  <div className="text-center w-full">
-                    <h5 className="font-extrabold text-[#1C3D3F] text-xs tracking-wide leading-tight truncate max-w-full">
-                      {fullname}
-                    </h5>
-                    <span className="bg-teal-50/70 text-[#209092] px-2 py-0.5 rounded-full text-[8px] font-bold mt-1 tracking-wider uppercase border border-teal-100/50 inline-block">
-                      {jabatan}
-                    </span>
-                  </div>
-
-                  {/* Grid Details (No Karyawan, Status) */}
-                  <div className="w-full text-[8px] text-[#1C3D3F] space-y-1 bg-gray-50/70 p-1.5 rounded-xl border border-gray-200/50 mt-2">
-                    <div className="flex justify-between border-b border-gray-200/40 pb-0.5">
-                      <span className="text-gray-400 font-semibold">No. Karyawan</span>
-                      <span className="font-bold font-mono">{username}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 font-semibold">Status Kerja</span>
-                      <span className="font-bold capitalize">
-                        {userRole === "user" || userRole === "Karyawan" ? "Karyawan" : userRole === "pkl" ? "PKL / Magang" : userRole}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* QR Code for scanning */}
-                  <div className="mt-2 flex flex-col items-center">
-                    <div className="border border-gray-150 p-1 rounded-lg bg-white shadow-xs">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&color=1c3d3f&data=${encodeURIComponent(username)}`}
-                        alt="QR Code Karyawan"
-                        className="w-12 h-12"
-                      />
-                    </div>
-                    <span className="text-[6px] font-mono font-bold text-gray-400 mt-0.5 select-all">
-                      SCAN UNTUK ABSEN
-                    </span>
-                  </div>
-                </div>
-
-                {/* Bottom Footer Band */}
-                <div>
-                  {/* Gold Stripe */}
-                  <div className="h-[3px] bg-[#F6C13B] w-full" />
-                  {/* Deep Teal Band */}
-                  <div className="bg-[#1C3D3F] py-1 text-center">
-                    <span className="text-white text-[7px] tracking-widest uppercase font-bold">
+                {/* Bottom bar */}
+                <div className="relative z-10 mt-auto">
+                  <div className="h-[3px] w-full" style={{background:"linear-gradient(90deg,#F6C13B,#EAA41D)"}} />
+                  <div className="py-1.5 text-center" style={{background:"rgba(0,0,0,0.3)"}}>
+                    <span className="text-[6px] font-bold tracking-widest uppercase" style={{color:"rgba(255,255,255,0.7)"}}>
                       ABSENSI SK · SAMPULKREATIV
                     </span>
                   </div>
@@ -551,7 +551,7 @@ export default function ProfilePage() {
                 {/* Bottom Footer Band */}
                 <div className="w-full text-center text-white px-3 pb-5 pt-2 bg-gradient-to-t from-black/40 to-transparent z-10">
                   <p className="text-[7px] font-bold tracking-wider text-gray-200 uppercase">SAMPULKREATIV TECHNOLOGY</p>
-                  <p className="text-[5px] text-gray-300 font-semibold leading-tight mt-0.5">Surabaya, Jawa Timur, Indonesia</p>
+                  <p className="text-[5px] text-gray-300 font-semibold leading-tight mt-0.5">Gedung BITC, Jl. HMS Mintareja, Baros, Cimahi Tengah, Jawa Barat 40521</p>
                   <div className="flex justify-center items-center gap-1.5 mt-2.5 text-[5px] font-mono text-gray-200 font-bold border-t border-white/10 pt-2">
                     <span className="flex items-center gap-0.5 truncate max-w-[100px]">
                       <span className="text-[#F6C13B]">✉️</span> {email}
