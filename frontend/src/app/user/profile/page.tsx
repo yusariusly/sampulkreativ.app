@@ -22,6 +22,7 @@ export default function ProfilePage() {
 
   const [showCardModal, setShowCardModal] = useState(false);
   const [jabatan, setJabatan] = useState("Karyawan");
+  const [userRole, setUserRole] = useState("Karyawan");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -35,6 +36,7 @@ export default function ProfilePage() {
         setTanggalLahir(userObj.tanggal_lahir || "");
         setGender(userObj.gender || "");
         setAlamat(userObj.alamat || "");
+        setUserRole(userObj.role || "Karyawan");
 
         // Fetch payroll config to get jabatan
         fetch("/api/payroll/config")
@@ -353,26 +355,41 @@ export default function ProfilePage() {
               </div>
 
               {/* Employee Information */}
-              <div className="flex-1 flex flex-col justify-center items-center px-4 text-center mt-2.5">
-                <h5 className="font-extrabold text-[#1C3D3F] text-xs tracking-wide leading-tight truncate max-w-full">
-                  {fullname}
-                </h5>
-                <span className="bg-teal-50/70 text-[#209092] px-2 py-0.5 rounded-full text-[8px] font-bold mt-1 tracking-wider uppercase border border-teal-100/50">
-                  {jabatan}
-                </span>
+              <div className="flex-1 flex flex-col justify-between items-center px-4 py-2 mt-1">
+                {/* Name & Title */}
+                <div className="text-center w-full">
+                  <h5 className="font-extrabold text-[#1C3D3F] text-xs tracking-wide leading-tight truncate max-w-full">
+                    {fullname}
+                  </h5>
+                  <span className="bg-teal-50/70 text-[#209092] px-2 py-0.5 rounded-full text-[8px] font-bold mt-1 tracking-wider uppercase border border-teal-100/50 inline-block">
+                    {jabatan}
+                  </span>
+                </div>
+
+                {/* Grid Details (No Karyawan, Status) */}
+                <div className="w-full text-[8px] text-[#1C3D3F] space-y-1 bg-gray-50/70 p-1.5 rounded-xl border border-gray-200/50 mt-2">
+                  <div className="flex justify-between border-b border-gray-200/40 pb-0.5">
+                    <span className="text-gray-400 font-semibold">No. Karyawan</span>
+                    <span className="font-bold font-mono">{username}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400 font-semibold">Status Kerja</span>
+                    <span className="font-bold capitalize">{userRole === "user" ? "Karyawan" : userRole}</span>
+                  </div>
+                </div>
 
                 {/* QR Code for scanning */}
-                <div className="mt-3 flex flex-col items-center">
+                <div className="mt-2 flex flex-col items-center">
                   <div className="border border-gray-150 p-1 rounded-lg bg-white shadow-xs">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&color=1c3d3f&data=${encodeURIComponent(username)}`}
                       alt="QR Code Karyawan"
-                      className="w-14 h-14"
+                      className="w-12 h-12"
                     />
                   </div>
-                  <span className="text-[7px] font-mono font-bold text-gray-400 mt-1 select-all">
-                    ID: {username}
+                  <span className="text-[6px] font-mono font-bold text-gray-400 mt-0.5 select-all">
+                    SCAN UNTUK ABSEN
                   </span>
                 </div>
               </div>
@@ -391,24 +408,31 @@ export default function ProfilePage() {
             </div>
 
             {/* Print Controls */}
-            <div className="w-full mt-6 flex gap-3">
-              <button
-                onClick={() => setShowCardModal(false)}
-                className="flex-1 py-3 text-xs font-bold text-gray-500 bg-gray-50 hover:bg-gray-100 rounded-xl transition-all cursor-pointer border border-gray-200"
-              >
-                Tutup
-              </button>
-              <button
-                onClick={() => {
-                  if (typeof window !== "undefined") {
-                    window.print();
-                  }
-                }}
-                className="flex-2 py-3 text-xs font-bold text-white bg-[#2AB0B2] hover:bg-[#209092] rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
-              >
-                <Printer size={13} />
-                Cetak Kartu
-              </button>
+            <div className="w-full mt-5 flex flex-col">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCardModal(false)}
+                  className="flex-1 py-3 text-xs font-bold text-gray-500 bg-gray-50 hover:bg-gray-100 rounded-xl transition-all cursor-pointer border border-gray-200"
+                >
+                  Tutup
+                </button>
+                <button
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      window.print();
+                    }
+                  }}
+                  className="flex-2 py-3 text-xs font-bold text-white bg-[#2AB0B2] hover:bg-[#209092] rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+                >
+                  <Printer size={13} />
+                  Cetak / Simpan PDF
+                </button>
+              </div>
+              
+              {/* Help/Tip under print button */}
+              <p className="text-[9px] text-gray-400 text-center mt-3 leading-normal">
+                💡 <b>Tips PDF:</b> Pada dialog cetak browser, pilih tujuan <b>"Simpan sebagai PDF"</b> (Save as PDF) untuk mengunduh kartu karyawan dalam format dokumen PDF.
+              </p>
             </div>
           </div>
         </div>
@@ -420,7 +444,6 @@ export default function ProfilePage() {
           /* Hide all other elements */
           body * {
             visibility: hidden;
-            background: none !important;
           }
           /* Show only print ID card */
           #printable-id-card, #printable-id-card * {
@@ -439,8 +462,8 @@ export default function ProfilePage() {
             margin: 0 !important;
             padding: 0 !important;
             background-color: white !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
             z-index: 99999;
           }
           @page {
