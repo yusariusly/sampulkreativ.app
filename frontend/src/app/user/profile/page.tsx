@@ -411,78 +411,71 @@ export default function ProfilePage() {
               {/* CARD FRONT */}
               <div
                 id="printable-id-card-front"
-                className="printable-card-side w-[240px] h-[380px] rounded-2xl shadow-xl overflow-hidden flex flex-col relative"
-                style={{ fontFamily: "Arial, sans-serif", background: "linear-gradient(160deg, #0f2d2e 0%, #1C3D3F 45%, #1a4547 100%)" }}
+                className="printable-card-side w-[240px] h-[380px] rounded-2xl shadow-xl overflow-hidden flex flex-col relative bg-gradient-to-b from-[#FFFFFF] to-[#F5F7F8] border border-gray-200"
+                style={{ fontFamily: "Arial, sans-serif" }}
               >
-                {/* Decorative circles */}
-                <div className="absolute top-[-30px] right-[-30px] w-28 h-28 rounded-full opacity-10" style={{background:"#2AB0B2"}} />
-                <div className="absolute top-[60px] right-[-50px] w-40 h-40 rounded-full opacity-5" style={{background:"#F6C13B"}} />
-                <div className="absolute bottom-[60px] left-[-40px] w-36 h-36 rounded-full opacity-10" style={{background:"#2AB0B2"}} />
-
-                {/* Diagonal accent band */}
-                <div className="absolute top-0 left-0 w-full overflow-hidden" style={{height:"100%", zIndex:0, pointerEvents:"none"}}>
-                  <div style={{
-                    position:"absolute", bottom:0, left:"-10%", width:"120%", height:"42%",
-                    background:"rgba(255,255,255,0.04)",
-                    transform:"skewY(-8deg)", transformOrigin:"bottom left"
-                  }} />
-                </div>
+                {/* Yellow circle backdrop for the photo */}
+                <div 
+                  className="absolute top-[80px] left-1/2 -translate-x-1/2 w-[125px] h-[125px] rounded-full"
+                  style={{ background: "#F6C13B" }}
+                />
 
                 {/* Top Header */}
-                <div className="relative z-10 flex items-center justify-center px-4 pt-5 pb-2">
-                  <div className="flex items-center gap-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/logo.png" alt="Logo" className="w-6.5 h-6.5 object-contain" />
-                    <div className="leading-none text-left">
-                      <div className="text-[7.5px] font-black text-white tracking-widest">SAMPULKREATIV</div>
-                      <div className="text-[5px] text-[#2AB0B2] tracking-widest font-bold mt-0.5">TECHNOLOGY</div>
-                    </div>
+                <div className="relative z-10 flex flex-col items-center pt-5 pb-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+                  <div className="leading-none text-center mt-1.5">
+                    <div className="text-[8.5px] font-black text-[#1C3D3F] tracking-widest">SAMPULKREATIV</div>
+                    <div className="text-[5.5px] text-[#2AB0B2] tracking-widest font-black mt-0.5">TECHNOLOGY</div>
                   </div>
                 </div>
 
-                {/* Gold divider */}
-                <div className="relative z-10 mx-4 h-px" style={{background:"linear-gradient(90deg,transparent,#F6C13B55,transparent)"}} />
-
-                {/* Photo + Name block */}
-                <div className="relative z-10 flex flex-col items-center mt-12 px-4">
+                {/* Photo block */}
+                <div className="relative z-10 flex flex-col items-center mt-3 px-4">
                   <div className="relative">
-                    <div className="w-[84px] h-[84px] rounded-2xl overflow-hidden flex items-center justify-center shadow-xl"
-                      style={{border:"2.5px solid #2AB0B2", background:"#0f2d2e"}}>
+                    <div className="w-[86px] h-[86px] rounded-full overflow-hidden flex items-center justify-center shadow-lg"
+                      style={{border:"3px solid #white", background:"#E5E7EB"}}>
                       {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" />
                       ) : (
-                        <User size={38} className="text-gray-500" />
+                        <User size={40} className="text-gray-400" />
                       )}
                     </div>
-                    {/* Status dot */}
-                    <div className="absolute -bottom-1 -right-1 w-4.5 h-4.5 rounded-full flex items-center justify-center"
-                      style={{background:"#2AB0B2", border:"2px solid #1C3D3F"}}>
-                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                    </div>
-                  </div>
-
-                  <h5 className="font-extrabold text-white text-[12px] tracking-wide mt-3.5 text-center leading-tight">
-                    {fullname}
-                  </h5>
-                  <div className="mt-2 px-3.5 py-0.5 rounded-full text-[7.5px] font-bold tracking-wider uppercase"
-                    style={{background:"rgba(42,176,178,0.2)", border:"1px solid rgba(42,176,178,0.5)", color:"#7EDFE0"}}>
-                    {jabatan}
                   </div>
                 </div>
 
-                {/* Bottom Footer Band */}
-                <div className="w-full text-center text-white px-3 pb-5 pt-2 bg-gradient-to-t from-black/40 to-transparent z-10 mt-auto">
-                  <p className="text-[7px] font-bold tracking-wider text-gray-200 uppercase">SAMPULKREATIV TECHNOLOGY</p>
-                  <p className="text-[5px] text-gray-300 font-semibold leading-tight mt-0.5">Gedung BITC, Jl. HMS Mintareja, Baros, Cimahi Tengah, Jawa Barat 40521</p>
-                  <div className="flex justify-center items-center gap-1.5 mt-2.5 text-[5px] font-mono text-gray-200 font-bold border-t border-white/10 pt-2">
-                    <span className="flex items-center gap-0.5 truncate max-w-[100px]">
-                      <span className="text-[#F6C13B]">✉️</span> {email}
-                    </span>
-                    <span className="text-white/20">|</span>
-                    <span className="flex items-center gap-0.5">
-                      <span className="text-[#F6C13B]">📞</span> {noTelp}
-                    </span>
+                {/* Bottom Diagonal Block */}
+                <div
+                  className="w-full bg-[#1C3D3F] text-center pt-7 pb-4 px-3 mt-auto relative z-10 flex flex-col items-center"
+                  style={{
+                    clipPath: "polygon(0 12px, 100% 0, 100% 100%, 0 100%)",
+                  }}
+                >
+                  <h5 className="font-extrabold text-[#F6C13B] text-[13px] tracking-wide uppercase leading-tight truncate w-full max-w-[210px]">
+                    {fullname}
+                  </h5>
+                  
+                  {/* Gold divider line */}
+                  <div className="h-[1px] bg-[#F6C13B]/70 w-32 mx-auto my-1.5" />
+                  
+                  <span className="text-white text-[8px] font-bold tracking-widest uppercase block leading-none mb-2">
+                    {jabatan}
+                  </span>
+
+                  {/* Address & Contacts */}
+                  <div className="w-full mt-1.5 text-center text-white/95">
+                    <p className="text-[6px] font-bold tracking-wider text-gray-300 uppercase">SAMPULKREATIV TECHNOLOGY</p>
+                    <p className="text-[5px] text-gray-400 font-medium leading-tight mt-0.5 max-w-[200px] mx-auto">Gedung BITC, Jl. HMS Mintareja, Baros, Cimahi Tengah, Jawa Barat 40521</p>
+                    <div className="flex justify-center items-center gap-1.5 mt-2 text-[4.5px] font-mono text-gray-300 font-bold border-t border-white/10 pt-1.5">
+                      <span className="flex items-center gap-0.5 truncate max-w-[90px]">
+                        <span className="text-[#F6C13B]">✉️</span> {email}
+                      </span>
+                      <span className="text-white/20">|</span>
+                      <span className="flex items-center gap-0.5">
+                        <span className="text-[#F6C13B]">📞</span> {noTelp}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
