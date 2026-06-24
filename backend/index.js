@@ -86,6 +86,24 @@ async function deleteFromSupabase(photoUrl) {
   }
 }
 
+// Helper to generate employee number (yyyy/mm/dd/02/00)
+async function generateNoKaryawan() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const prefix = `${yyyy}/${mm}/${dd}/02/`;
+
+  const [rows] = await pool.query(
+    "SELECT COUNT(*) as count FROM users WHERE no_karyawan LIKE ?",
+    [`${prefix}%`]
+  );
+  
+  const count = rows[0]?.count || 0;
+  const suffix = String(count).padStart(2, '0');
+  
+  return `${prefix}${suffix}`;
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -344,6 +362,41 @@ async function initDb() {
       // Column already exists, safe to ignore
     }
 
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN no_karyawan VARCHAR(50) NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
+    // Backfill no_karyawan for existing users
+    try {
+      const [emptyUsers] = await pool.query(
+        "SELECT id, created_at FROM users WHERE role = 'user' AND (no_karyawan IS NULL OR no_karyawan = '') ORDER BY created_at ASC, id ASC"
+      );
+      for (const u of emptyUsers) {
+        const joinDate = u.created_at ? new Date(u.created_at) : new Date();
+        const yyyy = joinDate.getFullYear();
+        const mm = String(joinDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(joinDate.getDate()).padStart(2, '0');
+        const prefix = `${yyyy}/${mm}/${dd}/02/`;
+
+        const [countRows] = await pool.query(
+          "SELECT COUNT(*) as count FROM users WHERE no_karyawan LIKE ?",
+          [`${prefix}%`]
+        );
+        const count = countRows[0]?.count || 0;
+        const suffix = String(count).padStart(2, '0');
+        const noKaryawan = `${prefix}${suffix}`;
+
+        await pool.query(
+          "UPDATE users SET no_karyawan = ? WHERE id = ?",
+          [noKaryawan, u.id]
+        );
+      }
+    } catch (err) {
+      console.error("Gagal melakukan backfill no_karyawan:", err);
+    }
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS absensi (
         id VARCHAR(50) PRIMARY KEY,
@@ -585,7 +638,8 @@ app.post('/api/auth/login-employee', async (req, res) => {
       jabatan: user.jabatan || 'Karyawan',
       email: user.email || '',
       no_telp: user.no_telp || '',
-      kategori: user.kategori || 'Karyawan'
+      kategori: user.kategori || 'Karyawan',
+      no_karyawan: user.no_karyawan || ''
     });
   } catch (error) {
     console.error('Gagal melakukan login karyawan:', error);
@@ -630,9 +684,10 @@ app.post('/api/auth/register-device', async (req, res) => {
       }
     } else {
       const userId = `usr-${Date.now()}`;
+      const noKaryawan = await generateNoKaryawan();
       await pool.query(
-        'INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, device_id, device_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, trimmedUsername, 'no_password', trimmedNama, 'user', 0, '/uploads/placeholder.jpg', device_id, device_info]
+        'INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, device_id, device_info, no_karyawan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [userId, trimmedUsername, 'no_password', trimmedNama, 'user', 0, '/uploads/placeholder.jpg', device_id, device_info, noKaryawan]
       );
       user = {
         id: userId,
@@ -642,7 +697,8 @@ app.post('/api/auth/register-device', async (req, res) => {
         is_active: 0,
         foto_profile: '/uploads/placeholder.jpg',
         device_id: device_id,
-        device_info: device_info
+        device_info: device_info,
+        no_karyawan: noKaryawan
       };
     }
 
@@ -657,7 +713,12 @@ app.post('/api/auth/register-device', async (req, res) => {
       device_info: user.device_info,
       tanggal_lahir: user.tanggal_lahir || '',
       gender: user.gender || '',
-      alamat: user.alamat || ''
+      alamat: user.alamat || '',
+      jabatan: user.jabatan || 'Karyawan',
+      email: user.email || '',
+      no_telp: user.no_telp || '',
+      kategori: user.kategori || 'Karyawan',
+      no_karyawan: user.no_karyawan || ''
     });
   } catch (error) {
     res.status(500).json({ error: 'Gagal melakukan registrasi perangkat' });
@@ -672,7 +733,7 @@ app.get('/api/auth/check-device', async (req, res) => {
     }
 
     const [rows] = await pool.query(
-      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat FROM users WHERE device_id = ? LIMIT 1',
+      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan, email, no_telp, kategori, no_karyawan FROM users WHERE device_id = ? LIMIT 1',
       [device_id.trim()]
     );
 
@@ -694,7 +755,12 @@ app.get('/api/auth/check-device', async (req, res) => {
         device_info: user.device_info,
         tanggal_lahir: user.tanggal_lahir || '',
         gender: user.gender || '',
-        alamat: user.alamat || ''
+        alamat: user.alamat || '',
+        jabatan: user.jabatan || 'Karyawan',
+        email: user.email || '',
+        no_telp: user.no_telp || '',
+        kategori: user.kategori || 'Karyawan',
+        no_karyawan: user.no_karyawan || ''
       }
     });
   } catch (error) {
@@ -1223,7 +1289,7 @@ app.post('/api/attendance/override', async (req, res) => {
 // 4. Users CRUD API
 app.get('/api/users', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan, email, no_telp FROM users');
+    const [rows] = await pool.query('SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan, email, no_telp, kategori, no_karyawan FROM users');
     const mapped = rows.map(u => ({
       ...u,
       is_active: u.is_active === 1
@@ -1252,6 +1318,11 @@ app.post('/api/users', async (req, res) => {
       dbRole = 'admin';
     }
 
+    let noKaryawan = null;
+    if (dbRole === 'user') {
+      noKaryawan = await generateNoKaryawan();
+    }
+
     const newUser = {
       id: `usr-${Date.now()}`,
       username: username.trim().toLowerCase(),
@@ -1262,13 +1333,14 @@ app.post('/api/users', async (req, res) => {
       foto_profile: '/uploads/placeholder.jpg',
       jabatan: jabatan ? jabatan.trim() : 'Karyawan',
       email: email ? email.trim() : '',
-      no_telp: no_telp ? no_telp.trim() : ''
+      no_telp: no_telp ? no_telp.trim() : '',
+      no_karyawan: noKaryawan
     };
 
     await pool.query(
-      `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, jabatan, email, no_telp) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile, newUser.jabatan, newUser.email, newUser.no_telp]
+      `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, jabatan, email, no_telp, no_karyawan) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile, newUser.jabatan, newUser.email, newUser.no_telp, noKaryawan]
     );
 
     const { password: _, ...safeUser } = newUser;
@@ -1746,7 +1818,7 @@ app.post('/api/users/update-bio', async (req, res) => {
 
     // Fetch updated user to return
     const [updatedRows] = await pool.query(
-      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan, email, no_telp, kategori FROM users WHERE id = ?',
+      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan, email, no_telp, kategori, no_karyawan FROM users WHERE id = ?',
       [user_id]
     );
     const updatedUser = updatedRows[0];

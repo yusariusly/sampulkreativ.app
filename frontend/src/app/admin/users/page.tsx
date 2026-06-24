@@ -22,6 +22,7 @@ interface UserAccount {
   jabatan?: string;
   email?: string;
   no_telp?: string;
+  no_karyawan?: string;
 }
 
 export default function AdminUsersPage() {
@@ -311,6 +312,9 @@ export default function AdminUsersPage() {
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 font-medium">
                         <div className="font-bold text-[#1C3D3F]">{u.nama_lengkap}</div>
+                        {u.no_karyawan && (
+                          <div className="text-[10px] text-[#2AB0B2] font-mono font-bold mt-0.5">{u.no_karyawan}</div>
+                        )}
                         {u.jabatan && (
                           <div className="text-xs text-gray-400 font-normal mt-0.5">{u.jabatan}</div>
                         )}

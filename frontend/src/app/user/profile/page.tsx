@@ -16,6 +16,7 @@ export default function ProfilePage() {
   const [alamat, setAlamat] = useState("");
   const [email, setEmail] = useState("");
   const [noTelp, setNoTelp] = useState("");
+  const [noKaryawan, setNoKaryawan] = useState("");
   
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -46,6 +47,7 @@ export default function ProfilePage() {
         setEmail(userObj.email || "");
         setNoTelp(userObj.no_telp || "");
         setKategori(userObj.kategori || "Karyawan");
+        setNoKaryawan(userObj.no_karyawan || "");
 
         // Fetch current user details to get real-time updates
         fetch("/api/users")
@@ -61,6 +63,7 @@ export default function ProfilePage() {
                 setEmail(currentMe.email || "");
                 setNoTelp(currentMe.no_telp || "");
                 setKategori(currentMe.kategori || "Karyawan");
+                setNoKaryawan(currentMe.no_karyawan || "");
                 
                 // Keep localstorage synced
                 const updatedUserObj = {
@@ -70,7 +73,8 @@ export default function ProfilePage() {
                   jabatan: currentMe.jabatan || "Karyawan",
                   email: currentMe.email || "",
                   no_telp: currentMe.no_telp || "",
-                  kategori: currentMe.kategori || "Karyawan"
+                  kategori: currentMe.kategori || "Karyawan",
+                  no_karyawan: currentMe.no_karyawan || ""
                 };
                 localStorage.setItem("v2_user", JSON.stringify(updatedUserObj));
               }
@@ -258,6 +262,9 @@ export default function ProfilePage() {
           
           <h2 className="text-xl font-bold text-[#1C3D3F] mt-4">{fullname}</h2>
           <p className="text-gray-400 text-sm mt-0.5">@{username}</p>
+          {noKaryawan && (
+            <p className="text-[#2AB0B2] text-xs font-mono font-bold mt-1 select-all">{noKaryawan}</p>
+          )}
           
           <button
             type="button"
@@ -401,9 +408,15 @@ export default function ProfilePage() {
                   {/* Gold divider line */}
                   <div className="h-[1px] bg-[#F6C13B]/70 w-32 mx-auto my-1" />
                   
-                  <span className="text-white text-[8px] font-bold tracking-widest uppercase block leading-none mb-1.5">
+                  <span className="text-white text-[8px] font-bold tracking-widest uppercase block leading-none mb-1">
                     {jabatan}
                   </span>
+
+                  {noKaryawan && (
+                    <span className="text-[#F6C13B] text-[7.5px] font-mono tracking-wider block leading-none mb-1 select-all">
+                      {noKaryawan}
+                    </span>
+                  )}
 
                   {/* Address & Contacts */}
                   <div className="w-full mt-1 text-center text-white/95">
