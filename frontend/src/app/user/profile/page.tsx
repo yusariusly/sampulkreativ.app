@@ -615,10 +615,14 @@ export default function ProfilePage() {
 
           #printable-id-card-wrapper {
             position: static !important;
-            display: block !important;
+            display: flex !important;
+            flex-direction: row !important;
+            justify-content: center !important;
+            align-items: center !important;
+            gap: 15mm !important;
             width: 100% !important;
             overflow: visible !important;
-            margin: 0 !important;
+            margin: 40mm auto 0 auto !important;
             padding: 0 !important;
           }
 
@@ -628,12 +632,12 @@ export default function ProfilePage() {
             border: 1px solid #e5e7eb !important;
             border-radius: 12px !important;
             box-shadow: none !important;
-            margin: 0 auto 10mm auto !important;
+            margin: 0 !important;
             padding: 0 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            page-break-after: always !important;
-            break-after: page !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
 
           /* Force backgrounds on print */
