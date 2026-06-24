@@ -363,17 +363,17 @@ export default function ProfilePage() {
                 style={{ fontFamily: "Arial, sans-serif" }}
               >
                 {/* Top Header */}
-                <div className="relative z-10 flex flex-col items-center pt-5 pb-2">
+                <div className="relative z-10 flex flex-col items-center pt-3.5 pb-1">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
-                  <div className="leading-none text-center mt-1.5">
+                  <div className="leading-none text-center mt-1">
                     <div className="text-[8.5px] font-black text-[#1C3D3F] tracking-widest">SAMPULKREATIV</div>
                     <div className="text-[5.5px] text-[#2AB0B2] tracking-widest font-black mt-0.5">TECHNOLOGY</div>
                   </div>
                 </div>
 
                 {/* Photo block */}
-                <div className="relative z-10 flex flex-col items-center mt-2 px-4">
+                <div className="relative z-10 flex flex-col items-center mt-1 px-4">
                   <div className="relative">
                     <div className="w-[125px] h-[125px] rounded-full overflow-hidden flex items-center justify-center shadow-lg"
                       style={{border:"3px solid white", background:"#E5E7EB"}}>
@@ -389,25 +389,25 @@ export default function ProfilePage() {
 
                 {/* Bottom Diagonal Block */}
                 <div
-                  className="w-full bg-[#1C3D3F] text-center pt-7 pb-3.5 px-3 mt-auto relative z-10 flex flex-col items-center"
+                  className="w-full bg-[#1C3D3F] text-center pt-5 pb-2.5 px-3 mt-auto relative z-10 flex flex-col items-center"
                   style={{
                     clipPath: "polygon(0 12px, 100% 0, 100% 100%, 0 100%)",
                   }}
                 >
-                  <h5 className="font-extrabold text-[#F6C13B] text-[13px] tracking-wide uppercase leading-tight truncate w-full max-w-[210px] mt-1">
+                  <h5 className="font-extrabold text-[#F6C13B] text-[13px] tracking-wide uppercase leading-tight truncate w-full max-w-[210px] mt-0.5">
                     {fullname}
                   </h5>
                   
                   {/* Gold divider line */}
-                  <div className="h-[1px] bg-[#F6C13B]/70 w-32 mx-auto my-1.5" />
+                  <div className="h-[1px] bg-[#F6C13B]/70 w-32 mx-auto my-1" />
                   
-                  <span className="text-white text-[8px] font-bold tracking-widest uppercase block leading-none mb-2">
+                  <span className="text-white text-[8px] font-bold tracking-widest uppercase block leading-none mb-1.5">
                     {jabatan}
                   </span>
 
                   {/* Address & Contacts */}
-                  <div className="w-full mt-2 text-center text-white/95">
-                    <div className="flex flex-col items-center gap-1 border-t border-white/10 pt-2.5">
+                  <div className="w-full mt-1 text-center text-white/95">
+                    <div className="flex flex-col items-center gap-0.5 border-t border-white/10 pt-2">
                       <span className="text-[6.5px] font-black tracking-widest text-[#F6C13B] uppercase">
                         SAMPULKREATIV TECHNOLOGY
                       </span>
