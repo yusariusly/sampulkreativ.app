@@ -389,7 +389,7 @@ export default function ProfilePage() {
 
                 {/* Bottom Diagonal Block */}
                 <div
-                  className="w-full bg-[#1C3D3F] text-center pt-8 pb-4 px-3 mt-auto relative z-10 flex flex-col items-center"
+                  className="w-full bg-[#1C3D3F] text-center pt-7 pb-3.5 px-3 mt-auto relative z-10 flex flex-col items-center"
                   style={{
                     clipPath: "polygon(0 12px, 100% 0, 100% 100%, 0 100%)",
                   }}
@@ -634,6 +634,7 @@ export default function ProfilePage() {
             box-shadow: none !important;
             margin: 0 !important;
             padding: 0 !important;
+            overflow: hidden !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             page-break-after: avoid !important;
