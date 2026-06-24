@@ -213,7 +213,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#F0F2F5] px-5 py-8 overflow-y-auto select-none">
+    <div id="profile-page-root" className="flex flex-col h-full bg-[#F0F2F5] px-5 py-8 overflow-y-auto select-none">
       <div className="print:hidden">
         {/* Space at top of profile */}
         <div className="mt-2" />
@@ -563,18 +563,37 @@ export default function ProfilePage() {
       {/* CSS style overrides for page printing */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
-          /* Hide all other elements */
-          body * {
-            visibility: hidden;
+          /* Force hide anything with print:hidden class */
+          .print\\:hidden, [class*="print:hidden"] {
+            display: none !important;
           }
-          /* Show only print ID card wrapper and its children */
-          #printable-id-card-wrapper, #printable-id-card-wrapper * {
-            visibility: visible;
+          
+          /* Reset root layout to prevent any height capping or overflow cropping */
+          #profile-page-root {
+            display: block !important;
+            height: auto !important;
+            min-height: auto !important;
+            overflow: visible !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: transparent !important;
           }
-          /* Make modal containers transparent and non-blocking on print */
-          #card-modal-overlay, #card-modal-content {
-            visibility: visible !important;
+
+          /* Reset modal overlays to let the cards flow naturally in print layout */
+          #card-modal-overlay {
             position: static !important;
+            display: block !important;
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: auto !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          
+          #card-modal-content {
+            position: static !important;
+            display: block !important;
             background: transparent !important;
             box-shadow: none !important;
             border: none !important;
@@ -583,15 +602,18 @@ export default function ProfilePage() {
             width: auto !important;
             height: auto !important;
             max-width: 100% !important;
-          }
-          #printable-id-card-wrapper {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            display: block !important;
             overflow: visible !important;
           }
+
+          #printable-id-card-wrapper {
+            position: static !important;
+            display: block !important;
+            width: 100% !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
           .printable-card-side {
             width: 54mm !important;
             height: 86mm !important;
@@ -605,28 +627,33 @@ export default function ProfilePage() {
             page-break-after: always !important;
             break-after: page !important;
           }
+
           /* Force backgrounds on print */
           #printable-id-card-front {
             background: linear-gradient(to bottom, #FFFFFF, #F5F7F8) !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
+
           #printable-id-card-front .bg-\\[\\#1C3D3F\\] {
             background-color: #1C3D3F !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
+
           #printable-id-card-back {
             background-color: #1C3D3F !important;
             background-image: none !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
+
           .printable-card-side:last-child {
             page-break-after: avoid !important;
             break-after: avoid !important;
             margin-bottom: 0 !important;
           }
+
           @page {
             size: portrait;
             margin: 0;
