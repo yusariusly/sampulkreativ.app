@@ -214,10 +214,11 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col h-full bg-[#F0F2F5] px-5 py-8 overflow-y-auto select-none">
-      {/* Space at top of profile */}
-      <div className="mt-2" />
+      <div className="print:hidden">
+        {/* Space at top of profile */}
+        <div className="mt-2" />
 
-      {/* Upper Profile Info */}
+        {/* Upper Profile Info */}
       <div>
         {/* Avatar Section */}
         <div className="flex flex-col items-center mb-8">
@@ -331,6 +332,7 @@ export default function ProfilePage() {
           </form>
         </div>
       </div>
+      </div>
 
       {/* Employee ID Card Preview Modal */}
       {showCardModal && (
@@ -340,13 +342,13 @@ export default function ProfilePage() {
             {/* Close Button */}
             <button
               onClick={() => setShowCardModal(false)}
-              className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all cursor-pointer"
+              className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all cursor-pointer print:hidden"
             >
               <X size={18} />
             </button>
 
             {/* Header info */}
-            <div className="text-center mb-5">
+            <div className="text-center mb-5 print:hidden">
               <h4 className="font-bold text-[#1C3D3F] text-base">Pratinjau Kartu Karyawan</h4>
               <p className="text-xs text-gray-400">Tampilan depan & belakang bersampingan</p>
             </div>
@@ -467,7 +469,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Inputs inside Modal to populate Email and Phone Number for Card printing */}
-            <div className="w-full mt-4 border-t border-gray-100 pt-4 px-1">
+            <div className="w-full mt-4 border-t border-gray-100 pt-4 px-1 print:hidden">
               <h5 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">Informasi Kontak untuk Kartu</h5>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
@@ -498,7 +500,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Print Controls */}
-            <div className="w-full mt-5 flex flex-col">
+            <div className="w-full mt-5 flex flex-col print:hidden">
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowCardModal(false)}
@@ -588,6 +590,7 @@ export default function ProfilePage() {
             top: 0;
             width: 100%;
             display: block !important;
+            overflow: visible !important;
           }
           .printable-card-side {
             width: 54mm !important;
