@@ -90,8 +90,8 @@ export default function ProfilePage() {
     reader.onload = () => {
       const img = new Image();
       img.onload = async () => {
-        // Target size of 200x200 for clean preview and low database storage overhead
-        const maxDim = 200;
+        // Target size of 800x800 for crisp, high-quality printing on Supabase Storage
+        const maxDim = 800;
         let width = img.width;
         let height = img.height;
 
@@ -114,7 +114,7 @@ export default function ProfilePage() {
         if (!ctx) return;
 
         ctx.drawImage(img, 0, 0, width, height);
-        const base64 = canvas.toDataURL("image/jpeg", 0.75);
+        const base64 = canvas.toDataURL("image/jpeg", 0.9);
 
         setLoading(true);
         setError("");
