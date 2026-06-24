@@ -25,6 +25,7 @@ export default function ProfilePage() {
   const [showCardModal, setShowCardModal] = useState(false);
   const [jabatan, setJabatan] = useState("Karyawan");
   const [userRole, setUserRole] = useState("Karyawan");
+  const [kategori, setKategori] = useState("Karyawan");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -42,6 +43,7 @@ export default function ProfilePage() {
         setJabatan(userObj.jabatan || "Karyawan");
         setEmail(userObj.email || "");
         setNoTelp(userObj.no_telp || "");
+        setKategori(userObj.kategori || "Karyawan");
 
         // Fetch current user details to get real-time updates
         fetch("/api/users")
@@ -56,6 +58,7 @@ export default function ProfilePage() {
                 setJabatan(currentMe.jabatan || "Karyawan");
                 setEmail(currentMe.email || "");
                 setNoTelp(currentMe.no_telp || "");
+                setKategori(currentMe.kategori || "Karyawan");
                 
                 // Keep localstorage synced
                 const updatedUserObj = {
@@ -64,7 +67,8 @@ export default function ProfilePage() {
                   role: currentMe.role,
                   jabatan: currentMe.jabatan || "Karyawan",
                   email: currentMe.email || "",
-                  no_telp: currentMe.no_telp || ""
+                  no_telp: currentMe.no_telp || "",
+                  kategori: currentMe.kategori || "Karyawan"
                 };
                 localStorage.setItem("v2_user", JSON.stringify(updatedUserObj));
               }
@@ -164,7 +168,8 @@ export default function ProfilePage() {
           alamat: alamat,
           jabatan: jabatan,
           email: email,
-          no_telp: noTelp
+          no_telp: noTelp,
+          kategori: kategori
         }),
       });
 
@@ -184,6 +189,7 @@ export default function ProfilePage() {
           userObj.jabatan = data.user.jabatan;
           userObj.email = data.user.email;
           userObj.no_telp = data.user.no_telp;
+          userObj.kategori = data.user.kategori || "Karyawan";
           localStorage.setItem("v2_user", JSON.stringify(userObj));
         }
       } else {
@@ -290,6 +296,36 @@ export default function ProfilePage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-2">
+                Kategori Keanggotaan
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setKategori("Karyawan")}
+                  className={`py-3 rounded-xl font-bold text-sm transition-all border cursor-pointer ${
+                    kategori === "Karyawan"
+                      ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
+                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  💼 Karyawan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKategori("PKL")}
+                  className={`py-3 rounded-xl font-bold text-sm transition-all border cursor-pointer ${
+                    kategori === "PKL"
+                      ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
+                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  🎓 PKL / Magang
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between items-center">
                 <span>Jabatan</span>

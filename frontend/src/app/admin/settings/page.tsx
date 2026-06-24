@@ -10,6 +10,7 @@ export default function AdminSettingsPage() {
   const [officeLongitude, setOfficeLongitude] = useState("");
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
+  const [telegramChatIdKaryawan, setTelegramChatIdKaryawan] = useState("");
 
   // SMTP state
   const [smtpHost, setSmtpHost] = useState("");
@@ -45,6 +46,9 @@ export default function AdminSettingsPage() {
         }
         if (data.telegram_chat_id !== undefined) {
           setTelegramChatId(data.telegram_chat_id);
+        }
+        if (data.telegram_chat_id_karyawan !== undefined) {
+          setTelegramChatIdKaryawan(data.telegram_chat_id_karyawan);
         }
         if (data.smtp_host !== undefined) {
           setSmtpHost(data.smtp_host);
@@ -98,6 +102,7 @@ export default function AdminSettingsPage() {
           office_longitude: officeLongitude,
           telegram_bot_token: telegramBotToken,
           telegram_chat_id: telegramChatId,
+          telegram_chat_id_karyawan: telegramChatIdKaryawan,
           smtp_host: smtpHost,
           smtp_port: smtpPort,
           smtp_user: smtpUser,
@@ -205,7 +210,7 @@ export default function AdminSettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Telegram Chat ID (Grup / Channel / User ID)
+                    Telegram Chat ID untuk PKL / Magang
                   </label>
                   <input
                     type="text"
@@ -215,9 +220,21 @@ export default function AdminSettingsPage() {
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Telegram Chat ID untuk Karyawan
+                  </label>
+                  <input
+                    type="text"
+                    value={telegramChatIdKaryawan}
+                    onChange={(e) => setTelegramChatIdKaryawan(e.target.value)}
+                    placeholder="Contoh: -100123456789 atau 987654321"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
+                  />
+                </div>
               </div>
               <p className="text-gray-400 text-xs leading-relaxed">
-                Kosongkan token dan chat ID di atas untuk menonaktifkan notifikasi Telegram. Jika diisi, setiap kali karyawan absen masuk, detail nama, status, waktu, lokasi GPS, beserta <strong>foto selfie</strong> mereka akan langsung dikirimkan ke Telegram secara otomatis.
+                Kosongkan token dan chat ID di atas untuk menonaktifkan notifikasi Telegram. Jika diisi, setiap kali karyawan/PKL absen masuk, detail nama, status, waktu, lokasi GPS, beserta <strong>foto selfie</strong> mereka akan langsung dikirimkan ke Telegram group/channel masing-masing secara otomatis.
               </p>
 
               {/* SMTP / Email Integration Section */}

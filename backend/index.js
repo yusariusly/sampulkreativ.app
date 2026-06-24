@@ -257,6 +257,12 @@ async function initDb() {
       // Column already exists, safe to ignore
     }
 
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN kategori VARCHAR(50) DEFAULT 'Karyawan'");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS absensi (
         id VARCHAR(50) PRIMARY KEY,
@@ -498,7 +504,8 @@ app.post('/api/auth/login-employee', async (req, res) => {
       alamat: user.alamat || '',
       jabatan: user.jabatan || 'Karyawan',
       email: user.email || '',
-      no_telp: user.no_telp || ''
+      no_telp: user.no_telp || '',
+      kategori: user.kategori || 'Karyawan'
     });
   } catch (error) {
     console.error('Gagal melakukan login karyawan:', error);
@@ -887,10 +894,19 @@ function sendTelegramPhotoFromBuffer(botToken, chatId, fileBuffer, filename, cap
 async function triggerTelegramNotification(newRecord, fileBuffer, filename) {
   try {
     const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
-    const [chatIdSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
+    const [chatIdPklSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
+    const [chatIdKaryawanSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_karyawan'");
+    
+    const [userRows] = await pool.query("SELECT kategori FROM users WHERE id = ?", [newRecord.user_id]);
+    const userKategori = userRows[0]?.kategori || 'Karyawan';
     
     const botToken = botTokenSetting[0]?.key_value;
-    const chatId = chatIdSetting[0]?.key_value;
+    let chatId = '';
+    if (userKategori === 'PKL') {
+      chatId = chatIdPklSetting[0]?.key_value || '';
+    } else {
+      chatId = chatIdKaryawanSetting[0]?.key_value || chatIdPklSetting[0]?.key_value || '';
+    }
 
     if (!botToken || !chatId || botToken.trim() === '' || chatId.trim() === '') {
       console.log("Telegram notification skipped: Bot Token or Chat ID not configured.");
@@ -1317,6 +1333,7 @@ app.get('/api/settings', async (req, res) => {
       office_longitude: '',
       telegram_bot_token: '',
       telegram_chat_id: '',
+      telegram_chat_id_karyawan: '',
       smtp_host: '',
       smtp_port: '587',
       smtp_user: '',
@@ -1344,6 +1361,7 @@ app.post('/api/settings', async (req, res) => {
       office_longitude, 
       telegram_bot_token, 
       telegram_chat_id,
+      telegram_chat_id_karyawan,
       smtp_host,
       smtp_port,
       smtp_user,
@@ -1404,6 +1422,17 @@ app.post('/api/settings', async (req, res) => {
       }
       await pool.query(
         "INSERT INTO settings (key_name, key_value) VALUES ('telegram_chat_id', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [chatIdVal, chatIdVal]
+      );
+    }
+
+    if (telegram_chat_id_karyawan !== undefined) {
+      let chatIdVal = telegram_chat_id_karyawan.toString().trim();
+      if (chatIdVal.startsWith('-') && !chatIdVal.startsWith('-100')) {
+        chatIdVal = '-100' + chatIdVal.slice(1);
+      }
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('telegram_chat_id_karyawan', ?) ON DUPLICATE KEY UPDATE key_value = ?",
         [chatIdVal, chatIdVal]
       );
     }
@@ -1582,7 +1611,7 @@ app.post('/api/users/update-profile', async (req, res) => {
 // 9. Update Bio Data
 app.post('/api/users/update-bio', async (req, res) => {
   try {
-    const { user_id, tanggal_lahir, gender, alamat, jabatan, email, no_telp } = req.body;
+    const { user_id, tanggal_lahir, gender, alamat, jabatan, email, no_telp, kategori } = req.body;
     if (!user_id) {
       return res.status(400).json({ error: 'User ID wajib disertakan' });
     }
@@ -1610,6 +1639,11 @@ app.post('/api/users/update-bio', async (req, res) => {
       params.push(no_telp.trim());
     }
 
+    if (kategori !== undefined) {
+      updateFields += ', kategori = ?';
+      params.push(kategori.trim());
+    }
+
     params.push(user_id);
 
     await pool.query(
@@ -1619,7 +1653,7 @@ app.post('/api/users/update-bio', async (req, res) => {
 
     // Fetch updated user to return
     const [updatedRows] = await pool.query(
-      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan, email, no_telp FROM users WHERE id = ?',
+      'SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan, email, no_telp, kategori FROM users WHERE id = ?',
       [user_id]
     );
     const updatedUser = updatedRows[0];
