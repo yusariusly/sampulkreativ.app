@@ -11,6 +11,7 @@ export default function UserHomePage() {
   const [clockInTime, setClockInTime] = useState<string | null>(null);
   const [clockOutTime, setClockOutTime] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [kategori, setKategori] = useState("Karyawan");
   
   // Clock state
   const [now, setNow] = useState(new Date());
@@ -40,6 +41,7 @@ export default function UserHomePage() {
       const userObj = JSON.parse(storedUser);
       setFullname(userObj.nama_lengkap);
       setProfilePhoto(userObj.foto_profile || null);
+      setKategori(userObj.kategori || "Karyawan");
 
       const res = await fetch(`/api/attendance?user_id=${userObj.id}`);
       if (res.ok) {
@@ -235,6 +237,34 @@ export default function UserHomePage() {
     }
   };
 
+  const handleUpdateKategori = async (newKategori: string) => {
+    try {
+      const storedUser = localStorage.getItem("v2_user");
+      if (!storedUser) return;
+      const userObj = JSON.parse(storedUser);
+      
+      const res = await fetch("/api/users/update-bio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userObj.id,
+          kategori: newKategori
+        })
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setKategori(newKategori);
+          userObj.kategori = newKategori;
+          localStorage.setItem("v2_user", JSON.stringify(userObj));
+        }
+      }
+    } catch (err) {
+      console.error("Gagal memperbarui kategori:", err);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#F0F2F5] px-5 pt-6 pb-6 select-none relative">
       {/* Greeting */}
@@ -260,6 +290,33 @@ export default function UserHomePage() {
             <p className="text-gray-500 text-xs leading-none">Halo,</p>
             <p className="text-base font-bold leading-tight text-[#2AB0B2]">{fullname}</p>
           </div>
+        </div>
+      </div>
+
+      {/* Category selector on Homepage */}
+      <div className="bg-white rounded-2xl shadow-xs p-4 mb-2 border border-gray-100/50 flex flex-col gap-2">
+        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Kategori Keanggotaan Anda</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => handleUpdateKategori("Karyawan")}
+            className={`py-2 px-3 rounded-xl font-bold text-xs transition-all border cursor-pointer flex items-center justify-center gap-1 ${
+              kategori === "Karyawan"
+                ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
+                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            💼 Karyawan
+          </button>
+          <button
+            onClick={() => handleUpdateKategori("PKL")}
+            className={`py-2 px-3 rounded-xl font-bold text-xs transition-all border cursor-pointer flex items-center justify-center gap-1 ${
+              kategori === "PKL"
+                ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
+                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            🎓 PKL / Magang
+          </button>
         </div>
       </div>
 

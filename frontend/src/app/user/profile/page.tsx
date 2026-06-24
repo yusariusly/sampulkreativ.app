@@ -263,36 +263,21 @@ export default function ProfilePage() {
             onClick={() => {
               if (!jabatan || jabatan.trim() === "" || jabatan.trim().toLowerCase() === "karyawan") {
                 setError("⚠️ Jabatan Anda belum ditentukan oleh Administrator. Silakan hubungi Administrator.");
-                const bioCard = document.getElementById("biodata-card");
-                if (bioCard) {
-                  bioCard.scrollIntoView({ behavior: "smooth" });
-                }
-              } else if (!email || email.trim() === "") {
-                setError("⚠️ Silakan isi kolom Email Anda di profil terlebih dahulu sebelum mengunduh kartu.");
-                const bioCard = document.getElementById("biodata-card");
-                if (bioCard) {
-                  bioCard.scrollIntoView({ behavior: "smooth" });
-                }
-              } else if (!noTelp || noTelp.trim() === "") {
-                setError("⚠️ Silakan isi kolom No. Telepon Anda di profil terlebih dahulu sebelum mengunduh kartu.");
-                const bioCard = document.getElementById("biodata-card");
-                if (bioCard) {
-                  bioCard.scrollIntoView({ behavior: "smooth" });
-                }
               } else {
+                setError("");
                 setShowCardModal(true);
               }
             }}
-            className="mt-4 px-4 py-2 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
+            className="mt-4 px-4 py-2.5 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
           >
             <CreditCard size={13} />
             Download Kartu Karyawan
           </button>
         </div>
 
-        {/* Biodata Card */}
-        <div id="biodata-card" className="bg-white rounded-2xl shadow-xs p-5 mb-4 border border-gray-100/50">
-          <h3 className="font-bold text-gray-800 mb-5 text-base">Bio Data</h3>
+        {/* Change Password Card */}
+        <div className="bg-white rounded-2xl shadow-xs p-5 mb-4 border border-gray-100/50">
+          <h3 className="font-bold text-gray-800 mb-5 text-base">Ubah Password</h3>
           
           {submitted && successMsg && (
             <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl text-xs font-semibold text-center animate-pulse">
@@ -307,73 +292,14 @@ export default function ProfilePage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-2">
-                Kategori Keanggotaan
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setKategori("Karyawan")}
-                  className={`py-3 rounded-xl font-bold text-sm transition-all border cursor-pointer ${
-                    kategori === "Karyawan"
-                      ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
-                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                  }`}
-                >
-                  💼 Karyawan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setKategori("PKL")}
-                  className={`py-3 rounded-xl font-bold text-sm transition-all border cursor-pointer ${
-                    kategori === "PKL"
-                      ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
-                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                  }`}
-                >
-                  🎓 PKL / Magang
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between items-center">
-                <span>Email</span>
-                <span className="text-[10px] text-red-500 font-bold lowercase tracking-normal bg-red-50 px-1.5 py-0.5 rounded">Wajib diisi</span>
-              </label>
-              <input
-                type="email"
-                required
-                placeholder="Contoh: nama@domain.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between items-center">
-                <span>No. Telepon</span>
-                <span className="text-[10px] text-red-500 font-bold lowercase tracking-normal bg-red-50 px-1.5 py-0.5 rounded">Wajib diisi</span>
-              </label>
-              <input
-                type="tel"
-                required
-                placeholder="Contoh: 08123456789"
-                value={noTelp}
-                onChange={(e) => setNoTelp(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium"
-              />
-            </div>
-
-            <div>
               <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between items-center">
                 <span>Password Baru</span>
-                <span className="text-[10px] text-gray-400 font-bold lowercase tracking-normal bg-gray-50 px-1.5 py-0.5 rounded">Opsional</span>
+                <span className="text-[10px] text-gray-400 font-bold lowercase tracking-normal bg-gray-50 px-1.5 py-0.5 rounded">Wajib</span>
               </label>
               <input
                 type="password"
-                placeholder="Kosongkan jika tidak ingin mengubah password"
+                required
+                placeholder="Masukkan password baru Anda"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium"
@@ -383,10 +309,11 @@ export default function ProfilePage() {
             <div>
               <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between items-center">
                 <span>Konfirmasi Password Baru</span>
-                <span className="text-[10px] text-gray-400 font-bold lowercase tracking-normal bg-gray-50 px-1.5 py-0.5 rounded">Opsional</span>
+                <span className="text-[10px] text-gray-400 font-bold lowercase tracking-normal bg-gray-50 px-1.5 py-0.5 rounded">Wajib</span>
               </label>
               <input
                 type="password"
+                required
                 placeholder="Konfirmasi password baru Anda"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -399,7 +326,7 @@ export default function ProfilePage() {
               disabled={loading}
               className="w-full py-3.5 rounded-xl text-white font-bold cursor-pointer hover:bg-[#209092] transition-colors bg-[#2AB0B2] disabled:opacity-50 mt-2"
             >
-              {loading ? "Menyimpan..." : "Simpan Biodata"}
+              {loading ? "Menyimpan..." : "Simpan Password Baru"}
             </button>
           </form>
         </div>
@@ -408,7 +335,7 @@ export default function ProfilePage() {
       {/* Employee ID Card Preview Modal */}
       {showCardModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in print:hidden">
-          <div className="bg-white rounded-3xl w-full max-w-[360px] md:max-w-[600px] overflow-hidden shadow-2xl border border-gray-100 flex flex-col items-center p-6 relative my-8">
+          <div className="bg-white rounded-3xl w-full max-w-[360px] md:max-w-[620px] overflow-hidden shadow-2xl border border-gray-100 flex flex-col items-center p-6 relative my-8">
             
             {/* Close Button */}
             <button
@@ -421,16 +348,16 @@ export default function ProfilePage() {
             {/* Header info */}
             <div className="text-center mb-5">
               <h4 className="font-bold text-[#1C3D3F] text-base">Pratinjau Kartu Karyawan</h4>
-              <p className="text-xs text-gray-400">Siap untuk dicetak sebagai kartu fisik depan & belakang</p>
+              <p className="text-xs text-gray-400">Tampilan depan & belakang bersampingan</p>
             </div>
 
             {/* The Actual ID Card Elements wrapper */}
-            <div id="printable-id-card-wrapper" className="flex flex-col md:flex-row gap-6 items-center justify-center my-3 print:my-0 print:gap-0">
+            <div id="printable-id-card-wrapper" className="flex flex-row gap-6 items-center justify-start md:justify-center my-3 overflow-x-auto w-full max-w-full py-2 px-1 scrollbar-thin">
               
               {/* CARD FRONT */}
               <div
                 id="printable-id-card-front"
-                className="printable-card-side w-[240px] h-[380px] rounded-2xl shadow-xl overflow-hidden flex flex-col relative bg-gradient-to-b from-[#FFFFFF] to-[#F5F7F8] border border-gray-200"
+                className="printable-card-side w-[240px] h-[380px] rounded-2xl shadow-xl overflow-hidden flex flex-col relative bg-gradient-to-b from-[#FFFFFF] to-[#F5F7F8] border border-gray-200 flex-shrink-0"
                 style={{ fontFamily: "Arial, sans-serif" }}
               >
                 {/* Yellow circle backdrop for the photo */}
@@ -499,7 +426,7 @@ export default function ProfilePage() {
               {/* CARD BACK */}
               <div
                 id="printable-id-card-back"
-                className="printable-card-side w-[240px] h-[380px] bg-[#1C3D3F] rounded-2xl shadow-lg border border-gray-900 overflow-hidden flex flex-col justify-between relative"
+                className="printable-card-side w-[240px] h-[380px] bg-[#1C3D3F] rounded-2xl shadow-lg border border-gray-900 overflow-hidden flex flex-col justify-between relative flex-shrink-0"
                 style={{
                   fontFamily: "Arial, sans-serif",
                 }}
@@ -545,7 +472,38 @@ export default function ProfilePage() {
 
             </div>
 
-             {/* Print Controls */}
+            {/* Inputs inside Modal to populate Email and Phone Number for Card printing */}
+            <div className="w-full mt-4 border-t border-gray-100 pt-4 px-1">
+              <h5 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">Informasi Kontak untuk Kartu</h5>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="nama@domain.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">
+                    No. Telepon
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="Contoh: 08123456789"
+                    value={noTelp}
+                    onChange={(e) => setNoTelp(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Print Controls */}
             <div className="w-full mt-5 flex flex-col">
               <div className="flex gap-3">
                 <button
@@ -555,7 +513,37 @@ export default function ProfilePage() {
                   Tutup
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    // Save dynamically then print
+                    if (!email || email.trim() === "" || !noTelp || noTelp.trim() === "") {
+                      alert("⚠️ Email dan No. Telepon wajib diisi untuk kartu!");
+                      return;
+                    }
+                    try {
+                      const res = await fetch("/api/users/update-bio", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          user_id: userId,
+                          email: email,
+                          no_telp: noTelp
+                        })
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        if (data.success) {
+                          const storedUser = localStorage.getItem("v2_user");
+                          if (storedUser) {
+                            const userObj = JSON.parse(storedUser);
+                            userObj.email = email;
+                            userObj.no_telp = noTelp;
+                            localStorage.setItem("v2_user", JSON.stringify(userObj));
+                          }
+                        }
+                      }
+                    } catch (err) {
+                      console.error("Gagal memperbarui biodata saat cetak:", err);
+                    }
                     if (typeof window !== "undefined") {
                       window.print();
                     }
@@ -563,7 +551,7 @@ export default function ProfilePage() {
                   className="flex-2 py-3 text-xs font-bold text-white bg-[#2AB0B2] hover:bg-[#209092] rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
                 >
                   <Download size={13} />
-                  Download PDF
+                  Simpan & Cetak Kartu
                 </button>
               </div>
               
