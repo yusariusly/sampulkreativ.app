@@ -116,10 +116,8 @@ export default function AdminUsersPage() {
       return;
     }
 
-    const isAdminRole = (editingUserId ? editingUserRole : role) === "admin";
-
-    if (isAdminRole && !editingUserId && !password.trim()) {
-      showToast("⚠️ Password wajib diisi untuk akun admin baru");
+    if (!editingUserId && !password.trim()) {
+      showToast("⚠️ Password wajib diisi untuk akun baru");
       return;
     }
 
@@ -133,7 +131,7 @@ export default function AdminUsersPage() {
           role: editingUserRole,
           jabatan: jabatan.trim()
         };
-        if (isAdminRole && password.trim() !== "") {
+        if (password.trim() !== "") {
           bodyPayload.password = password.trim();
         }
 
@@ -154,7 +152,7 @@ export default function AdminUsersPage() {
         const bodyPayload = {
           nama_lengkap: fullname.trim(),
           username: username.trim().toLowerCase(),
-          password: isAdminRole ? password.trim() : "no_password",
+          password: password.trim(),
           role: role,
           jabatan: jabatan.trim()
         };
@@ -488,19 +486,17 @@ export default function AdminUsersPage() {
                 />
               </div>
 
-              {/* Password Input (Admin Only) */}
-              {isAdminForm && (
-                <div>
-                  <input
-                    type="password"
-                    placeholder={editingUserId ? "Password Baru (Kosongkan jika tidak diubah)" : "Password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
-                    required={!editingUserId}
-                  />
-                </div>
-              )}
+              {/* Password Input */}
+              <div>
+                <input
+                  type="password"
+                  placeholder={editingUserId ? "Password Baru (Kosongkan jika tidak diubah)" : "Password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
+                  required={!editingUserId}
+                />
+              </div>
 
               {/* Active toggle - only when editing */}
               {editingUserId && (

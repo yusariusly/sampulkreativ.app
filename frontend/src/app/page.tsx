@@ -122,9 +122,10 @@ export default function LoginPage() {
   const [pendingUser, setPendingUser] = useState<{ nama_lengkap: string; username: string; device_info?: string } | null>(null);
   const [dots, setDots] = useState(".");
 
-  // Registration States
-  const [namaLengkap, setNamaLengkap] = useState("");
+  // Registration/Login States
   const [noHp, setNoHp] = useState("");
+  const [employeePassword, setEmployeePassword] = useState("");
+  const [showEmployeePassword, setShowEmployeePassword] = useState(false);
   
   // Admin States
   const [adminUser, setAdminUser] = useState("");
@@ -311,8 +312,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-    if (!namaLengkap.trim() || !noHp.trim()) {
-      setError("Nama Lengkap dan Username wajib diisi");
+    if (!noHp.trim() || !employeePassword.trim()) {
+      setError("Username dan password wajib diisi");
       return;
     }
 
@@ -322,12 +323,12 @@ export default function LoginPage() {
       const deviceId = getOrCreateDeviceId();
       const deviceInfo = getDeviceInfo();
 
-      const response = await fetch("/api/auth/register-device", {
+      const response = await fetch("/api/auth/login-employee", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          nama_lengkap: namaLengkap.trim(),
           username: noHp.trim(),
+          password: employeePassword.trim(),
           device_id: deviceId,
           device_info: deviceInfo
         }),
@@ -336,7 +337,7 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Gagal melakukan registrasi");
+        setError(data.error || "Gagal masuk absensi");
         setLoading(false);
         return;
       }
@@ -503,7 +504,7 @@ export default function LoginPage() {
             </h1>
             <p className="text-gray-400 text-sm">
               {mode === "register" 
-                ? "Daftarkan diri Anda sekali menggunakan HP ini untuk mulai melakukan absensi." 
+                ? "Silakan masuk menggunakan akun yang telah dibuatkan oleh Admin." 
                 : "Masukkan kredensial admin Anda untuk mengelola sistem."}
             </p>
           </div>
@@ -518,30 +519,39 @@ export default function LoginPage() {
             <form onSubmit={handleRegister} className="w-full space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider pl-1 flex items-center gap-1.5">
-                  <User size={13} className="text-[#2AB0B2]" /> Nama Lengkap
-                </label>
-                <input
-                  type="text"
-                  placeholder="Masukkan nama lengkap Anda"
-                  value={namaLengkap}
-                  onChange={(e) => setNamaLengkap(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-2xl bg-[#F3F4F6] border-2 border-transparent focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors placeholder:text-gray-400"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider pl-1 flex items-center gap-1.5">
                   <User size={13} className="text-[#2AB0B2]" /> Username
                 </label>
                 <input
                   type="text"
-                  placeholder="Contoh: yusarius"
+                  placeholder="Masukkan username Anda"
                   value={noHp}
                   onChange={(e) => setNoHp(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-2xl bg-[#F3F4F6] border-2 border-transparent focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors placeholder:text-gray-400"
+                  className="w-full px-4 py-3.5 rounded-2xl bg-[#F3F4F6] border-2 border-transparent focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors placeholder:text-gray-400 font-mono"
                   required
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider pl-1 flex items-center gap-1.5">
+                  <Shield size={13} className="text-[#2AB0B2]" /> Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showEmployeePassword ? "text" : "password"}
+                    placeholder="Masukkan password Anda"
+                    value={employeePassword}
+                    onChange={(e) => setEmployeePassword(e.target.value)}
+                    className="w-full px-4 py-3.5 pr-12 rounded-2xl bg-[#F3F4F6] border-2 border-transparent focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors placeholder:text-gray-400"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEmployeePassword((p) => !p)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600"
+                  >
+                    {showEmployeePassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
 
               <button
@@ -549,7 +559,7 @@ export default function LoginPage() {
                 disabled={loading}
                 className="w-full py-4 mt-2 rounded-2xl text-white font-bold text-base shadow-md active:scale-[0.98] transition-transform cursor-pointer flex items-center justify-center bg-[#2AB0B2] hover:bg-[#209092] disabled:opacity-50"
               >
-                {loading ? "Memproses..." : "Daftar & Masuk Absensi"}
+                {loading ? "Memproses..." : "Masuk Absensi"}
               </button>
               
               <div className="pt-2 text-center">

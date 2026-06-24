@@ -435,6 +435,77 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+app.post('/api/auth/login-employee', async (req, res) => {
+  try {
+    const { username, password, device_id, device_info } = req.body;
+    if (!username || !password || !device_id) {
+      return res.status(400).json({ error: 'Username, password, dan perangkat wajib disertakan' });
+    }
+
+    const trimmedUsername = username.trim().toLowerCase();
+
+    // Find the user
+    const [rows] = await pool.query(
+      'SELECT * FROM users WHERE LOWER(username) = ? AND role = "user"',
+      [trimmedUsername]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ error: 'Username salah atau bukan akun karyawan' });
+    }
+
+    const user = rows[0];
+
+    // Verify password
+    if (user.password !== password) {
+      return res.status(401).json({ error: 'Password yang Anda masukkan salah' });
+    }
+
+    // Verify is_active
+    if (user.is_active !== 1) {
+      return res.status(403).json({ error: 'Akun Anda belum diaktifkan oleh administrator' });
+    }
+
+    // Device binding logic
+    if (user.device_id && user.device_id.trim() !== '') {
+      // If already bound to another device
+      if (user.device_id !== device_id) {
+        return res.status(403).json({
+          error: `Akun ini sudah terikat pada HP lain (${user.device_info || 'Perangkat lain'}). Silakan hubungi Administrator untuk mereset perangkat Anda.`
+        });
+      }
+    } else {
+      // If not bound yet, bind it now!
+      await pool.query(
+        'UPDATE users SET device_id = ?, device_info = ? WHERE id = ?',
+        [device_id, device_info, user.id]
+      );
+      user.device_id = device_id;
+      user.device_info = device_info;
+    }
+
+    res.json({
+      id: user.id,
+      username: user.username,
+      nama_lengkap: user.nama_lengkap,
+      role: user.role,
+      is_active: user.is_active,
+      foto_profile: user.foto_profile || '/uploads/placeholder.jpg',
+      device_id: user.device_id,
+      device_info: user.device_info,
+      tanggal_lahir: user.tanggal_lahir || '',
+      gender: user.gender || '',
+      alamat: user.alamat || '',
+      jabatan: user.jabatan || 'Karyawan',
+      email: user.email || '',
+      no_telp: user.no_telp || ''
+    });
+  } catch (error) {
+    console.error('Gagal melakukan login karyawan:', error);
+    res.status(500).json({ error: 'Terjadi kesalahan internal server' });
+  }
+});
+
 app.post('/api/auth/register-device', async (req, res) => {
   try {
     const { nama_lengkap, username, device_id, device_info } = req.body;
