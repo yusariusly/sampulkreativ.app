@@ -233,7 +233,7 @@ export default function ProfilePage() {
             >
               {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" />
+                <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" crossOrigin="anonymous" />
               ) : (
                 <User size={44} className="text-gray-300" />
               )}
@@ -377,7 +377,7 @@ export default function ProfilePage() {
                       style={{border:"3px solid white", background:"#E5E7EB"}}>
                       {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" />
+                        <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" crossOrigin="anonymous" />
                       ) : (
                         <User size={60} className="text-gray-400" />
                       )}
@@ -584,15 +584,27 @@ export default function ProfilePage() {
             box-shadow: none !important;
             margin: 0 auto 10mm auto !important;
             padding: 0 !important;
-            background-color: white !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             page-break-after: always !important;
             break-after: page !important;
           }
-          /* Ensure Card Back background colors print correctly */
+          /* Force backgrounds on print */
+          #printable-id-card-front {
+            background: linear-gradient(to bottom, #FFFFFF, #F5F7F8) !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          #printable-id-card-front .bg-\\[\\#1C3D3F\\] {
+            background-color: #1C3D3F !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           #printable-id-card-back {
             background-color: #1C3D3F !important;
+            background-image: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .printable-card-side:last-child {
             page-break-after: avoid !important;
