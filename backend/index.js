@@ -86,13 +86,13 @@ async function deleteFromSupabase(photoUrl) {
   }
 }
 
-// Helper to generate employee number (yyyy/mm/dd/02/00)
+// Helper to generate employee number (yyyymmdd0200)
 async function generateNoKaryawan() {
   const now = new Date();
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');
-  const prefix = `${yyyy}/${mm}/${dd}/02/`;
+  const prefix = `${yyyy}${mm}${dd}02`;
 
   const [rows] = await pool.query(
     "SELECT COUNT(*) as count FROM users WHERE no_karyawan LIKE ?",
@@ -370,6 +370,15 @@ async function initDb() {
 
     // Backfill no_karyawan for existing users
     try {
+      // Normalize slashes from any existing no_karyawan entries
+      try {
+        await pool.query(
+          "UPDATE users SET no_karyawan = REPLACE(no_karyawan, '/', '') WHERE no_karyawan LIKE '%/%'"
+        );
+      } catch (err) {
+        console.error("Gagal menormalisasi format no_karyawan lama:", err);
+      }
+
       const [emptyUsers] = await pool.query(
         "SELECT id, created_at FROM users WHERE role = 'user' AND (no_karyawan IS NULL OR no_karyawan = '') ORDER BY created_at ASC, id ASC"
       );
@@ -378,7 +387,7 @@ async function initDb() {
         const yyyy = joinDate.getFullYear();
         const mm = String(joinDate.getMonth() + 1).padStart(2, '0');
         const dd = String(joinDate.getDate()).padStart(2, '0');
-        const prefix = `${yyyy}/${mm}/${dd}/02/`;
+        const prefix = `${yyyy}${mm}${dd}02`;
 
         const [countRows] = await pool.query(
           "SELECT COUNT(*) as count FROM users WHERE no_karyawan LIKE ?",
