@@ -446,7 +446,7 @@ app.post('/api/auth/login-employee', async (req, res) => {
 
     // Find the user
     const [rows] = await pool.query(
-      'SELECT * FROM users WHERE LOWER(username) = ? AND role = "user"',
+      "SELECT * FROM users WHERE LOWER(username) = ? AND role = 'user'",
       [trimmedUsername]
     );
 
