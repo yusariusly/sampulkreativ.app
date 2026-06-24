@@ -6,6 +6,87 @@ const path = require('path');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
+const { createClient } = require('@supabase/supabase-js');
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+let supabase = null;
+
+if (supabaseUrl && supabaseKey) {
+  supabase = createClient(supabaseUrl, supabaseKey);
+} else {
+  console.warn("⚠️ Warning: SUPABASE_URL atau SUPABASE_KEY belum dikonfigurasi di .env");
+}
+
+// Helper untuk unggah foto ke Supabase Storage
+async function uploadToSupabase(base64String, userId) {
+  if (!supabase) {
+    throw new Error('Supabase client belum diinisialisasi. Silakan periksa file .env Anda.');
+  }
+
+  // 1. Bersihkan base64 data & cari ekstensi
+  const matches = base64String.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+  if (!matches || matches.length !== 3) {
+    throw new Error('Format base64 tidak valid');
+  }
+  const contentType = matches[1];
+  const base64Data = matches[2];
+  const buffer = Buffer.from(base64Data, 'base64');
+  
+  // Tentukan ekstensi
+  let extension = 'png';
+  if (contentType.includes('jpeg') || contentType.includes('jpg')) {
+    extension = 'jpg';
+  } else if (contentType.includes('webp')) {
+    extension = 'webp';
+  }
+
+  const fileName = `avatar-${userId}-${Date.now()}.${extension}`;
+
+  // 2. Upload ke bucket 'profile-photos'
+  const { data, error } = await supabase.storage
+    .from('profile-photos')
+    .upload(fileName, buffer, {
+      contentType,
+      upsert: true
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  // 3. Ambil public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from('profile-photos')
+    .getPublicUrl(fileName);
+
+  return publicUrl;
+}
+
+// Helper untuk hapus file foto profil lama dari Supabase Storage
+async function deleteFromSupabase(photoUrl) {
+  if (!supabase || !photoUrl) return;
+
+  try {
+    const prefix = `${supabaseUrl}/storage/v1/object/public/profile-photos/`;
+    if (photoUrl.startsWith(prefix)) {
+      const fileName = photoUrl.replace(prefix, '');
+      if (fileName) {
+        const { error } = await supabase.storage
+          .from('profile-photos')
+          .remove([fileName]);
+        if (error) {
+          console.error('Gagal menghapus file lama dari Supabase:', error);
+        } else {
+          console.log(`Berhasil menghapus file lama dari Supabase: ${fileName}`);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error saat mencoba menghapus file dari Supabase:', e);
+  }
+}
+
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -1599,12 +1680,21 @@ app.post('/api/users/update-profile', async (req, res) => {
       return res.status(400).json({ error: 'Format foto tidak valid' });
     }
 
-    // Save base64 string directly in Supabase PostgreSQL
-    await pool.query('UPDATE users SET foto_profile = ? WHERE id = ?', [foto_base64, user_id]);
-    res.json({ success: true, foto_profile: foto_base64 });
+    // 1. Hapus foto lama dari Supabase Storage jika ada
+    const currentPhoto = userRows[0].foto_profile;
+    if (currentPhoto) {
+      await deleteFromSupabase(currentPhoto);
+    }
+
+    // 2. Unggah foto baru ke Supabase Storage
+    const publicUrl = await uploadToSupabase(foto_base64, user_id);
+
+    // 3. Simpan URL publik ke database
+    await pool.query('UPDATE users SET foto_profile = ? WHERE id = ?', [publicUrl, user_id]);
+    res.json({ success: true, foto_profile: publicUrl });
   } catch (error) {
     console.error('Gagal memperbarui foto profil:', error);
-    res.status(500).json({ error: 'Gagal memperbarui foto profil' });
+    res.status(500).json({ error: error.message || 'Gagal memperbarui foto profil' });
   }
 });
 
