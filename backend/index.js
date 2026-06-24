@@ -342,6 +342,13 @@ async function initDb() {
       await pool.query("ALTER TABLE payroll_slips ADD COLUMN bonus DECIMAL(12, 2) DEFAULT 0.00");
     } catch (err) {}
 
+    // Migrate any existing 'pkl' roles to 'user'
+    try {
+      await pool.query("UPDATE users SET role = 'user' WHERE role = 'pkl'");
+    } catch (err) {
+      console.error("Gagal melakukan migrasi role pkl ke user:", err);
+    }
+
     // 2. Seed admin user if no users exist
     const [userRows] = await pool.query("SELECT COUNT(*) as cnt FROM users");
     if (userRows[0].cnt === 0) {
@@ -1077,8 +1084,6 @@ app.post('/api/users', async (req, res) => {
     const lowRole = role.toLowerCase();
     if (lowRole === 'admin') {
       dbRole = 'admin';
-    } else if (lowRole === 'pkl' || lowRole === 'pkl/magang') {
-      dbRole = 'pkl';
     }
 
     const newUser = {
@@ -1146,8 +1151,6 @@ app.put('/api/users', async (req, res) => {
       const lowRole = role.toLowerCase();
       if (lowRole === 'admin') {
         dbRole = 'admin';
-      } else if (lowRole === 'pkl' || lowRole === 'pkl/magang') {
-        dbRole = 'pkl';
       }
       updateFields += ', role = ?';
       params.push(dbRole);

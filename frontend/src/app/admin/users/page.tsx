@@ -112,8 +112,7 @@ export default function AdminUsersPage() {
       return;
     }
     if (!username.trim()) {
-      const label = (!editingUserId && role === "Admin") || (editingUserId && editingUserRole === "admin") ? "Username" : "Nomor Telepon";
-      showToast(`⚠️ ${label} wajib diisi`);
+      showToast("⚠️ Username wajib diisi");
       return;
     }
 
@@ -292,7 +291,7 @@ export default function AdminUsersPage() {
             <table className="w-full min-w-[550px]">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">
-                  {["Username / HP", "Nama Lengkap", "Role", "Perangkat Terikat", "Aksi"].map((h) => (
+                  {["Username", "Nama Lengkap", "Role", "Perangkat Terikat", "Aksi"].map((h) => (
                     <th key={h} className="text-left px-5 py-4 text-sm font-semibold text-gray-700">
                       {h}
                     </th>
@@ -310,7 +309,7 @@ export default function AdminUsersPage() {
                   users.map((u, i) => (
                     <tr key={i} className="border-b border-gray-55 last:border-0 hover:bg-gray-50/30 transition-colors">
                       <td className="px-5 py-4 text-sm font-mono text-[#1C3D3F] font-semibold">
-                        {u.username.match(/^\d+$/) ? u.username : `@${u.username}`}
+                        @{u.username}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 font-medium">
                         <div className="font-bold text-[#1C3D3F]">{u.nama_lengkap}</div>
@@ -432,26 +431,6 @@ export default function AdminUsersPage() {
                   type="button"
                   onClick={() => {
                     if (editingUserId) {
-                      setEditingUserRole("pkl");
-                    } else {
-                      setRole("pkl");
-                      setUsername("");
-                      setPassword("");
-                    }
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
-                    (editingUserId ? editingUserRole : role) === "pkl"
-                      ? "bg-amber-500 text-white border-amber-500 shadow-xs"
-                      : "bg-white text-gray-500 border-gray-200 hover:border-amber-500 hover:text-amber-500"
-                  }`}
-                >
-                  <Users size={13} />
-                  PKL / Magang
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (editingUserId) {
                       setEditingUserRole("admin");
                     } else {
                       setRole("admin");
@@ -484,54 +463,41 @@ export default function AdminUsersPage() {
                 />
               </div>
 
-              {/* Jabatan / Keterangan Status */}
-              <div>
-                <input
-                  type="text"
-                  placeholder={
-                    (editingUserId ? editingUserRole : role) === "pkl"
-                      ? "Keterangan PKL (contoh: Praktik Kerja Lapangan / Magang)"
-                      : "Jabatan (contoh: Frontend Developer)"
-                  }
-                  value={jabatan}
-                  onChange={(e) => setJabatan(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
-                />
-              </div>
-
-              {/* Conditional fields by role */}
-              {isAdminForm ? (
-                <>
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="Username Admin"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="password"
-                      placeholder={editingUserId ? "Password Baru (Kosongkan jika tidak diubah)" : "Password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
-                      required={!editingUserId}
-                    />
-                  </div>
-                </>
-              ) : (
+              {/* Jabatan / Keterangan Status - Hide for Admin */}
+              {!isAdminForm && (
                 <div>
                   <input
                     type="text"
-                    placeholder="Nomor Telepon (HP)"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
-                    required
+                    placeholder="Jabatan (contoh: Frontend Developer)"
+                    value={jabatan}
+                    onChange={(e) => setJabatan(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
+                  />
+                </div>
+              )}
+
+              {/* Username Input (Admin or Employee) */}
+              <div>
+                <input
+                  type="text"
+                  placeholder={isAdminForm ? "Username Admin" : "Username Karyawan"}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
+                  required
+                />
+              </div>
+
+              {/* Password Input (Admin Only) */}
+              {isAdminForm && (
+                <div>
+                  <input
+                    type="password"
+                    placeholder={editingUserId ? "Password Baru (Kosongkan jika tidak diubah)" : "Password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
+                    required={!editingUserId}
                   />
                 </div>
               )}

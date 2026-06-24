@@ -438,8 +438,8 @@ export default function LoginPage() {
 
           <div className="bg-black/10 rounded-2xl p-4 text-left space-y-2 border border-white/10 text-xs font-medium text-white/90">
             <div>
-              <span className="text-white/60 block">Nomor Telepon</span>
-              <span>{pendingUser.username}</span>
+              <span className="text-white/60 block">Username</span>
+              <span>@{pendingUser.username}</span>
             </div>
             <div>
               <span className="text-white/60 block">Perangkat HP</span>
