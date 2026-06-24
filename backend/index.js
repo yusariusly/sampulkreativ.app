@@ -451,19 +451,19 @@ app.post('/api/auth/login-employee', async (req, res) => {
     );
 
     if (rows.length === 0) {
-      return res.status(401).json({ error: 'Username salah atau bukan akun karyawan' });
+      return res.status(401).json({ error: 'Username atau password salah' });
     }
 
     const user = rows[0];
 
     // Verify password
     if (user.password !== password) {
-      return res.status(401).json({ error: 'Password yang Anda masukkan salah' });
+      return res.status(401).json({ error: 'Username atau password salah' });
     }
 
     // Verify is_active
     if (user.is_active !== 1) {
-      return res.status(403).json({ error: 'Akun Anda belum diaktifkan oleh administrator' });
+      return res.status(403).json({ error: 'Username atau password salah' });
     }
 
     // Device binding logic
