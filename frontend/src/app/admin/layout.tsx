@@ -12,6 +12,7 @@ import {
   QrCode,
   Menu,
   X,
+  Laptop,
 } from "lucide-react";
 
 function AppLogo({ size = 80 }: { size?: number }) {
@@ -88,6 +89,7 @@ export default function AdminLayout({
   const navItems = [
     { href: "/admin", label: "Dashboard", Icon: LayoutDashboard },
     { href: "/admin/data", label: "Data Absensi", Icon: Database },
+    { href: "/admin/remote", label: "Remote Working", Icon: Laptop },
     { href: "/admin/qr", label: "Generate QR", Icon: QrCode },
     { href: "/admin/users", label: "Pengguna", Icon: Users },
   ];

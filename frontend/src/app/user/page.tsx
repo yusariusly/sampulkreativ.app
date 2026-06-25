@@ -28,6 +28,157 @@ export default function UserHomePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  // WFH (Remote Working) states
+  const [loadingWfh, setLoadingWfh] = useState(true);
+  const [wfhRequest, setWfhRequest] = useState<any>(null);
+  const [isWfhActive, setIsWfhActive] = useState(false);
+  const [wfhModalOpen, setWfhModalOpen] = useState(false);
+  const [wfhAlasan, setWfhAlasan] = useState("");
+  const [wfhSubmitting, setWfhSubmitting] = useState(false);
+  const [wfhErrorMsg, setWfhErrorMsg] = useState("");
+
+  // Daily Report states
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportContent, setReportContent] = useState("");
+  const [reportAttachmentBase64, setReportAttachmentBase64] = useState<string | null>(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportErrorMsg, setReportErrorMsg] = useState("");
+
+  const fetchWfhStatus = async (userId: string) => {
+    try {
+      setLoadingWfh(true);
+      const res = await fetch(`/api/remote/requests/me?user_id=${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWfhRequest(data.request);
+        setIsWfhActive(data.is_active);
+      }
+    } catch (err) {
+      console.error("Gagal memuat status WFH:", err);
+    } finally {
+      setLoadingWfh(false);
+    }
+  };
+
+  const handleCancelWfh = async () => {
+    if (!wfhRequest) return;
+    if (!confirm("Apakah Anda yakin ingin membatalkan pengajuan Remote Working ini?")) return;
+
+    setWfhSubmitting(true);
+    try {
+      const storedUser = localStorage.getItem("v2_user");
+      if (!storedUser) return;
+      const userObj = JSON.parse(storedUser);
+
+      const res = await fetch(`/api/remote/requests/${wfhRequest.id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userObj.id,
+          role: "user"
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        await fetchWfhStatus(userObj.id);
+      } else {
+        alert(data.error || "Gagal membatalkan permohonan");
+      }
+    } catch (err) {
+      alert("Gagal menghubungi server");
+    } finally {
+      setWfhSubmitting(false);
+    }
+  };
+
+  const handleWfhSubmit = async () => {
+    if (!wfhAlasan.trim()) {
+      setWfhErrorMsg("⚠️ Harap isi alasan pengajuan Remote Working");
+      return;
+    }
+
+    setWfhSubmitting(true);
+    setWfhErrorMsg("");
+
+    try {
+      const storedUser = localStorage.getItem("v2_user");
+      if (!storedUser) return;
+      const userObj = JSON.parse(storedUser);
+
+      const res = await fetch("/api/remote/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userObj.id,
+          alasan: wfhAlasan
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setWfhModalOpen(false);
+        await fetchWfhStatus(userObj.id);
+      } else {
+        setWfhErrorMsg(data.error || "Gagal mengirim pengajuan");
+      }
+    } catch (err) {
+      setWfhErrorMsg("⚠️ Gagal menghubungi server");
+    } finally {
+      setWfhSubmitting(false);
+    }
+  };
+
+  const handleReportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      setReportAttachmentBase64(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleReportSubmit = async () => {
+    if (!reportContent.trim()) {
+      setReportErrorMsg("⚠️ Harap isi rincian Laporan Kerja (Daily Report)");
+      return;
+    }
+
+    setReportSubmitting(true);
+    setReportErrorMsg("");
+
+    try {
+      const storedUser = localStorage.getItem("v2_user");
+      if (!storedUser) return;
+      const userObj = JSON.parse(storedUser);
+
+      const res = await fetch(`/api/remote/requests/${wfhRequest.id}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userObj.id,
+          report_content: reportContent,
+          attachment_base64: reportAttachmentBase64
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setReportModalOpen(false);
+        await fetchWfhStatus(userObj.id);
+      } else {
+        setReportErrorMsg(data.error || "Gagal mengirim Daily Report");
+      }
+    } catch (err) {
+      setReportErrorMsg("⚠️ Gagal menghubungi server");
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
   const fetchAttendance = async () => {
     if (typeof window === "undefined") return;
 
@@ -42,6 +193,8 @@ export default function UserHomePage() {
       setFullname(userObj.nama_lengkap);
       setProfilePhoto(userObj.foto_profile || null);
       setKategori(userObj.kategori || "Karyawan");
+
+      await fetchWfhStatus(userObj.id);
 
       const res = await fetch(`/api/attendance?user_id=${userObj.id}`);
       if (res.ok) {
@@ -320,6 +473,99 @@ export default function UserHomePage() {
         </div>
       </div>
 
+      {/* Remote Working (WFH) Status Card */}
+      <div className="bg-white rounded-2xl shadow-xs p-4 mb-2 border border-gray-100/50 flex flex-col gap-2">
+        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status Remote Working (WFH)</p>
+        
+        {loadingWfh ? (
+          <p className="text-xs text-gray-400 font-medium">Memuat status remote...</p>
+        ) : !wfhRequest ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-gray-500">Anda berada di luar kantor? Ajukan Remote Working untuk melakukan absensi hari ini.</p>
+            <button
+              onClick={() => {
+                setWfhAlasan("");
+                setWfhErrorMsg("");
+                setWfhModalOpen(true);
+              }}
+              className="py-2.5 px-4 rounded-xl bg-[#2AB0B2] text-white font-bold text-xs hover:bg-[#209092] transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]"
+            >
+              💻 Ajukan Remote Working
+            </button>
+          </div>
+        ) : wfhRequest.status === "PENDING" ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-100">
+                ⏳ Menunggu Persetujuan Atasan
+              </span>
+              <button
+                onClick={handleCancelWfh}
+                disabled={wfhSubmitting}
+                className="text-xs font-bold text-red-500 hover:text-red-700 transition-colors"
+              >
+                Batalkan
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 italic">"Alasan: {wfhRequest.alasan}"</p>
+          </div>
+        ) : wfhRequest.status === "APPROVED" && isWfhActive ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                🟢 Remote Working Aktif
+              </span>
+              <span className="text-[10px] text-gray-400 font-bold">Bypass Radius Kantor</span>
+            </div>
+            
+            {clockInTime ? (
+              wfhRequest.report_submitted_at ? (
+                <div className="mt-1 p-2 bg-emerald-50 rounded-xl border border-dashed border-emerald-200 text-center text-xs font-semibold text-emerald-700">
+                  ✅ Daily Report Hari Ini Sudah Dikirim
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setReportContent("");
+                    setReportAttachmentBase64(null);
+                    setReportErrorMsg("");
+                    setReportModalOpen(true);
+                  }}
+                  className="mt-1 py-2.5 px-4 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                >
+                  📝 Kirim Daily Report
+                </button>
+              )
+            ) : (
+              <p className="text-[11px] text-amber-600 bg-amber-50/50 p-2 rounded-lg border border-amber-100 font-medium">
+                * Daily Report dapat diisi setelah Anda melakukan absen masuk.
+              </p>
+            )}
+          </div>
+        ) : wfhRequest.status === "REJECTED" ? (
+          <div className="flex flex-col gap-1">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-100 self-start">
+              🔴 Pengajuan Ditolak Atasan
+            </span>
+            <p className="text-xs text-gray-500 mt-1">Silakan melakukan absensi secara normal dari area kantor.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-gray-500">Pengajuan remote working hari ini telah dibatalkan atau kedaluwarsa.</p>
+            <button
+              onClick={() => {
+                setWfhAlasan("");
+                setWfhErrorMsg("");
+                setWfhModalOpen(true);
+              }}
+              className="py-2.5 px-4 rounded-xl bg-[#2AB0B2] text-white font-bold text-xs hover:bg-[#209092] transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]"
+            >
+              💻 Ajukan Remote Working Baru
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Centered Clock card Area */}
       <div className="flex-1 flex flex-col justify-center py-4">
         {/* Clock card */}
@@ -496,6 +742,146 @@ export default function UserHomePage() {
                 className="py-3 bg-[#2AB0B2] hover:bg-[#209092] text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-50 cursor-pointer text-center"
               >
                 {isSubmitting ? "Mengirim..." : "Kirim Pengajuan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* WFH Request Modal */}
+      {wfhModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs transition-opacity select-none animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-xl border border-gray-150 transform scale-100 transition-transform">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">
+              Pengajuan Remote Working
+            </h3>
+            <p className="text-gray-400 text-xs mb-4">
+              Silakan tuliskan alasan lengkap Anda mengajukan kerja jarak jauh (WFH) hari ini. Tautan persetujuan akan dikirimkan ke email atasan.
+            </p>
+
+            {wfhErrorMsg && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold text-center">
+                {wfhErrorMsg}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
+                  Alasan Pengajuan
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Contoh: Saya sedang berada di luar kota menghadiri kegiatan dinas luar / karena kendala teknis..."
+                  value={wfhAlasan}
+                  onChange={(e) => setWfhAlasan(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-gray-50/50 resize-none text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setWfhModalOpen(false)}
+                className="py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors cursor-pointer text-center"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleWfhSubmit}
+                disabled={wfhSubmitting}
+                className="py-3 bg-[#2AB0B2] hover:bg-[#209092] text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-50 cursor-pointer text-center"
+              >
+                {wfhSubmitting ? "Mengirim..." : "Kirim Pengajuan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Daily Report Modal */}
+      {reportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs transition-opacity select-none animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-xl border border-gray-150 transform scale-100 transition-transform">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">
+              Kirim Daily Report WFH
+            </h3>
+            <p className="text-gray-400 text-xs mb-4">
+              Laporkan hasil pekerjaan yang telah Anda selesaikan hari ini beserta berkas pendukung (opsional). Laporan akan dikirim ke email atasan.
+            </p>
+
+            {reportErrorMsg && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold text-center">
+                {reportErrorMsg}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
+                  Rincian Laporan Kerja
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Tulis pekerjaan hari ini secara detail..."
+                  value={reportContent}
+                  onChange={(e) => setReportContent(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-gray-50/50 resize-none text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
+                  Berkas / Foto Lampiran (Opsional)
+                </label>
+                <div 
+                  onClick={() => document.getElementById("report-attachment-upload")?.click()}
+                  className="w-full py-6 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-[#2AB0B2] transition-colors relative overflow-hidden bg-gray-50/50"
+                  style={{ minHeight: "100px" }}
+                >
+                  {reportAttachmentBase64 ? (
+                    reportAttachmentBase64.startsWith("data:application/pdf") ? (
+                      <div className="text-center p-2">
+                        <span className="text-red-500 font-bold block">PDF</span>
+                        <span className="text-xs text-gray-500">Berkas PDF Terpilih</span>
+                      </div>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={reportAttachmentBase64} alt="Preview" className="max-h-24 object-contain" />
+                    )
+                  ) : (
+                    <>
+                      <Camera size={20} className="text-gray-300 mb-1" />
+                      <span className="text-xs font-semibold text-gray-500">Ambil Foto / Pilih Berkas (Max 5MB)</span>
+                    </>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleReportFileChange}
+                  className="hidden"
+                  id="report-attachment-upload"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setReportModalOpen(false)}
+                className="py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors cursor-pointer text-center"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleReportSubmit}
+                disabled={reportSubmitting}
+                className="py-3 bg-[#2AB0B2] hover:bg-[#209092] text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-50 cursor-pointer text-center"
+              >
+                {reportSubmitting ? "Mengirim..." : "Kirim Laporan"}
               </button>
             </div>
           </div>
