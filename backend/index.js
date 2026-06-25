@@ -17,49 +17,62 @@ if (supabaseUrl && supabaseKey) {
   console.warn("⚠️ Warning: SUPABASE_URL atau SUPABASE_KEY belum dikonfigurasi di .env");
 }
 
-// Helper untuk unggah foto ke Supabase Storage
-async function uploadToSupabase(base64String, userId) {
+const REMOTE_STATUS = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  CANCELLED: 'CANCELLED'
+};
+
+// Generic upload file helper
+async function uploadFileToSupabase(base64String, bucketName, filePrefix, allowedMimes, maxSizeInBytes) {
   if (!supabase) {
     throw new Error('Supabase client belum diinisialisasi. Silakan periksa file .env Anda.');
   }
 
-  // 1. Bersihkan base64 data & cari ekstensi
   const matches = base64String.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
   if (!matches || matches.length !== 3) {
-    throw new Error('Format base64 tidak valid');
+    throw new Error('Format base64 berkas tidak valid.');
   }
+
   const contentType = matches[1];
   const base64Data = matches[2];
   const buffer = Buffer.from(base64Data, 'base64');
-  
-  // Tentukan ekstensi
-  let extension = 'png';
-  if (contentType.includes('jpeg') || contentType.includes('jpg')) {
-    extension = 'jpg';
-  } else if (contentType.includes('webp')) {
-    extension = 'webp';
+
+  if (buffer.length > maxSizeInBytes) {
+    throw new Error(`Ukuran berkas melebihi batas maksimal (${(maxSizeInBytes / (1024 * 1024)).toFixed(0)}MB).`);
   }
 
-  const fileName = `avatar-${userId}-${Date.now()}.${extension}`;
+  if (!allowedMimes.includes(contentType)) {
+    throw new Error('Format tipe berkas tidak diizinkan.');
+  }
 
-  // 2. Upload ke bucket 'profile-photos'
+  let extension = contentType.split('/')[1] || 'jpg';
+  if (extension === 'jpeg') extension = 'jpg';
+
+  const fileName = `${filePrefix}-${Date.now()}.${extension}`;
+
   const { data, error } = await supabase.storage
-    .from('profile-photos')
+    .from(bucketName)
     .upload(fileName, buffer, {
       contentType,
       upsert: true
     });
 
-  if (error) {
-    throw error;
-  }
+  if (error) throw error;
 
-  // 3. Ambil public URL
   const { data: { publicUrl } } = supabase.storage
-    .from('profile-photos')
+    .from(bucketName)
     .getPublicUrl(fileName);
 
   return publicUrl;
+}
+
+// Helper untuk unggah foto ke Supabase Storage (re-routed to use general helper)
+async function uploadToSupabase(base64String, userId) {
+  const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  const maxSize = 5 * 1024 * 1024; // 5MB
+  return uploadFileToSupabase(base64String, 'profile-photos', `avatar-${userId}`, allowedMimes, maxSize);
 }
 
 // Helper untuk hapus file foto profil lama dari Supabase Storage
@@ -228,6 +241,147 @@ ${senderName}`;
 
   await transporter.sendMail(mailOptions);
   console.log(`📧 Email pengajuan ${status} berhasil dikirim ke ${to}`);
+}
+
+async function sendRemoteApprovalEmail({ employeeName, rawToken, alasan, date }) {
+  let host = process.env.SMTP_HOST;
+  let port = process.env.SMTP_PORT || 587;
+  let user = process.env.SMTP_USER;
+  let pass = process.env.SMTP_PASS;
+  let to = process.env.SMTP_TO;
+  let senderEmail = process.env.SMTP_SENDER || '';
+
+  try {
+    const res = await pgPool.query("SELECT key_name, key_value FROM settings WHERE key_name IN ('smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_to', 'smtp_sender')");
+    res.rows.forEach(row => {
+      if (row.key_name === 'smtp_host' && row.key_value.trim() !== '') host = row.key_value;
+      if (row.key_name === 'smtp_port' && row.key_value.trim() !== '') port = row.key_value;
+      if (row.key_name === 'smtp_user' && row.key_value.trim() !== '') user = row.key_value;
+      if (row.key_name === 'smtp_pass' && row.key_value.trim() !== '') pass = row.key_value;
+      if (row.key_name === 'smtp_to' && row.key_value.trim() !== '') to = row.key_value;
+      if (row.key_name === 'smtp_sender' && row.key_value.trim() !== '') senderEmail = row.key_value;
+    });
+  } catch (err) {
+    console.error("Gagal memuat SMTP dari settings database, menggunakan env:", err);
+  }
+
+  const finalSender = senderEmail || user;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const approvalLink = `${frontendUrl}/remote-approval?token=${rawToken}`;
+
+  if (!host || !user || !pass || !to) {
+    console.warn("⚠️ SMTP Credentials are not configured. Email approval link fallback:");
+    console.log(`[Email Approval Link Mock] To: ${to || 'Admin'}, Link: ${approvalLink}`);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port: parseInt(port),
+    secure: parseInt(port) === 465,
+    auth: { user, pass },
+  });
+
+  const mailOptions = {
+    from: `"SampulKreativ System" <${finalSender}>`,
+    to,
+    subject: `[Pengajuan WFH] ${employeeName} - ${date}`,
+    html: `
+      <div style="font-family: sans-serif; padding: 20px; color: #333;">
+        <h2>Permohonan Kerja Jarak Jauh (Remote Working / WFH)</h2>
+        <p>Halo Administrator / Atasan,</p>
+        <p>Karyawan berikut mengajukan permohonan Remote Working:</p>
+        <table style="border-collapse: collapse; width: 100%; max-width: 500px; margin-bottom: 20px;">
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; width: 150px;">Nama Karyawan</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${employeeName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Tanggal Kerja</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${date}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Alasan</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${alasan}</td>
+          </tr>
+        </table>
+        <p>Silakan klik tautan di bawah ini untuk memproses persetujuan:</p>
+        <a href="${approvalLink}" style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Tinjau Pengajuan</a>
+        <br/><br/>
+        <p>Atau buka tautan berikut secara manual:</p>
+        <p>${approvalLink}</p>
+      </div>
+    `
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
+async function sendDailyReportEmail({ employeeName, reportContent, attachmentUrl, date }) {
+  let host = process.env.SMTP_HOST;
+  let port = process.env.SMTP_PORT || 587;
+  let user = process.env.SMTP_USER;
+  let pass = process.env.SMTP_PASS;
+  let to = process.env.SMTP_TO;
+  let senderEmail = process.env.SMTP_SENDER || '';
+
+  try {
+    const res = await pgPool.query("SELECT key_name, key_value FROM settings WHERE key_name IN ('smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_to', 'smtp_sender')");
+    res.rows.forEach(row => {
+      if (row.key_name === 'smtp_host' && row.key_value.trim() !== '') host = row.key_value;
+      if (row.key_name === 'smtp_port' && row.key_value.trim() !== '') port = row.key_value;
+      if (row.key_name === 'smtp_user' && row.key_value.trim() !== '') user = row.key_value;
+      if (row.key_name === 'smtp_pass' && row.key_value.trim() !== '') pass = row.key_value;
+      if (row.key_name === 'smtp_to' && row.key_value.trim() !== '') to = row.key_value;
+      if (row.key_name === 'smtp_sender' && row.key_value.trim() !== '') senderEmail = row.key_value;
+    });
+  } catch (err) {
+    console.error("Gagal memuat SMTP dari settings database, menggunakan env:", err);
+  }
+
+  const finalSender = senderEmail || user;
+
+  if (!host || !user || !pass || !to) {
+    console.warn("⚠️ SMTP Credentials are not configured. Email report fallback:");
+    console.log(`[Email Report Mock] To: ${to || 'Admin'}, Content: ${reportContent}, Attachment: ${attachmentUrl}`);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port: parseInt(port),
+    secure: parseInt(port) === 465,
+    auth: { user, pass },
+  });
+
+  const mailOptions = {
+    from: `"SampulKreativ System" <${finalSender}>`,
+    to,
+    subject: `[Daily Report WFH] ${employeeName} - ${date}`,
+    html: `
+      <div style="font-family: sans-serif; padding: 20px; color: #333;">
+        <h2>Laporan Kerja Harian (Daily Report WFH)</h2>
+        <p>Halo Administrator / Atasan,</p>
+        <p>Berikut adalah laporan kerja harian yang disubmit oleh:</p>
+        <table style="border-collapse: collapse; width: 100%; max-width: 500px; margin-bottom: 20px;">
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; width: 150px;">Nama Karyawan</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${employeeName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Tanggal Kerja</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${date}</td>
+          </tr>
+        </table>
+        <div style="background-color: #F3F4F6; padding: 15px; border-radius: 5px; margin-bottom: 20px; white-space: pre-wrap;">
+          ${reportContent}
+        </div>
+        ${attachmentUrl ? `<p><strong>Lampiran Berkas:</strong> <a href="${attachmentUrl}" target="_blank" style="color: #4F46E5; font-weight: bold;">Lihat Berkas Lampiran</a></p>` : '<p><em>Tidak ada lampiran berkas.</em></p>'}
+      </div>
+    `
+  };
+
+  await transporter.sendMail(mailOptions);
 }
 
 const pgPool = new mysql.Pool({
@@ -531,7 +685,38 @@ async function initDb() {
       `);
     }
 
+    // 5. Create remote_requests table and indexes
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS remote_requests (
+        id VARCHAR(50) PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        tanggal DATE NOT NULL,
+        alasan TEXT NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')),
+        token_hash VARCHAR(64) NULL UNIQUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        
+        -- Audit Log
+        action_by VARCHAR(100) NULL,
+        action_at TIMESTAMPTZ NULL,
+        expired_at TIMESTAMPTZ NULL CHECK (expired_at > action_at),
+        
+        -- Daily Report
+        report_content TEXT NULL,
+        report_attachment TEXT NULL,
+        report_submitted_at TIMESTAMPTZ NULL,
+        report_email_sent_at TIMESTAMPTZ NULL,
+        report_email_failed TEXT NULL
+      )
+    `);
 
+    try {
+      await pool.query("CREATE INDEX IF NOT EXISTS idx_remote_requests_active ON remote_requests(user_id, status, expired_at)");
+      await pool.query("CREATE INDEX IF NOT EXISTS idx_remote_requests_user_date ON remote_requests(user_id, tanggal)");
+      await pool.query("CREATE INDEX IF NOT EXISTS idx_remote_requests_created_at ON remote_requests(created_at DESC)");
+    } catch (indexErr) {
+      console.warn("Gagal membuat index remote_requests:", indexErr);
+    }
 
     isDbInitialized = true;
     console.log("Database initialized and verified successfully.");
@@ -1142,12 +1327,21 @@ app.post('/api/attendance', async (req, res) => {
         if (!latitude || !longitude) {
           return res.status(400).json({ error: 'GPS perangkat wajib diaktifkan untuk melakukan absensi' });
         }
-        
-        const distance = getDistanceInMeters(parseFloat(latitude), parseFloat(longitude), officeLat, officeLng);
-        if (distance > 30) {
-          return res.status(400).json({ 
-            error: `Jarak Anda terlalu jauh (${Math.round(distance)} meter dari kantor). Maksimal diperbolehkan: 30 meter.` 
-          });
+
+        // Check if remote working request is active today
+        const [wfhRows] = await pool.query(
+          "SELECT id FROM remote_requests WHERE user_id = ? AND status = 'APPROVED' AND expired_at > NOW() AND tanggal = CURRENT_DATE LIMIT 1",
+          [user_id]
+        );
+        const isWFHActive = wfhRows.length > 0;
+
+        if (!isWFHActive) {
+          const distance = getDistanceInMeters(parseFloat(latitude), parseFloat(longitude), officeLat, officeLng);
+          if (distance > 30) {
+            return res.status(400).json({ 
+              error: `Jarak Anda terlalu jauh (${Math.round(distance)} meter dari kantor). Maksimal diperbolehkan: 30 meter.` 
+            });
+          }
         }
       }
     }
@@ -1995,6 +2189,448 @@ app.post('/api/payroll/slips', async (req, res) => {
   } catch (error) {
     console.error('Gagal membuat slip gaji:', error);
     res.status(500).json({ error: 'Gagal membuat slip gaji' });
+  }
+});
+
+
+// ==========================================
+// REMOTE WORKING (WFH) FEATURES
+// ==========================================
+
+// 1. Get logged-in user's WFH status for today
+app.get('/api/remote/requests/me', async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    if (!user_id) {
+      return res.status(400).json({ error: 'User ID wajib disertakan' });
+    }
+
+    const [rows] = await pool.query(
+      "SELECT * FROM remote_requests WHERE user_id = ? AND tanggal = CURRENT_DATE ORDER BY created_at DESC LIMIT 1",
+      [user_id]
+    );
+
+    if (rows.length === 0) {
+      return res.json({ request: null, is_active: false });
+    }
+
+    const request = rows[0];
+    const isApproved = request.status === REMOTE_STATUS.APPROVED;
+    const isNotExpired = request.expired_at ? new Date() < new Date(request.expired_at) : false;
+    const isActive = isApproved && isNotExpired;
+
+    res.json({ request, is_active: isActive });
+  } catch (error) {
+    console.error('Error fetching WFH status:', error);
+    res.status(500).json({ error: 'Gagal mengambil status remote' });
+  }
+});
+
+// 2. Apply WFH
+app.post('/api/remote/requests', async (req, res) => {
+  try {
+    const { user_id, alasan } = req.body;
+    if (!user_id || !alasan) {
+      return res.status(400).json({ error: 'User ID dan alasan wajib disertakan' });
+    }
+
+    // Check user role & status
+    const [userRows] = await pool.query("SELECT nama_lengkap, email, role, is_active FROM users WHERE id = ?", [user_id]);
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+    }
+
+    const user = userRows[0];
+    if (user.is_active !== 1) {
+      return res.status(403).json({ error: 'Akun Anda dinonaktifkan atau belum disetujui admin' });
+    }
+
+    // Check active request today
+    const [existing] = await pool.query(
+      "SELECT * FROM remote_requests WHERE user_id = ? AND tanggal = CURRENT_DATE AND status IN ('PENDING', 'APPROVED')",
+      [user_id]
+    );
+
+    const activeRequest = existing.find(r => 
+      r.status === REMOTE_STATUS.PENDING || 
+      (r.status === REMOTE_STATUS.APPROVED && new Date() < new Date(r.expired_at))
+    );
+
+    if (activeRequest) {
+      return res.status(400).json({ 
+        error: 'Anda sudah memiliki permohonan remote aktif atau tertunda (pending) hari ini.' 
+      });
+    }
+
+    // Generate token
+    const crypto = require('crypto');
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    const requestId = `rem-${Date.now()}`;
+    
+    await pool.query(
+      "INSERT INTO remote_requests (id, user_id, tanggal, alasan, status, token_hash) VALUES (?, ?, CURRENT_DATE, ?, ?, ?)",
+      [requestId, user_id, alasan, REMOTE_STATUS.PENDING, tokenHash]
+    );
+
+    // Send email to supervisor
+    const formattedDate = new Date().toLocaleDateString('id-ID', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    // We send in background, handle potential rejection cleanly
+    sendRemoteApprovalEmail({
+      employeeName: user.nama_lengkap,
+      rawToken,
+      alasan,
+      date: formattedDate
+    }).catch(emailErr => console.error("Gagal mengirim email permohonan WFH:", emailErr));
+
+    res.json({ success: true, message: 'Permohonan remote berhasil diajukan. Menunggu persetujuan atasan.' });
+  } catch (error) {
+    console.error('Error creating WFH request:', error);
+    res.status(500).json({ error: 'Gagal mengajukan permohonan remote' });
+  }
+});
+
+// 3. Verify Token Detail (for Approval confirmation page)
+app.get('/api/remote/requests/token/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ error: 'Token wajib disertakan' });
+    }
+
+    const crypto = require('crypto');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const [rows] = await pool.query(
+      `SELECT r.id, r.tanggal, r.alasan, r.status, u.nama_lengkap 
+       FROM remote_requests r 
+       JOIN users u ON r.user_id = u.id 
+       WHERE r.token_hash = ? AND r.status = 'PENDING'`,
+      [tokenHash]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Token tidak valid, kedaluwarsa, atau sudah diproses.' });
+    }
+
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error fetching token details:', error);
+    res.status(500).json({ error: 'Gagal memverifikasi token' });
+  }
+});
+
+// 4. Approve WFH Request (RESTful POST with token confirmation)
+app.post('/api/remote/requests/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { token } = req.body;
+    if (!id || !token) {
+      return res.status(400).json({ error: 'ID dan token persetujuan wajib disertakan' });
+    }
+
+    const crypto = require('crypto');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Calculate expired_at
+    const approvedAt = new Date();
+    const expiredAt = new Date(approvedAt);
+    if (approvedAt.getHours() < 4) {
+      expiredAt.setHours(4, 0, 0, 0);
+    } else {
+      expiredAt.setDate(expiredAt.getDate() + 1);
+      expiredAt.setHours(4, 0, 0, 0);
+    }
+
+    // Atomic update transition with RETURNING * (safety against race conditions)
+    const [result] = await pool.query(
+      `UPDATE remote_requests 
+       SET status = 'APPROVED', 
+           action_by = 'Supervisor (Via Email)', 
+           action_at = NOW(), 
+           expired_at = ?,
+           token_hash = NULL -- Void token
+       WHERE id = ? AND status = 'PENDING' AND token_hash = ?
+       RETURNING *`,
+      [expiredAt, id, tokenHash]
+    );
+
+    if (!result || result.length === 0) {
+      return res.status(400).json({ 
+        error: 'Persetujuan gagal. Pengajuan mungkin sudah diproses, dibatalkan, atau token tidak valid.' 
+      });
+    }
+
+    res.json({ success: true, message: 'Permohonan remote working berhasil disetujui.', request: result[0] });
+  } catch (error) {
+    console.error('Error approving WFH:', error);
+    res.status(500).json({ error: 'Gagal memproses persetujuan remote' });
+  }
+});
+
+// 5. Reject WFH Request (RESTful POST with token confirmation)
+app.post('/api/remote/requests/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { token } = req.body;
+    if (!id || !token) {
+      return res.status(400).json({ error: 'ID dan token penolakan wajib disertakan' });
+    }
+
+    const crypto = require('crypto');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Atomic update transition with RETURNING * (safety against race conditions)
+    const [result] = await pool.query(
+      `UPDATE remote_requests 
+       SET status = 'REJECTED', 
+           action_by = 'Supervisor (Via Email)', 
+           action_at = NOW(),
+           token_hash = NULL -- Void token
+       WHERE id = ? AND status = 'PENDING' AND token_hash = ?
+       RETURNING *`,
+      [id, tokenHash]
+    );
+
+    if (!result || result.length === 0) {
+      return res.status(400).json({ 
+        error: 'Penolakan gagal. Pengajuan mungkin sudah diproses, dibatalkan, atau token tidak valid.' 
+      });
+    }
+
+    res.json({ success: true, message: 'Permohonan remote working ditolak.', request: result[0] });
+  } catch (error) {
+    console.error('Error rejecting WFH:', error);
+    res.status(500).json({ error: 'Gagal memproses penolakan remote' });
+  }
+});
+
+// 6. Cancel WFH Request (by User or Admin)
+app.post('/api/remote/requests/:id/cancel', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, role } = req.body; // role can be 'admin' or 'user'
+    if (!id || !user_id) {
+      return res.status(400).json({ error: 'ID dan User ID wajib disertakan' });
+    }
+
+    let query = '';
+    let params = [];
+
+    // Admin can cancel anything (PENDING or APPROVED)
+    if (role === 'admin') {
+      query = `
+        UPDATE remote_requests 
+        SET status = 'CANCELLED', 
+            action_by = 'Administrator', 
+            action_at = NOW(),
+            token_hash = NULL
+        WHERE id = ? AND status IN ('PENDING', 'APPROVED')
+        RETURNING *`;
+      params = [id];
+    } else {
+      // User can only cancel PENDING requests
+      query = `
+        UPDATE remote_requests 
+        SET status = 'CANCELLED', 
+            action_by = 'Karyawan (User)', 
+            action_at = NOW(),
+            token_hash = NULL
+        WHERE id = ? AND user_id = ? AND status = 'PENDING'
+        RETURNING *`;
+      params = [id, user_id];
+    }
+
+    const [result] = await pool.query(query, params);
+
+    if (!result || result.length === 0) {
+      return res.status(400).json({ 
+        error: 'Pembatalan gagal. Pengajuan tidak ditemukan, sudah kedaluwarsa, atau tidak memiliki otorisasi.' 
+      });
+    }
+
+    res.json({ success: true, message: 'Permohonan remote working berhasil dibatalkan.', request: result[0] });
+  } catch (error) {
+    console.error('Error cancelling WFH:', error);
+    res.status(500).json({ error: 'Gagal memproses pembatalan remote' });
+  }
+});
+
+// 7. Submit Daily Report
+app.post('/api/remote/requests/:id/report', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, report_content, attachment_base64 } = req.body;
+    if (!id || !user_id || !report_content) {
+      return res.status(400).json({ error: 'ID, User ID, dan isi laporan wajib disertakan' });
+    }
+
+    // A. Validasi Kehadiran (Clock-In) untuk Tanggal Hari Ini
+    const [attendanceRows] = await pool.query(
+      `SELECT * FROM absensi 
+       WHERE user_id = ? 
+         AND waktu_absen::date = CURRENT_DATE 
+         AND status IN ('Hadir', 'Pulang')`,
+      [user_id]
+    );
+
+    if (attendanceRows.length === 0) {
+      return res.status(400).json({ 
+        error: 'Laporan ditolak. Anda wajib melakukan absensi masuk (clock-in) terlebih dahulu hari ini.' 
+      });
+    }
+
+    // B. Handle file upload to Supabase Storage if attached
+    let attachmentUrl = null;
+    if (attachment_base64 && attachment_base64.trim() !== '') {
+      try {
+        const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+        const maxSize = 5 * 1024 * 1024; // 5MB limit
+        attachmentUrl = await uploadFileToSupabase(
+          attachment_base64, 
+          'daily-reports', 
+          `report-${user_id}`, 
+          allowedMimes, 
+          maxSize
+        );
+      } catch (uploadErr) {
+        return res.status(400).json({ error: `Gagal mengunggah lampiran: ${uploadErr.message}` });
+      }
+    }
+
+    // C. Atomic database-level update to enforce WFH active, not expired, and single-submission constraints
+    const [result] = await pool.query(
+      `UPDATE remote_requests 
+       SET report_content = ?, 
+           report_attachment = ?, 
+           report_submitted_at = NOW()
+       WHERE id = ? 
+         AND user_id = ?
+         AND status = 'APPROVED' 
+         AND expired_at > NOW() 
+         AND report_submitted_at IS NULL
+       RETURNING *`,
+      [report_content, attachmentUrl, id, user_id]
+    );
+
+    if (!result || result.length === 0) {
+      return res.status(400).json({ 
+        error: 'Pengiriman Daily Report gagal. Pastikan status remote Anda aktif, belum kedaluwarsa, dan belum pernah mengirim laporan sebelumnya.' 
+      });
+    }
+
+    const updatedRequest = result[0];
+
+    // D. Fetch user details to send email notification
+    const [userRows] = await pool.query("SELECT nama_lengkap FROM users WHERE id = ?", [user_id]);
+    const employeeName = userRows[0]?.nama_lengkap || 'Karyawan';
+    const formattedDate = new Date().toLocaleDateString('id-ID', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    // Send Daily Report email in background and save audit results
+    sendDailyReportEmail({
+      employeeName,
+      reportContent: report_content,
+      attachmentUrl: attachmentUrl,
+      date: formattedDate
+    })
+      .then(async () => {
+        // Success audit
+        await pool.query(
+          "UPDATE remote_requests SET report_email_sent_at = NOW(), report_email_failed = NULL WHERE id = ?",
+          [id]
+        );
+      })
+      .catch(async (emailErr) => {
+        // Fail audit
+        console.error("Gagal mengirim email Daily Report:", emailErr);
+        await pool.query(
+          "UPDATE remote_requests SET report_email_failed = ? WHERE id = ?",
+          [emailErr.message || 'Unknown email error', id]
+        );
+      });
+
+    res.json({ 
+      success: true, 
+      message: 'Daily Report berhasil dikirim.', 
+      request: updatedRequest 
+    });
+  } catch (error) {
+    console.error('Error submitting Daily Report:', error);
+    res.status(500).json({ error: 'Gagal mengirim Daily Report harian' });
+  }
+});
+
+// 8. Get All Requests (Admin list with filters and sorting)
+app.get('/api/remote/requests', async (req, res) => {
+  try {
+    const { status, limit, offset } = req.query;
+
+    let query = `
+      SELECT r.*, u.nama_lengkap, u.username, u.jabatan 
+      FROM remote_requests r 
+      JOIN users u ON r.user_id = u.id
+    `;
+    let countQuery = `SELECT COUNT(*) as count FROM remote_requests r`;
+    let params = [];
+    let countParams = [];
+
+    if (status && status !== 'ALL') {
+      if (status === 'EXPIRED') {
+        // Logical check for expired approved requests
+        query += ` WHERE r.status = 'APPROVED' AND r.expired_at <= NOW()`;
+        countQuery += ` WHERE r.status = 'APPROVED' AND r.expired_at <= NOW()`;
+      } else if (status === 'APPROVED_ACTIVE') {
+        // Logical check for active approved requests
+        query += ` WHERE r.status = 'APPROVED' AND r.expired_at > NOW()`;
+        countQuery += ` WHERE r.status = 'APPROVED' AND r.expired_at > NOW()`;
+      } else {
+        query += ` WHERE r.status = ?`;
+        countQuery += ` WHERE r.status = ?`;
+        params.push(status);
+        countParams.push(status);
+      }
+    }
+
+    query += ` ORDER BY r.created_at DESC`;
+
+    if (limit) {
+      query += ` LIMIT ?`;
+      params.push(parseInt(limit));
+    }
+    if (offset) {
+      query += ` OFFSET ?`;
+      params.push(parseInt(offset));
+    }
+
+    const [rows] = await pool.query(query, params);
+    const [countRows] = await pool.query(countQuery, countParams);
+    const totalCount = countRows[0]?.count || 0;
+
+    // Map logical expired status for readability in admin UI
+    const mapped = rows.map(r => {
+      const isExpired = r.status === REMOTE_STATUS.APPROVED && new Date() >= new Date(r.expired_at);
+      return {
+        ...r,
+        logical_status: isExpired ? 'EXPIRED' : r.status
+      };
+    });
+
+    res.json({ requests: mapped, total: totalCount });
+  } catch (error) {
+    console.error('Error fetching admin WFH logs:', error);
+    res.status(500).json({ error: 'Gagal mengambil data riwayat remote' });
   }
 });
 
