@@ -32,6 +32,7 @@ export default function UserHomePage() {
   const [loadingWfh, setLoadingWfh] = useState(true);
   const [wfhRequest, setWfhRequest] = useState<any>(null);
   const [isWfhActive, setIsWfhActive] = useState(false);
+  const [remotePermissions, setRemotePermissions] = useState<any>(null);
   const [wfhModalOpen, setWfhModalOpen] = useState(false);
   const [wfhAlasan, setWfhAlasan] = useState("");
   const [wfhSubmitting, setWfhSubmitting] = useState(false);
@@ -50,8 +51,9 @@ export default function UserHomePage() {
       const res = await fetch(`/api/remote/requests/me?user_id=${userId}`);
       if (res.ok) {
         const data = await res.json();
-        setWfhRequest(data.request);
-        setIsWfhActive(data.is_active);
+        setWfhRequest(data.wfhRequest);
+        setIsWfhActive(data.remoteStatus === "APPROVED");
+        setRemotePermissions(data.permissions);
       }
     } catch (err) {
       console.error("Gagal memuat status WFH:", err);
@@ -486,16 +488,18 @@ export default function UserHomePage() {
         ) : !wfhRequest ? (
           <div className="flex flex-col gap-2">
             <p className="text-xs text-gray-500">Anda berada di luar kantor? Ajukan Remote Working untuk melakukan absensi hari ini.</p>
-            <button
-              onClick={() => {
-                setWfhAlasan("");
-                setWfhErrorMsg("");
-                setWfhModalOpen(true);
-              }}
-              className="py-2.5 px-4 rounded-xl bg-[#2AB0B2] text-white font-bold text-xs hover:bg-[#209092] transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]"
-            >
-              💻 Ajukan Remote Working
-            </button>
+            {remotePermissions?.remote?.allowed && (
+              <button
+                onClick={() => {
+                  setWfhAlasan("");
+                  setWfhErrorMsg("");
+                  setWfhModalOpen(true);
+                }}
+                className="py-2.5 px-4 rounded-xl bg-[#2AB0B2] text-white font-bold text-xs hover:bg-[#209092] transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]"
+              >
+                💻 Ajukan Remote Working
+              </button>
+            )}
           </div>
         ) : wfhRequest.status === "PENDING" ? (
           <div className="flex flex-col gap-2">
@@ -557,113 +561,135 @@ export default function UserHomePage() {
         ) : (
           <div className="flex flex-col gap-2">
             <p className="text-xs text-gray-500">Pengajuan remote working hari ini telah dibatalkan atau kedaluwarsa.</p>
-            <button
-              onClick={() => {
-                setWfhAlasan("");
-                setWfhErrorMsg("");
-                setWfhModalOpen(true);
-              }}
-              className="py-2.5 px-4 rounded-xl bg-[#2AB0B2] text-white font-bold text-xs hover:bg-[#209092] transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]"
-            >
-              💻 Ajukan Remote Working Baru
-            </button>
+            {remotePermissions?.remote?.allowed && (
+              <button
+                onClick={() => {
+                  setWfhAlasan("");
+                  setWfhErrorMsg("");
+                  setWfhModalOpen(true);
+                }}
+                className="py-2.5 px-4 rounded-xl bg-[#2AB0B2] text-white font-bold text-xs hover:bg-[#209092] transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]"
+              >
+                💻 Ajukan Remote Working Baru
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {/* Centered Clock card Area */}
-      <div className="flex-1 flex flex-col justify-center py-4">
-        {/* Clock card */}
-        <div className="bg-white rounded-3xl shadow-sm px-5 py-8 border border-gray-100/50 w-full">
-          <p className="text-center font-bold text-gray-800 text-sm mb-0.5">Hari Ini</p>
-          <p className="text-center text-gray-400 text-[11px] mb-4">{dateStr}</p>
+      {(!loadingWfh && wfhRequest?.status !== "PENDING") && (
+        <div className="flex-1 flex flex-col justify-center py-4">
+          {/* Clock card */}
+          <div className="bg-white rounded-3xl shadow-sm px-5 py-8 border border-gray-100/50 w-full">
+            <p className="text-center font-bold text-gray-800 text-sm mb-0.5">Hari Ini</p>
+            <p className="text-center text-gray-400 text-[11px] mb-4">{dateStr}</p>
 
-          <p
-            className="text-center font-black mb-1 tracking-tight text-[#1C3D3F]"
-            style={{ fontSize: 68, lineHeight: 1 }}
-          >
-            {hh}:{mm}
-          </p>
-          <p className="text-center text-gray-400 text-xs mb-4">Waktu Sekarang</p>
+            <p
+              className="text-center font-black mb-1 tracking-tight text-[#1C3D3F]"
+              style={{ fontSize: 68, lineHeight: 1 }}
+            >
+              {hh}:{mm}
+            </p>
+            <p className="text-center text-gray-400 text-xs mb-4">Waktu Sekarang</p>
 
-          {/* Status Label (Compact Badge) */}
-          <div className="flex justify-center mb-6">
-            {loading ? (
-              <span className="text-gray-400 text-xs font-medium">Memuat data...</span>
-            ) : clockOutTime ? (
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-100">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Sudah Absen Pulang ({clockOutTime})
-              </span>
-            ) : isSakit ? (
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> Tercatat Sakit
-              </span>
-            ) : isIzin ? (
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-100">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Tercatat Izin
-              </span>
-            ) : clockInTime ? (
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Sudah Absen Masuk ({clockInTime})
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-100">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#F6C13B] animate-pulse" /> Belum Absen
-              </span>
-            )}
-          </div>
-
-          {/* CTA Button moved under Waktu Sekarang */}
-          {!loading && (
-            <div className="w-full space-y-4">
-              {clockOutTime ? (
-                <div className="text-center text-xs text-gray-400 font-semibold py-3 bg-gray-50 border border-dashed border-gray-200 rounded-2xl">
-                  ✅ Anda telah menyelesaikan absen pulang untuk hari ini
-                </div>
+            {/* Status Label (Compact Badge) */}
+            <div className="flex justify-center mb-6">
+              {loading ? (
+                <span className="text-gray-400 text-xs font-medium">Memuat data...</span>
+              ) : clockOutTime ? (
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Sudah Absen Pulang ({clockOutTime})
+                </span>
               ) : isSakit ? (
-                <div className="text-center text-xs text-rose-500 font-semibold py-3 bg-rose-50 border border-dashed border-rose-200 rounded-2xl">
-                  🤒 Anda hari ini tercatat Sakit (Surat dokter terkirim)
-                </div>
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> Tercatat Sakit
+                </span>
               ) : isIzin ? (
-                <div className="text-center text-xs text-amber-500 font-semibold py-3 bg-amber-50 border border-dashed border-amber-200 rounded-2xl">
-                  📝 Anda hari ini tercatat Izin (Keterangan terkirim)
-                </div>
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Tercatat Izin
+                </span>
               ) : clockInTime ? (
-                <button
-                  onClick={handleStartAbsenPulang}
-                  className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
-                >
-                  <Camera size={20} /> Absen Pulang
-                </button>
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Sudah Absen Masuk ({clockInTime})
+                </span>
               ) : (
-                <>
-                  <button
-                    onClick={handleStartAbsen}
-                    className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-[#2AB0B2] hover:bg-[#209092] cursor-pointer"
-                  >
-                    <Camera size={20} /> Mulai Absen
-                  </button>
-
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <button
-                      onClick={() => openModal("Izin")}
-                      className="py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/60 font-bold text-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.97] transition-all"
-                    >
-                      📝 Pengajuan Izin
-                    </button>
-                    <button
-                      onClick={() => openModal("Sakit")}
-                      className="py-3 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/60 font-bold text-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.97] transition-all"
-                    >
-                      🤒 Sakit / Dokter
-                    </button>
-                  </div>
-                </>
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#F6C13B] animate-pulse" /> Belum Absen
+                </span>
               )}
             </div>
-          )}
+
+            {/* CTA Button moved under Waktu Sekarang */}
+            {!loading && (
+              <div className="w-full space-y-4">
+                {clockOutTime ? (
+                  <div className="text-center text-xs text-gray-400 font-semibold py-3 bg-gray-50 border border-dashed border-gray-200 rounded-2xl">
+                    ✅ Anda telah menyelesaikan absen pulang untuk hari ini
+                  </div>
+                ) : isSakit ? (
+                  <div className="text-center text-xs text-rose-500 font-semibold py-3 bg-rose-50 border border-dashed border-rose-200 rounded-2xl">
+                    🤒 Anda hari ini tercatat Sakit (Surat dokter terkirim)
+                  </div>
+                ) : isIzin ? (
+                  <div className="text-center text-xs text-amber-500 font-semibold py-3 bg-amber-50 border border-dashed border-amber-200 rounded-2xl">
+                    📝 Anda hari ini tercatat Izin (Keterangan terkirim)
+                  </div>
+                ) : clockInTime ? (
+                  remotePermissions?.clockOut?.allowed ? (
+                    <button
+                      onClick={handleStartAbsenPulang}
+                      className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
+                    >
+                      <Camera size={20} /> Absen Pulang
+                    </button>
+                  ) : isWfhActive ? (
+                    wfhRequest?.report_submitted_at ? (
+                      <div className="text-center text-xs text-emerald-700 font-semibold py-3 bg-emerald-50 border border-dashed border-emerald-200 rounded-2xl">
+                        ✅ Hari kerja remote selesai (Daily Report terkirim)
+                      </div>
+                    ) : (
+                      <div className="text-center text-xs text-[#2AB0B2] font-semibold py-3 bg-emerald-50/50 border border-dashed border-emerald-100 rounded-2xl">
+                        💻 Remote Active (Silakan Kirim Daily Report untuk menyelesaikan absensi)
+                      </div>
+                    )
+                  ) : null
+                ) : (
+                  <>
+                    {remotePermissions?.clockIn?.allowed && (
+                      <button
+                        onClick={handleStartAbsen}
+                        className="w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform bg-[#2AB0B2] hover:bg-[#209092] cursor-pointer"
+                      >
+                        <Camera size={20} /> Mulai Absen
+                      </button>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      {remotePermissions?.leave?.allowed && (
+                        <button
+                          onClick={() => openModal("Izin")}
+                          className="py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/60 font-bold text-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.97] transition-all"
+                        >
+                          📝 Pengajuan Izin
+                        </button>
+                      )}
+                      {remotePermissions?.sick?.allowed && (
+                        <button
+                          onClick={() => openModal("Sakit")}
+                          className="py-3 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/60 font-bold text-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.97] transition-all"
+                        >
+                          🤒 Sakit / Dokter
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal Dialog */}
       {modalOpen && (

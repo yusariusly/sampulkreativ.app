@@ -17,12 +17,8 @@ if (supabaseUrl && supabaseKey) {
   console.warn("⚠️ Warning: SUPABASE_URL atau SUPABASE_KEY belum dikonfigurasi di .env");
 }
 
-const REMOTE_STATUS = {
-  PENDING: 'PENDING',
-  APPROVED: 'APPROVED',
-  REJECTED: 'REJECTED',
-  CANCELLED: 'CANCELLED'
-};
+const remoteService = require('./services/remoteService');
+const REMOTE_STATUS = remoteService.REMOTE_STATUS;
 
 // Generic upload file helper
 async function uploadFileToSupabase(base64String, bucketName, filePrefix, allowedMimes, maxSizeInBytes) {
@@ -419,9 +415,10 @@ const pool = {
       'ON CONFLICT (key_name) DO NOTHING');
 
     let paramIndex = 1;
+    const hasPgPlaceholders = text.includes('$');
     pgText = pgText.replace(/\?/g, () => `$${paramIndex++}`);
 
-    const finalParams = params ? params.slice(0, paramIndex - 1) : params;
+    const finalParams = (params && !hasPgPlaceholders) ? params.slice(0, paramIndex - 1) : params;
     const res = await pgPool.query(pgText, finalParams);
     
     const rows = res.rows.map(row => {
@@ -1318,6 +1315,71 @@ app.post('/api/attendance', async (req, res) => {
     if (user.is_active !== 1) {
       return res.status(403).json({ error: 'Akses ditolak: Akun Anda belum disetujui atau dinonaktifkan oleh administrator.' });
     }
+    // Fetch WFH/Remote permission status using remoteService
+    const wfhStatus = await remoteService.getTodayRemoteStatus(pool, user_id);
+    const { permissions, remoteStatus } = wfhStatus;
+
+    if (status === 'Hadir' || status === 'Terlambat') {
+      if (!permissions.clockIn.allowed) {
+        let errorMsg = 'Anda tidak diperbolehkan melakukan absensi masuk.';
+        if (permissions.clockIn.reason === 'ALREADY_CLOCKED_IN') {
+          errorMsg = 'Anda sudah melakukan absensi masuk hari ini.';
+        } else if (permissions.clockIn.reason === 'ON_LEAVE') {
+          errorMsg = 'Anda sedang dalam masa izin hari ini.';
+        } else if (permissions.clockIn.reason === 'ON_SICK_LEAVE') {
+          errorMsg = 'Anda sedang dalam masa sakit hari ini.';
+        } else if (permissions.clockIn.reason === 'WFH_REQUEST_PENDING') {
+          errorMsg = 'Anda tidak dapat melakukan absensi karena pengajuan Remote Working sedang menunggu persetujuan.';
+        }
+        return res.status(400).json({ error: errorMsg });
+      }
+    } else if (status === 'Pulang') {
+      if (!permissions.clockOut.allowed) {
+        let errorMsg = 'Anda tidak diperbolehkan melakukan absensi pulang.';
+        if (permissions.clockOut.reason === 'NOT_CLOCKED_IN') {
+          errorMsg = 'Anda belum melakukan absensi masuk hari ini.';
+        } else if (permissions.clockOut.reason === 'ALREADY_CLOCKED_OUT') {
+          errorMsg = 'Anda sudah melakukan absensi pulang hari ini.';
+        } else if (permissions.clockOut.reason === 'USE_DAILY_REPORT') {
+          errorMsg = 'Karyawan WFH wajib melakukan absensi pulang dengan mengirimkan Daily Report.';
+        } else if (permissions.clockOut.reason === 'WFH_REQUEST_PENDING') {
+          errorMsg = 'Pengajuan WFH sedang pending.';
+        }
+        return res.status(400).json({ error: errorMsg });
+      }
+    } else if (status === 'Izin') {
+      if (!permissions.leave.allowed) {
+        let errorMsg = 'Anda tidak diperbolehkan mengajukan izin hari ini.';
+        if (permissions.leave.reason === 'WFH_REQUEST_PENDING') {
+          errorMsg = 'Tidak dapat mengajukan izin karena pengajuan WFH Anda sedang menunggu persetujuan.';
+        } else if (permissions.leave.reason === 'WFH_REQUEST_APPROVED') {
+          errorMsg = 'Tidak dapat mengajukan izin karena pengajuan WFH Anda hari ini sudah disetujui.';
+        } else if (permissions.leave.reason === 'ALREADY_CLOCKED_IN') {
+          errorMsg = 'Anda sudah melakukan absen masuk hari ini.';
+        } else if (permissions.leave.reason === 'ALREADY_ON_LEAVE') {
+          errorMsg = 'Anda sudah mengajukan izin hari ini.';
+        } else if (permissions.leave.reason === 'ALREADY_ON_SICK_LEAVE') {
+          errorMsg = 'Anda sudah mengajukan sakit hari ini.';
+        }
+        return res.status(400).json({ error: errorMsg });
+      }
+    } else if (status === 'Sakit') {
+      if (!permissions.sick.allowed) {
+        let errorMsg = 'Anda tidak diperbolehkan mengajukan sakit hari ini.';
+        if (permissions.sick.reason === 'WFH_REQUEST_PENDING') {
+          errorMsg = 'Tidak dapat mengajukan sakit karena pengajuan WFH Anda sedang menunggu persetujuan.';
+        } else if (permissions.sick.reason === 'WFH_REQUEST_APPROVED') {
+          errorMsg = 'Tidak dapat mengajukan sakit karena pengajuan WFH Anda hari ini sudah disetujui.';
+        } else if (permissions.sick.reason === 'ALREADY_CLOCKED_IN') {
+          errorMsg = 'Anda sudah melakukan absen masuk hari ini.';
+        } else if (permissions.sick.reason === 'ALREADY_ON_LEAVE') {
+          errorMsg = 'Anda sudah mengajukan izin hari ini.';
+        } else if (permissions.sick.reason === 'ALREADY_ON_SICK_LEAVE') {
+          errorMsg = 'Anda sudah mengajukan sakit hari ini.';
+        }
+        return res.status(400).json({ error: errorMsg });
+      }
+    }
 
     // Device Verification: Ensure the device matches registered device (only if device_id is set)
     if (user.role === 'user' && user.device_id && user.device_id.trim() !== '') {
@@ -1345,12 +1407,7 @@ app.post('/api/attendance', async (req, res) => {
           return res.status(400).json({ error: 'GPS perangkat wajib diaktifkan untuk melakukan absensi' });
         }
 
-        // Check if remote working request is active today
-        const [wfhRows] = await pool.query(
-          "SELECT id FROM remote_requests WHERE user_id = ? AND status = 'APPROVED' AND expired_at > NOW() AND tanggal = CURRENT_DATE LIMIT 1",
-          [user_id]
-        );
-        const isWFHActive = wfhRows.length > 0;
+        const isWFHActive = remoteStatus === REMOTE_STATUS.APPROVED;
 
         if (!isWFHActive) {
           const distance = getDistanceInMeters(parseFloat(latitude), parseFloat(longitude), officeLat, officeLng);
@@ -2222,21 +2279,8 @@ app.get('/api/remote/requests/me', async (req, res) => {
       return res.status(400).json({ error: 'User ID wajib disertakan' });
     }
 
-    const [rows] = await pool.query(
-      "SELECT * FROM remote_requests WHERE user_id = ? AND tanggal = CURRENT_DATE ORDER BY created_at DESC LIMIT 1",
-      [user_id]
-    );
-
-    if (rows.length === 0) {
-      return res.json({ request: null, is_active: false });
-    }
-
-    const request = rows[0];
-    const isApproved = request.status === REMOTE_STATUS.APPROVED;
-    const isNotExpired = request.expired_at ? new Date() < new Date(request.expired_at) : false;
-    const isActive = isApproved && isNotExpired;
-
-    res.json({ request, is_active: isActive });
+    const status = await remoteService.getTodayRemoteStatus(pool, user_id);
+    res.json(status);
   } catch (error) {
     console.error('Error fetching WFH status:', error);
     res.status(500).json({ error: 'Gagal mengambil status remote' });
@@ -2262,21 +2306,22 @@ app.post('/api/remote/requests', async (req, res) => {
       return res.status(403).json({ error: 'Akun Anda dinonaktifkan atau belum disetujui admin' });
     }
 
-    // Check active request today
-    const [existing] = await pool.query(
-      "SELECT * FROM remote_requests WHERE user_id = ? AND tanggal = CURRENT_DATE AND status IN ('PENDING', 'APPROVED')",
-      [user_id]
-    );
-
-    const activeRequest = existing.find(r => 
-      r.status === REMOTE_STATUS.PENDING || 
-      (r.status === REMOTE_STATUS.APPROVED && new Date() < new Date(r.expired_at))
-    );
-
-    if (activeRequest) {
-      return res.status(400).json({ 
-        error: 'Anda sudah memiliki permohonan remote aktif atau tertunda (pending) hari ini.' 
-      });
+    // Verify WFH creation permission using remoteService
+    const wfhStatus = await remoteService.getTodayRemoteStatus(pool, user_id);
+    if (!wfhStatus.permissions.remote.allowed) {
+      let errorMsg = 'Anda tidak diperbolehkan mengajukan remote working hari ini.';
+      if (wfhStatus.permissions.remote.reason === 'WFH_REQUEST_PENDING') {
+        errorMsg = 'Anda sudah memiliki permohonan remote pending hari ini.';
+      } else if (wfhStatus.permissions.remote.reason === 'WFH_REQUEST_APPROVED') {
+        errorMsg = 'Anda sudah memiliki permohonan remote aktif (disetujui) hari ini.';
+      } else if (wfhStatus.permissions.remote.reason === 'ALREADY_CLOCKED_IN') {
+        errorMsg = 'Tidak dapat mengajukan remote karena Anda sudah melakukan absen masuk hari ini.';
+      } else if (wfhStatus.permissions.remote.reason === 'ALREADY_ON_LEAVE') {
+        errorMsg = 'Tidak dapat mengajukan remote karena Anda sudah mengajukan izin hari ini.';
+      } else if (wfhStatus.permissions.remote.reason === 'ALREADY_ON_SICK_LEAVE') {
+        errorMsg = 'Tidak dapat mengajukan remote karena Anda sudah mengajukan sakit hari ini.';
+      }
+      return res.status(400).json({ error: errorMsg });
     }
 
     // Generate token
@@ -2331,12 +2376,29 @@ app.get('/api/remote/requests/token/:token', async (req, res) => {
       `SELECT r.id, r.tanggal, r.alasan, r.status, u.nama_lengkap 
        FROM remote_requests r 
        JOIN users u ON r.user_id = u.id 
-       WHERE r.token_hash = ? AND r.status = 'PENDING'`,
+       WHERE r.token_hash = $1 AND r.status = 'PENDING'`,
       [tokenHash]
     );
 
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Token tidak valid, kedaluwarsa, atau sudah diproses.' });
+    }
+
+    // Date validation: Check if request date (tanggal) has passed relative to local calendar day
+    const reqDate = new Date(rows[0].tanggal);
+    const year = reqDate.getFullYear();
+    const month = String(reqDate.getMonth() + 1).padStart(2, '0');
+    const day = String(reqDate.getDate()).padStart(2, '0');
+    const reqDateStr = `${year}-${month}-${day}`;
+
+    const today = new Date();
+    const tYear = today.getFullYear();
+    const tMonth = String(today.getMonth() + 1).padStart(2, '0');
+    const tDay = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${tYear}-${tMonth}-${tDay}`;
+
+    if (reqDateStr < todayStr) {
+      return res.status(400).json({ error: 'Pengajuan remote working sudah tidak berlaku karena tanggal pelaksanaan telah terlewati.' });
     }
 
     res.json(rows[0]);
@@ -2368,26 +2430,26 @@ app.post('/api/remote/requests/:id/approve', async (req, res) => {
       expiredAt.setHours(4, 0, 0, 0);
     }
 
-    // Atomic update transition with RETURNING * (safety against race conditions)
+    // Atomic update transition with RETURNING * (safety against race conditions and date expiry check)
     const [result] = await pool.query(
       `UPDATE remote_requests 
        SET status = 'APPROVED', 
            action_by = 'Supervisor (Via Email)', 
            action_at = NOW(), 
-           expired_at = ?,
+           expired_at = $1,
            token_hash = NULL -- Void token
-       WHERE id = ? AND status = 'PENDING' AND token_hash = ?
+       WHERE id = $2 AND status = 'PENDING' AND token_hash = $3 AND tanggal >= CURRENT_DATE
        RETURNING *`,
       [expiredAt, id, tokenHash]
     );
 
     if (!result || result.length === 0) {
       return res.status(400).json({ 
-        error: 'Persetujuan gagal. Pengajuan mungkin sudah diproses, dibatalkan, atau token tidak valid.' 
+        error: 'Persetujuan gagal. Pengajuan mungkin sudah diproses, dibatalkan, atau token tidak berlaku.' 
       });
     }
 
-    res.json({ success: true, message: 'Permohonan remote working berhasil disetujui.', request: result[0] });
+    res.json({ success: true, message: 'Permohonan remote working berhasil disetujui.', request: remoteService.wfhRequestDto(result[0]) });
   } catch (error) {
     console.error('Error approving WFH:', error);
     res.status(500).json({ error: 'Gagal memproses persetujuan remote' });
@@ -2406,25 +2468,25 @@ app.post('/api/remote/requests/:id/reject', async (req, res) => {
     const crypto = require('crypto');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
-    // Atomic update transition with RETURNING * (safety against race conditions)
+    // Atomic update transition with RETURNING * (safety against race conditions and date expiry check)
     const [result] = await pool.query(
       `UPDATE remote_requests 
        SET status = 'REJECTED', 
            action_by = 'Supervisor (Via Email)', 
            action_at = NOW(),
            token_hash = NULL -- Void token
-       WHERE id = ? AND status = 'PENDING' AND token_hash = ?
+       WHERE id = $1 AND status = 'PENDING' AND token_hash = $2 AND tanggal >= CURRENT_DATE
        RETURNING *`,
       [id, tokenHash]
     );
 
     if (!result || result.length === 0) {
       return res.status(400).json({ 
-        error: 'Penolakan gagal. Pengajuan mungkin sudah diproses, dibatalkan, atau token tidak valid.' 
+        error: 'Penolakan gagal. Pengajuan mungkin sudah diproses, dibatalkan, atau token tidak berlaku.' 
       });
     }
 
-    res.json({ success: true, message: 'Permohonan remote working ditolak.', request: result[0] });
+    res.json({ success: true, message: 'Permohonan remote working ditolak.', request: remoteService.wfhRequestDto(result[0]) });
   } catch (error) {
     console.error('Error rejecting WFH:', error);
     res.status(500).json({ error: 'Gagal memproses penolakan remote' });
@@ -2451,7 +2513,7 @@ app.post('/api/remote/requests/:id/cancel', async (req, res) => {
             action_by = 'Administrator', 
             action_at = NOW(),
             token_hash = NULL
-        WHERE id = ? AND status IN ('PENDING', 'APPROVED')
+        WHERE id = $1 AND status IN ('PENDING', 'APPROVED')
         RETURNING *`;
       params = [id];
     } else {
@@ -2462,7 +2524,7 @@ app.post('/api/remote/requests/:id/cancel', async (req, res) => {
             action_by = 'Karyawan (User)', 
             action_at = NOW(),
             token_hash = NULL
-        WHERE id = ? AND user_id = ? AND status = 'PENDING'
+        WHERE id = $1 AND user_id = $2 AND status = 'PENDING'
         RETURNING *`;
       params = [id, user_id];
     }
@@ -2475,7 +2537,7 @@ app.post('/api/remote/requests/:id/cancel', async (req, res) => {
       });
     }
 
-    res.json({ success: true, message: 'Permohonan remote working berhasil dibatalkan.', request: result[0] });
+    res.json({ success: true, message: 'Permohonan remote working berhasil dibatalkan.', request: remoteService.wfhRequestDto(result[0]) });
   } catch (error) {
     console.error('Error cancelling WFH:', error);
     res.status(500).json({ error: 'Gagal memproses pembatalan remote' });
@@ -2491,19 +2553,18 @@ app.post('/api/remote/requests/:id/report', async (req, res) => {
       return res.status(400).json({ error: 'ID, User ID, dan isi laporan wajib disertakan' });
     }
 
-    // A. Validasi Kehadiran (Clock-In) untuk Tanggal Hari Ini
-    const [attendanceRows] = await pool.query(
-      `SELECT * FROM absensi 
-       WHERE user_id = ? 
-         AND waktu_absen::date = CURRENT_DATE 
-         AND status IN ('Hadir', 'Pulang')`,
-      [user_id]
-    );
-
-    if (attendanceRows.length === 0) {
-      return res.status(400).json({ 
-        error: 'Laporan ditolak. Anda wajib melakukan absensi masuk (clock-in) terlebih dahulu hari ini.' 
-      });
+    // A. Validasi Izin Kirim Laporan via remoteService
+    const wfhStatus = await remoteService.getTodayRemoteStatus(pool, user_id);
+    if (!wfhStatus.permissions.dailyReport.allowed) {
+      let errorMsg = 'Pengiriman Daily Report ditolak.';
+      if (wfhStatus.permissions.dailyReport.reason === 'WFH_NOT_APPROVED') {
+        errorMsg = 'Anda tidak sedang bekerja remote hari ini (status WFH belum disetujui/aktif).';
+      } else if (wfhStatus.permissions.dailyReport.reason === 'NOT_CLOCKED_IN') {
+        errorMsg = 'Anda wajib melakukan absensi masuk (clock-in) terlebih dahulu sebelum mengirim Daily Report.';
+      } else if (wfhStatus.permissions.dailyReport.reason === 'DAILY_REPORT_ALREADY_SUBMITTED') {
+        errorMsg = 'Anda sudah mengirimkan Daily Report untuk hari ini.';
+      }
+      return res.status(400).json({ error: errorMsg });
     }
 
     // B. Handle file upload to Supabase Storage if attached
