@@ -2330,10 +2330,11 @@ app.post('/api/remote/requests', async (req, res) => {
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
 
     const requestId = `rem-${Date.now()}`;
+    const todayJakarta = remoteService.getJakartaDate(new Date());
     
     await pool.query(
-      "INSERT INTO remote_requests (id, user_id, tanggal, alasan, status, token_hash) VALUES (?, ?, CURRENT_DATE, ?, ?, ?)",
-      [requestId, user_id, alasan, REMOTE_STATUS.PENDING, tokenHash]
+      "INSERT INTO remote_requests (id, user_id, tanggal, alasan, status, token_hash) VALUES (?, ?, ?, ?, ?, ?)",
+      [requestId, user_id, todayJakarta, alasan, REMOTE_STATUS.PENDING, tokenHash]
     );
 
     // Send email to supervisor
@@ -2384,18 +2385,9 @@ app.get('/api/remote/requests/token/:token', async (req, res) => {
       return res.status(404).json({ error: 'Token tidak valid, kedaluwarsa, atau sudah diproses.' });
     }
 
-    // Date validation: Check if request date (tanggal) has passed relative to local calendar day
-    const reqDate = new Date(rows[0].tanggal);
-    const year = reqDate.getFullYear();
-    const month = String(reqDate.getMonth() + 1).padStart(2, '0');
-    const day = String(reqDate.getDate()).padStart(2, '0');
-    const reqDateStr = `${year}-${month}-${day}`;
-
-    const today = new Date();
-    const tYear = today.getFullYear();
-    const tMonth = String(today.getMonth() + 1).padStart(2, '0');
-    const tDay = String(today.getDate()).padStart(2, '0');
-    const todayStr = `${tYear}-${tMonth}-${tDay}`;
+    // Date validation: Check if request date (tanggal) has passed relative to local calendar day in Jakarta
+    const reqDateStr = remoteService.getJakartaDate(new Date(rows[0].tanggal));
+    const todayStr = remoteService.getJakartaDate(new Date());
 
     if (reqDateStr < todayStr) {
       return res.status(400).json({ error: 'Pengajuan remote working sudah tidak berlaku karena tanggal pelaksanaan telah terlewati.' });
@@ -2420,15 +2412,9 @@ app.post('/api/remote/requests/:id/approve', async (req, res) => {
     const crypto = require('crypto');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
-    // Calculate expired_at
-    const approvedAt = new Date();
-    const expiredAt = new Date(approvedAt);
-    if (approvedAt.getHours() < 4) {
-      expiredAt.setHours(4, 0, 0, 0);
-    } else {
-      expiredAt.setDate(expiredAt.getDate() + 1);
-      expiredAt.setHours(4, 0, 0, 0);
-    }
+    // Calculate expired_at relative to Asia/Jakarta (UTC+7)
+    const expiredAt = remoteService.getJakartaExpiredAt(new Date());
+    const todayJakarta = remoteService.getJakartaDate(new Date());
 
     // Atomic update transition with RETURNING * (safety against race conditions and date expiry check)
     const [result] = await pool.query(
@@ -2438,9 +2424,9 @@ app.post('/api/remote/requests/:id/approve', async (req, res) => {
            action_at = NOW(), 
            expired_at = $1,
            token_hash = NULL -- Void token
-       WHERE id = $2 AND status = 'PENDING' AND token_hash = $3 AND tanggal >= CURRENT_DATE
+       WHERE id = $2 AND status = 'PENDING' AND token_hash = $3 AND tanggal >= $4
        RETURNING *`,
-      [expiredAt, id, tokenHash]
+      [expiredAt, id, tokenHash, todayJakarta]
     );
 
     if (!result || result.length === 0) {
@@ -2468,6 +2454,8 @@ app.post('/api/remote/requests/:id/reject', async (req, res) => {
     const crypto = require('crypto');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
+    const todayJakarta = remoteService.getJakartaDate(new Date());
+
     // Atomic update transition with RETURNING * (safety against race conditions and date expiry check)
     const [result] = await pool.query(
       `UPDATE remote_requests 
@@ -2475,9 +2463,9 @@ app.post('/api/remote/requests/:id/reject', async (req, res) => {
            action_by = 'Supervisor (Via Email)', 
            action_at = NOW(),
            token_hash = NULL -- Void token
-       WHERE id = $1 AND status = 'PENDING' AND token_hash = $2 AND tanggal >= CURRENT_DATE
+       WHERE id = $1 AND status = 'PENDING' AND token_hash = $2 AND tanggal >= $3
        RETURNING *`,
-      [id, tokenHash]
+      [id, tokenHash, todayJakarta]
     );
 
     if (!result || result.length === 0) {

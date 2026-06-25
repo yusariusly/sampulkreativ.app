@@ -6,6 +6,38 @@ const REMOTE_STATUS = {
   CANCELLED: 'CANCELLED'
 };
 
+// Timezone helpers for Asia/Jakarta (UTC+7)
+function getJakartaDate(date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(date);
+}
+
+function getJakartaHour(date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta',
+    hour: 'numeric',
+    hour12: false
+  }).formatToParts(date);
+  const hourPart = parts.find(p => p.type === 'hour');
+  if (!hourPart) return date.getUTCHours();
+  const h = parseInt(hourPart.value, 10);
+  return h === 24 ? 0 : h;
+}
+
+function getJakartaExpiredAt(now = new Date()) {
+  const jakartaHour = getJakartaHour(now);
+  let targetDate = new Date(now);
+  if (jakartaHour >= 4) {
+    targetDate.setDate(targetDate.getDate() + 1);
+  }
+  const targetDateStr = getJakartaDate(targetDate);
+  return new Date(`${targetDateStr}T04:00:00+07:00`);
+}
+
 // 2. Data Transfer Object (DTO)
 function wfhRequestDto(req) {
   if (!req) return null;
@@ -23,18 +55,22 @@ function wfhRequestDto(req) {
 
 // 3. Facts Provider: Mengambil fakta database (Menggunakan Dependency Injection)
 async function getTodayRemoteFacts(dbClient, userId) {
+  const todayJakarta = getJakartaDate(new Date());
+
   const [wfhRows] = await dbClient.query(
     `SELECT id, tanggal, status, report_submitted_at, expired_at 
      FROM remote_requests 
-     WHERE user_id = $1 AND tanggal = CURRENT_DATE 
+     WHERE user_id = $1 AND tanggal = $2 
      ORDER BY created_at DESC LIMIT 1`,
-    [userId]
+    [userId, todayJakarta]
   );
   
   const [absensiRows] = await dbClient.query(
     `SELECT status FROM absensi 
-     WHERE user_id = $1 AND waktu_absen >= CURRENT_DATE AND waktu_absen < CURRENT_DATE + INTERVAL '1 day'`,
-    [userId]
+     WHERE user_id = $1 
+       AND waktu_absen >= $2::timestamptz 
+       AND waktu_absen < ($2::timestamptz + INTERVAL '1 day')`,
+    [userId, todayJakarta]
   );
 
   return {
@@ -121,5 +157,8 @@ module.exports = {
   wfhRequestDto,
   getTodayRemoteFacts,
   evaluateRemotePermissions,
-  getTodayRemoteStatus
+  getTodayRemoteStatus,
+  getJakartaDate,
+  getJakartaHour,
+  getJakartaExpiredAt
 };
