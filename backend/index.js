@@ -4,6 +4,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const { createClient } = require('@supabase/supabase-js');
@@ -19,6 +20,26 @@ if (supabaseUrl && supabaseKey) {
 
 const remoteService = require('./services/remoteService');
 const REMOTE_STATUS = remoteService.REMOTE_STATUS;
+
+const UPLOAD_CONFIG = {
+  BUCKET_NAME: 'daily-reports',
+  MAX_FILE_SIZE_BYTES: 5 * 1024 * 1024, // 5MB
+  ALLOWED_MIME_TYPES: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf']
+};
+
+function parseReportAttachments(attachmentValue) {
+  if (!attachmentValue) return [];
+  const trimmed = attachmentValue.trim();
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [trimmed];
+    } catch (e) {
+      return [trimmed];
+    }
+  }
+  return [trimmed];
+}
 
 // Generic upload file helper
 async function uploadFileToSupabase(base64String, bucketName, filePrefix, allowedMimes, maxSizeInBytes) {
@@ -109,6 +130,21 @@ async function deleteFromSupabase(photoUrl) {
     }
   } catch (e) {
     console.error('Error saat mencoba menghapus file dari Supabase:', e);
+  }
+}
+
+async function deleteFileFromSupabaseUrl(url, bucketName) {
+  if (!supabase || !url) return;
+  try {
+    const prefix = `${supabaseUrl}/storage/v1/object/public/${bucketName}/`;
+    if (url.startsWith(prefix)) {
+      const fileName = url.replace(prefix, '');
+      if (fileName) {
+        await supabase.storage.from(bucketName).remove([fileName]);
+      }
+    }
+  } catch (err) {
+    console.error(`Gagal menghapus berkas dari bucket ${bucketName}:`, err);
   }
 }
 
@@ -431,30 +467,48 @@ async function sendDailyReportEmail({ employeeName, reportContent, attachmentUrl
     auth: { user, pass },
   });
 
-  let inlineImageHtml = '';
-  if (attachmentUrl) {
-    const isImage = /\.(jpg|jpeg|png|gif|webp|svg)/i.test(attachmentUrl) || attachmentUrl.includes('foto_profile') || attachmentUrl.includes('attachments');
-    if (isImage) {
-      inlineImageHtml = `
-        <div style="margin-top: 20px; border-top: 1px dashed #e5e7eb; padding-top: 15px;">
-          <p style="margin: 0 0 10px 0; font-size: 14px; color: #4b5563; font-weight: 600;">Pratinjau Lampiran Gambar:</p>
-          <img src="${attachmentUrl}" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid #e5e7eb; box-shadow: 0 2px 4px rgba(0,0,0,0.02);" />
+  const urls = parseReportAttachments(attachmentUrl);
+
+  let attachmentDisplayHtml = '';
+  if (urls.length > 0) {
+    let listHtml = '';
+    let previewImagesHtml = '';
+    
+    urls.forEach((url, index) => {
+      const fileName = url.split('/').pop() || `Lampiran ${index + 1}`;
+      listHtml += `
+        <div style="margin-bottom: 8px;">
+          <a href="${url}" target="_blank" style="color: #2AB0B2; text-decoration: none; font-weight: 600;">
+            📎 ${fileName} &rarr;
+          </a>
         </div>
       `;
-    }
-  }
+      
+      const isImage = /\.(jpg|jpeg|png|gif|webp|svg)/i.test(url) || url.includes('foto_profile') || url.includes('attachments');
+      if (isImage) {
+        previewImagesHtml += `
+          <div style="margin-top: 10px; text-align: center;">
+            <p style="margin: 0 0 5px 0; font-size: 12px; color: #6b7280; text-align: left;">Pratinjau: ${fileName}</p>
+            <img src="${url}" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 1px solid #e5e7eb; box-shadow: 0 2px 4px rgba(0,0,0,0.02);" />
+          </div>
+        `;
+      }
+    });
 
-  const attachmentDisplayHtml = attachmentUrl 
-    ? `
+    attachmentDisplayHtml = `
       <div style="margin-top: 20px; font-size: 14px;">
-        <span style="color: #6b7280; font-weight: 600;">Dokumen Lampiran:</span> 
-        <a href="${attachmentUrl}" target="_blank" style="color: #2AB0B2; text-decoration: none; font-weight: 600; margin-left: 5px;">
-          Buka / Unduh Berkas &rarr;
-        </a>
+        <span style="color: #6b7280; font-weight: 600; display: block; margin-bottom: 8px;">Dokumen Lampiran (${urls.length}):</span>
+        ${listHtml}
+        ${previewImagesHtml ? `
+          <div style="margin-top: 15px; border-top: 1px dashed #e5e7eb; padding-top: 15px;">
+            ${previewImagesHtml}
+          </div>
+        ` : ''}
       </div>
-      ${inlineImageHtml}
-    `
-    : '<p style="font-size: 14px; color: #9ca3af; font-style: italic; margin-top: 20px;">Tidak ada lampiran berkas.</p>';
+    `;
+  } else {
+    attachmentDisplayHtml = '<p style="font-size: 14px; color: #9ca3af; font-style: italic; margin-top: 20px;">Tidak ada lampiran berkas.</p>';
+  }
 
   const mailOptions = {
     from: `"${employeeName}" <${finalSender}>`,
@@ -2738,7 +2792,7 @@ app.post('/api/remote/requests/:id/cancel', validateDeviceSession, async (req, r
 app.post('/api/remote/requests/:id/report', validateDeviceSession, async (req, res) => {
   try {
     const { id } = req.params;
-    const { report_content, attachment_base64 } = req.body;
+    const { report_content, attachment_base64, attachments_base64 } = req.body;
     if (!id || !report_content) {
       return res.status(400).json({ error: 'ID dan isi laporan wajib disertakan' });
     }
@@ -2761,22 +2815,57 @@ app.post('/api/remote/requests/:id/report', validateDeviceSession, async (req, r
     }
 
     // B. Handle file upload to Supabase Storage if attached
-    let attachmentUrl = null;
-    if (attachment_base64 && attachment_base64.trim() !== '') {
+    let attachmentUrls = [];
+    const uploadedUrls = [];
+
+    // Support multiple attachments array uploaded in parallel with rollback
+    if (attachments_base64 && Array.isArray(attachments_base64)) {
       try {
-        const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
-        const maxSize = 5 * 1024 * 1024; // 5MB limit
-        attachmentUrl = await uploadFileToSupabase(
+        const uploadPromises = attachments_base64.map(async (base64, i) => {
+          if (!base64 || base64.trim() === '') return null;
+          
+          const uniqueId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const filePrefix = `report-${user_id}-${uniqueId}-${i}`;
+          
+          const url = await uploadFileToSupabase(
+            base64,
+            UPLOAD_CONFIG.BUCKET_NAME,
+            filePrefix,
+            UPLOAD_CONFIG.ALLOWED_MIME_TYPES,
+            UPLOAD_CONFIG.MAX_FILE_SIZE_BYTES
+          );
+          
+          uploadedUrls.push(url);
+          return url;
+        });
+        
+        const results = await Promise.all(uploadPromises);
+        attachmentUrls = results.filter(url => url !== null);
+      } catch (uploadErr) {
+        if (uploadedUrls.length > 0) {
+          console.warn(`Rollback triggered. Menghapus ${uploadedUrls.length} file yang sempat terunggah ke Supabase...`);
+          await Promise.all(uploadedUrls.map(url => deleteFileFromSupabaseUrl(url, UPLOAD_CONFIG.BUCKET_NAME)));
+        }
+        return res.status(400).json({ error: `Gagal mengunggah lampiran: ${uploadErr.message}` });
+      }
+    } else if (attachment_base64 && attachment_base64.trim() !== '') {
+      // Support backward compatibility for single attachment
+      try {
+        const uniqueId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const url = await uploadFileToSupabase(
           attachment_base64, 
-          'daily-reports', 
-          `report-${user_id}`, 
-          allowedMimes, 
-          maxSize
+          UPLOAD_CONFIG.BUCKET_NAME, 
+          `report-${user_id}-${uniqueId}`, 
+          UPLOAD_CONFIG.ALLOWED_MIME_TYPES, 
+          UPLOAD_CONFIG.MAX_FILE_SIZE_BYTES
         );
+        attachmentUrls.push(url);
       } catch (uploadErr) {
         return res.status(400).json({ error: `Gagal mengunggah lampiran: ${uploadErr.message}` });
       }
     }
+
+    const reportAttachmentValue = attachmentUrls.length > 0 ? JSON.stringify(attachmentUrls) : null;
 
     // C. Atomic database-level update to enforce WFH active, not expired, and single-submission constraints
     const [result] = await pool.query(
@@ -2790,7 +2879,7 @@ app.post('/api/remote/requests/:id/report', validateDeviceSession, async (req, r
          AND expired_at > NOW() 
          AND report_submitted_at IS NULL
        RETURNING *`,
-      [report_content, attachmentUrl, id, user_id]
+      [report_content, reportAttachmentValue, id, user_id]
     );
 
     if (!result || result.length === 0) {
@@ -2815,7 +2904,7 @@ app.post('/api/remote/requests/:id/report', validateDeviceSession, async (req, r
     sendDailyReportEmail({
       employeeName,
       reportContent: report_content,
-      attachmentUrl: attachmentUrl,
+      attachmentUrl: reportAttachmentValue,
       date: formattedDate
     })
       .then(async () => {
@@ -2894,9 +2983,15 @@ app.get('/api/remote/requests', async (req, res) => {
     // Map logical expired status for readability in admin UI
     const mapped = rows.map(r => {
       const isExpired = r.status === REMOTE_STATUS.APPROVED && new Date() >= new Date(r.expired_at);
+      
+      const attachments = parseReportAttachments(r.report_attachment);
+      const singleUrl = attachments[0] || null;
+      
       return {
         ...r,
-        logical_status: isExpired ? 'EXPIRED' : r.status
+        logical_status: isExpired ? 'EXPIRED' : r.status,
+        report_attachment_url: singleUrl,
+        report_attachments: attachments
       };
     });
 

@@ -19,6 +19,7 @@ interface RemoteRequest {
   expired_at: string;
   report_content: string | null;
   report_attachment_url: string | null;
+  report_attachments?: string[] | null;
   report_submitted_at: string | null;
 }
 
@@ -186,17 +187,44 @@ export default function AdminRemotePage() {
                 </div>
               </div>
 
-              {selectedReport.report_attachment_url && (
+              {((selectedReport.report_attachments && selectedReport.report_attachments.length > 0) || selectedReport.report_attachment_url) && (
                 <div>
-                  <span className="text-xs uppercase font-bold text-gray-400 block mb-1">Lampiran Dokumen</span>
-                  <a
-                    href={selectedReport.report_attachment_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold transition-all border border-indigo-200 text-xs"
-                  >
-                    <Eye size={14} /> Lihat / Download Lampiran
-                  </a>
+                  <span className="text-xs uppercase font-bold text-gray-400 block mb-1.5">Lampiran Dokumen</span>
+                  <div className="flex flex-col gap-2">
+                    {selectedReport.report_attachments && selectedReport.report_attachments.length > 0 ? (
+                      selectedReport.report_attachments.map((url, idx) => {
+                        const fileName = url.split('/').pop() || `Lampiran ${idx + 1}`;
+                        return (
+                          <a
+                            key={idx}
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-between gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold transition-all border border-indigo-200 text-xs w-full"
+                          >
+                            <span className="truncate max-w-[80%]">📎 {fileName}</span>
+                            <span className="flex items-center gap-1 text-[10px] bg-indigo-100 px-2 py-0.5 rounded-md flex-shrink-0">
+                              <Eye size={12} /> Buka
+                            </span>
+                          </a>
+                        );
+                      })
+                    ) : (
+                      selectedReport.report_attachment_url && (
+                        <a
+                          href={selectedReport.report_attachment_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center justify-between gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold transition-all border border-indigo-200 text-xs w-full"
+                        >
+                          <span className="truncate max-w-[80%]">📎 Lihat Lampiran</span>
+                          <span className="flex items-center gap-1 text-[10px] bg-indigo-100 px-2 py-0.5 rounded-md flex-shrink-0">
+                            <Eye size={12} /> Buka
+                          </span>
+                        </a>
+                      )
+                    )}
+                  </div>
                 </div>
               )}
 

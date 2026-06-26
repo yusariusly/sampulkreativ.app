@@ -2,9 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Clock, AlertTriangle } from "lucide-react";
+import { Camera, Clock, AlertTriangle, X } from "lucide-react";
 import { getDeviceId } from "../utils/session";
 import { compressImage, IMAGE_PRESETS } from "../utils/image";
+
+const REPORT_UPLOAD_CONFIG = {
+  MAX_FILE_SIZE_BYTES: 5 * 1024 * 1024, // 5MB
+  ALLOWED_MIME_TYPES: ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]
+};
 
 export default function UserHomePage() {
   const router = useRouter();
@@ -42,7 +47,13 @@ export default function UserHomePage() {
   // Daily Report states
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportContent, setReportContent] = useState("");
-  const [reportAttachmentBase64, setReportAttachmentBase64] = useState<string | null>(null);
+  interface ReportAttachment {
+    id: string;
+    name: string;
+    type: string;
+    base64: string;
+  }
+  const [reportAttachments, setReportAttachments] = useState<ReportAttachment[]>([]);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportErrorMsg, setReportErrorMsg] = useState("");
 
@@ -139,26 +150,57 @@ export default function UserHomePage() {
   };
 
   const handleReportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    try {
-      const compressedFile = await compressImage(file, IMAGE_PRESETS.report);
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        setReportAttachmentBase64(base64);
-      };
-      reader.readAsDataURL(compressedFile);
-    } catch (error) {
-      console.error("Gagal melakukan kompresi berkas lampiran laporan:", error);
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        setReportAttachmentBase64(base64);
-      };
-      reader.readAsDataURL(file);
+    const newAttachments: ReportAttachment[] = [...reportAttachments];
+    setReportErrorMsg("");
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+
+      if (!REPORT_UPLOAD_CONFIG.ALLOWED_MIME_TYPES.includes(file.type)) {
+        setReportErrorMsg(`⚠️ Format berkas "${file.name}" tidak didukung.`);
+        continue;
+      }
+
+      if (file.size > REPORT_UPLOAD_CONFIG.MAX_FILE_SIZE_BYTES) {
+        setReportErrorMsg(`⚠️ Ukuran berkas "${file.name}" melebihi batas 5MB.`);
+        continue;
+      }
+
+      if (newAttachments.some(att => att.name === file.name)) continue;
+
+      try {
+        let fileToProcess = file;
+        if (file.type.startsWith("image/")) {
+          try {
+            fileToProcess = await compressImage(file, IMAGE_PRESETS.report);
+          } catch (compressionErr) {
+            console.error("Gagal melakukan kompresi berkas:", file.name, compressionErr);
+          }
+        }
+        
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = (err) => reject(err);
+          reader.readAsDataURL(fileToProcess);
+        });
+
+        newAttachments.push({
+          id: `${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`,
+          name: file.name,
+          type: file.type,
+          base64
+        });
+      } catch (error) {
+        console.error("Gagal memproses berkas:", file.name, error);
+      }
     }
+
+    setReportAttachments(newAttachments);
+    e.target.value = "";
   };
 
   const handleReportSubmit = async () => {
@@ -175,6 +217,8 @@ export default function UserHomePage() {
       if (!storedUser) return;
       const userObj = JSON.parse(storedUser);
 
+      const attachmentsBase64 = reportAttachments.map(att => att.base64);
+
       const res = await fetch(`/api/remote/requests/${wfhRequest.id}/report`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -182,7 +226,7 @@ export default function UserHomePage() {
           user_id: userObj.id,
           device_id: getDeviceId(),
           report_content: reportContent,
-          attachment_base64: reportAttachmentBase64
+          attachments_base64: attachmentsBase64
         })
       });
 
@@ -289,7 +333,12 @@ export default function UserHomePage() {
 
   const handleStartAbsen = () => {
     sessionStorage.setItem("v2_absen_type", "masuk");
-    router.push("/user/qr-scan");
+    if (isWfhActive) {
+      sessionStorage.setItem("v2_scanned_token", "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026");
+      router.push("/user/selfie");
+    } else {
+      router.push("/user/qr-scan");
+    }
   };
 
   const handleStartAbsenPulang = () => {
@@ -480,7 +529,7 @@ export default function UserHomePage() {
                 <button
                   onClick={() => {
                     setReportContent("");
-                    setReportAttachmentBase64(null);
+                    setReportAttachments([]);
                     setReportErrorMsg("");
                     setReportModalOpen(true);
                   }}
@@ -807,38 +856,57 @@ export default function UserHomePage() {
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
-                  Berkas / Foto Lampiran (Opsional)
+                <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between">
+                  <span>Berkas / Foto Lampiran (Opsional)</span>
+                  <span className="text-gray-400 font-normal">{reportAttachments.length} Berkas</span>
                 </label>
                 <div 
                   onClick={() => document.getElementById("report-attachment-upload")?.click()}
-                  className="w-full py-6 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-[#2AB0B2] transition-colors relative overflow-hidden bg-gray-50/50"
+                  className="w-full py-6 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-[#2AB0B2] transition-colors relative overflow-hidden bg-gray-50/50 mb-3"
                   style={{ minHeight: "100px" }}
                 >
-                  {reportAttachmentBase64 ? (
-                    reportAttachmentBase64.startsWith("data:application/pdf") ? (
-                      <div className="text-center p-2">
-                        <span className="text-red-500 font-bold block">PDF</span>
-                        <span className="text-xs text-gray-500">Berkas PDF Terpilih</span>
-                      </div>
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={reportAttachmentBase64} alt="Preview" className="max-h-24 object-contain" />
-                    )
-                  ) : (
-                    <>
-                      <Camera size={20} className="text-gray-300 mb-1" />
-                      <span className="text-xs font-semibold text-gray-500">Ambil Foto / Pilih Berkas (Max 5MB)</span>
-                    </>
-                  )}
+                  <Camera size={20} className="text-gray-300 mb-1" />
+                  <span className="text-xs font-semibold text-gray-500">Ambil Foto / Pilih Berkas (Max 5MB)</span>
                 </div>
                 <input
                   type="file"
+                  multiple
                   accept="image/*,application/pdf"
                   onChange={handleReportFileChange}
                   className="hidden"
                   id="report-attachment-upload"
                 />
+
+                {reportAttachments.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto pr-1">
+                    {reportAttachments.map((att) => (
+                      <div key={att.id} className="relative p-2 bg-gray-50 border border-gray-150 rounded-xl flex items-center gap-2 group">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-gray-200">
+                          {att.type.startsWith("image/") ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={att.base64} alt={att.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-red-500 font-extrabold text-xs">PDF</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-semibold text-gray-700 truncate">{att.name}</p>
+                          <p className="text-[9px] text-gray-400 uppercase font-bold">{att.type.split('/')[1] || 'FILE'}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReportAttachments(prev => prev.filter(a => a.id !== att.id));
+                          }}
+                          className="w-5 h-5 rounded-full bg-red-100 hover:bg-red-200 text-red-600 flex items-center justify-center cursor-pointer transition-colors"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
