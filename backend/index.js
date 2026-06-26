@@ -874,7 +874,7 @@ app.post('/api/auth/login-employee', async (req, res) => {
     } else {
       // If not bound yet, bind it now with race condition check (atomic update)
       const [updateResult] = await pool.query(
-        'UPDATE users SET device_id = ?, device_info = ? WHERE id = ? AND (device_id IS NULL OR device_id = ?)',
+        "UPDATE users SET device_id = ?, device_info = ? WHERE id = ? AND (device_id IS NULL OR device_id = '' OR device_id = ?)",
         [device_id, device_info, user.id, device_id]
       );
       if (updateResult.affectedRows === 0) {
