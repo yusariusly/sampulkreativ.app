@@ -91,6 +91,9 @@ export default function AdminSettingsPage() {
     e.preventDefault();
     setSaving(true);
 
+    const normalizedLatitude = officeLatitude ? officeLatitude.toString().replace(",", ".").trim() : "";
+    const normalizedLongitude = officeLongitude ? officeLongitude.toString().replace(",", ".").trim() : "";
+
     try {
       const res = await fetch("/api/settings", {
         method: "POST",
@@ -98,8 +101,8 @@ export default function AdminSettingsPage() {
         body: JSON.stringify({ 
           deadline_time: deadlineTime,
           checkout_time: checkoutTime,
-          office_latitude: officeLatitude,
-          office_longitude: officeLongitude,
+          office_latitude: normalizedLatitude,
+          office_longitude: normalizedLongitude,
           telegram_bot_token: telegramBotToken,
           telegram_chat_id: telegramChatId,
           telegram_chat_id_karyawan: telegramChatIdKaryawan,
@@ -116,6 +119,8 @@ export default function AdminSettingsPage() {
 
       if (res.ok) {
         showToast("✅ Pengaturan berhasil diperbarui!");
+        setOfficeLatitude(normalizedLatitude);
+        setOfficeLongitude(normalizedLongitude);
       } else {
         showToast(`⚠️ ${data.error || "Gagal menyimpan pengaturan"}`);
       }

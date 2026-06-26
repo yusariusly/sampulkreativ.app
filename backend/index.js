@@ -1399,8 +1399,8 @@ app.post('/api/attendance', async (req, res) => {
       
       const officeLatStr = latSetting[0]?.key_value;
       const officeLngStr = lngSetting[0]?.key_value;
-      const officeLat = officeLatStr ? parseFloat(officeLatStr) : NaN;
-      const officeLng = officeLngStr ? parseFloat(officeLngStr) : NaN;
+      const officeLat = officeLatStr ? parseFloat(officeLatStr.replace(',', '.')) : NaN;
+      const officeLng = officeLngStr ? parseFloat(officeLngStr.replace(',', '.')) : NaN;
       console.log(`[GPS_OFFICE_SETTINGS]\nofficeLatRaw: ${officeLatStr}\nofficeLngRaw: ${officeLngStr}\nofficeLat: ${officeLat}\nofficeLng: ${officeLng}`);
       
       if (officeLatStr && officeLngStr && officeLatStr.trim() !== '' && officeLngStr.trim() !== '') {
@@ -1823,8 +1823,20 @@ app.post('/api/settings', async (req, res) => {
     }
     
     if (office_latitude !== undefined && office_longitude !== undefined) {
-      const latVal = office_latitude?.toString().trim();
-      const lngVal = office_longitude?.toString().trim();
+      const latVal = office_latitude?.toString().replace(',', '.').trim();
+      const lngVal = office_longitude?.toString().replace(',', '.').trim();
+      
+      if (latVal !== "" || lngVal !== "") {
+        const parsedLat = parseFloat(latVal);
+        const parsedLng = parseFloat(lngVal);
+        
+        if (isNaN(parsedLat) || parsedLat < -90 || parsedLat > 90) {
+          return res.status(400).json({ error: 'Latitude kantor tidak valid. Harus berupa angka antara -90 dan 90.' });
+        }
+        if (isNaN(parsedLng) || parsedLng < -180 || parsedLng > 180) {
+          return res.status(400).json({ error: 'Longitude kantor tidak valid. Harus berupa angka antara -180 dan 180.' });
+        }
+      }
       
       await pool.query(
         "INSERT INTO settings (key_name, key_value) VALUES ('office_latitude', ?) ON DUPLICATE KEY UPDATE key_value = ?",

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { ChevronLeft, Compass, Info, Clock, CheckCircle, AlertTriangle, AlertCircle } from "lucide-react";
+import { ChevronLeft, Compass, Info, Clock, CheckCircle, AlertTriangle, AlertCircle, Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface GPSUpdate {
@@ -9,9 +9,11 @@ interface GPSUpdate {
   longitude: number;
   accuracy: number;
   altitude: number | null;
+  altitudeAccuracy: number | null;
   heading: number | null;
   speed: number | null;
   timestamp: string;
+  rawTimestamp: number;
 }
 
 interface AccuracyHistoryItem {
@@ -31,6 +33,11 @@ export default function SelfieDebugPage() {
   const [startTime] = useState<number>(Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
+  // Browser & Environment Info
+  const [userAgent, setUserAgent] = useState("");
+  const [platform, setPlatform] = useState("");
+  const [permissionStatus, setPermissionStatus] = useState<string>("Checking...");
+
   // Watch position options
   const watchOptions = {
     enableHighAccuracy: true,
@@ -44,6 +51,35 @@ export default function SelfieDebugPage() {
     console.log(logStr);
     setLogHistory((prev) => [logStr, ...prev].slice(0, 50));
   };
+
+  // Populate client-side environment info
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setUserAgent(navigator.userAgent || "Unknown");
+      setPlatform((navigator as any).platform || "Unknown");
+
+      // Check geolocation permission API
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions
+          .query({ name: "geolocation" })
+          .then((result) => {
+            setPermissionStatus(result.state);
+            addLog(`Permission state: ${result.state}`);
+            result.onchange = () => {
+              setPermissionStatus(result.state);
+              addLog(`Permission changed: ${result.state}`);
+            };
+          })
+          .catch((err) => {
+            setPermissionStatus("Query Error");
+            addLog(`Permission query failed: ${err.message}`);
+          });
+      } else {
+        setPermissionStatus("Not Supported");
+        addLog("Permissions API query for geolocation not supported by browser.");
+      }
+    }
+  }, []);
 
   // Elapsed time tracker
   useEffect(() => {
@@ -70,9 +106,11 @@ export default function SelfieDebugPage() {
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
           altitude: position.coords.altitude,
+          altitudeAccuracy: position.coords.altitudeAccuracy !== undefined ? position.coords.altitudeAccuracy : null,
           heading: position.coords.heading,
           speed: position.coords.speed,
           timestamp: timeStr,
+          rawTimestamp: position.timestamp,
         };
 
         setCoords(newCoords);
@@ -94,6 +132,20 @@ export default function SelfieDebugPage() {
         });
         setErrorMsg(null);
 
+        // Detailed object log
+        console.log("[GPS_RAW_POSITION_OBJECT]", {
+          coords: {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            altitude: position.coords.altitude,
+            altitudeAccuracy: position.coords.altitudeAccuracy,
+            heading: position.coords.heading,
+            speed: position.coords.speed,
+          },
+          timestamp: position.timestamp,
+        });
+
         addLog(`Update #${updateCount + 1}: Lat=${newCoords.latitude.toFixed(7)}, Lng=${newCoords.longitude.toFixed(7)}, Accuracy=${newCoords.accuracy}m`);
       },
       (error) => {
@@ -108,7 +160,7 @@ export default function SelfieDebugPage() {
       addLog("Menghentikan watchPosition...");
       navigator.geolocation.clearWatch(watchId);
     };
-  }, []);
+  }, [updateCount]);
 
   // Accuracy status helper
   const getAccuracyStatus = (acc: number | undefined) => {
@@ -155,7 +207,33 @@ export default function SelfieDebugPage() {
           </button>
           <div>
             <h1 className="text-lg font-bold">GPS Real-time Debug</h1>
-            <p className="text-xs text-zinc-400">Inspeksi Data Runtime Sensor GPS</p>
+            <p className="text-xs text-zinc-400">Inspeksi Data Runtime & Browser Environment</p>
+          </div>
+        </div>
+
+        {/* Browser & Permission Metadata */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 mb-5 flex flex-col gap-3">
+          <div className="flex items-center gap-2 border-b border-zinc-800 pb-3 mb-1">
+            <Shield size={16} className="text-[#2AB0B2]" />
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Browser Environment</span>
+          </div>
+          <div className="flex flex-col gap-2 text-xs">
+            <div className="flex justify-between items-center bg-zinc-950 p-3 rounded-xl border border-zinc-800/40">
+              <span className="text-zinc-400">User Agent</span>
+              <span className="font-mono text-[9px] max-w-[200px] truncate text-right text-zinc-300" title={userAgent}>
+                {userAgent || "-"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center bg-zinc-950 p-3 rounded-xl border border-zinc-800/40">
+              <span className="text-zinc-400">Platform</span>
+              <span className="font-mono text-zinc-300">{platform || "-"}</span>
+            </div>
+            <div className="flex justify-between items-center bg-zinc-950 p-3 rounded-xl border border-zinc-800/40">
+              <span className="text-zinc-400">Permission State</span>
+              <span className={`font-bold font-mono ${permissionStatus === "granted" ? "text-emerald-400" : "text-amber-400"}`}>
+                {permissionStatus.toUpperCase()}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -210,6 +288,12 @@ export default function SelfieDebugPage() {
               </p>
             </div>
             <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800/50">
+              <p className="text-[9px] text-zinc-400 uppercase tracking-wider font-semibold mb-0.5">Altitude Accuracy</p>
+              <p className="text-xs font-mono text-white">
+                {coords && coords.altitudeAccuracy !== null ? `${coords.altitudeAccuracy.toFixed(1)} m` : "Tidak Didukung"}
+              </p>
+            </div>
+            <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800/50">
               <p className="text-[9px] text-zinc-400 uppercase tracking-wider font-semibold mb-0.5">Heading</p>
               <p className="text-xs font-mono text-white">
                 {coords && coords.heading !== null ? `${coords.heading.toFixed(1)}°` : "Tidak Didukung"}
@@ -222,6 +306,10 @@ export default function SelfieDebugPage() {
               </p>
             </div>
             <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800/50">
+              <p className="text-[9px] text-zinc-400 uppercase tracking-wider font-semibold mb-0.5">Raw Timestamp</p>
+              <p className="text-xs font-mono text-white">{coords ? coords.rawTimestamp : "-"}</p>
+            </div>
+            <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800/50 col-span-2">
               <p className="text-[9px] text-zinc-400 uppercase tracking-wider font-semibold mb-0.5">GPS Update Count</p>
               <p className="text-xs font-mono text-white">{updateCount}</p>
             </div>
