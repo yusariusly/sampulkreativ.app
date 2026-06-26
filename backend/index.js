@@ -1303,6 +1303,7 @@ async function triggerTelegramNotification(newRecord, fileBuffer, filename) {
 app.post('/api/attendance', async (req, res) => {
   try {
     const { user_id, foto_base64, latitude, longitude, status } = req.body;
+    console.log(`[GPS_BACKEND_RECEIVED]\nUser: ${user_id}\nLatitude: ${latitude}\nLongitude: ${longitude}\nStatus: ${status}`);
     if (!user_id || !status) {
       return res.status(400).json({ error: 'Data absensi tidak lengkap' });
     }
@@ -1398,11 +1399,11 @@ app.post('/api/attendance', async (req, res) => {
       
       const officeLatStr = latSetting[0]?.key_value;
       const officeLngStr = lngSetting[0]?.key_value;
+      const officeLat = officeLatStr ? parseFloat(officeLatStr) : NaN;
+      const officeLng = officeLngStr ? parseFloat(officeLngStr) : NaN;
+      console.log(`[GPS_OFFICE_SETTINGS]\nofficeLatRaw: ${officeLatStr}\nofficeLngRaw: ${officeLngStr}\nofficeLat: ${officeLat}\nofficeLng: ${officeLng}`);
       
       if (officeLatStr && officeLngStr && officeLatStr.trim() !== '' && officeLngStr.trim() !== '') {
-        const officeLat = parseFloat(officeLatStr);
-        const officeLng = parseFloat(officeLngStr);
-        
         if (!latitude || !longitude) {
           return res.status(400).json({ error: 'GPS perangkat wajib diaktifkan untuk melakukan absensi' });
         }
@@ -1411,6 +1412,7 @@ app.post('/api/attendance', async (req, res) => {
 
         if (!isWFHActive) {
           const distance = getDistanceInMeters(parseFloat(latitude), parseFloat(longitude), officeLat, officeLng);
+          console.log(`[GPS_DISTANCE]\nUser Latitude: ${latitude}\nUser Longitude: ${longitude}\n\nOffice Latitude: ${officeLat}\nOffice Longitude: ${officeLng}\n\nDistance Result: ${distance}\nRadius Allowed: 30`);
           if (distance > 30) {
             return res.status(400).json({ 
               error: `Jarak Anda terlalu jauh (${Math.round(distance)} meter dari kantor). Maksimal diperbolehkan: 30 meter.` 

@@ -123,6 +123,7 @@ export default function SelfiePage() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          console.log(`[GPS_FRONTEND]\nLatitude: ${position.coords.latitude}\nLongitude: ${position.coords.longitude}\nAccuracy: ${position.coords.accuracy}\nTimestamp: ${position.timestamp}`);
           setCoords({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
@@ -216,18 +217,22 @@ export default function SelfiePage() {
       const type = sessionStorage.getItem("v2_absen_type") || "masuk";
       const isCheckout = type === "pulang";
 
+      const payload = {
+        user_id: userObj.id,
+        device_id: deviceId,
+        foto_base64: base64Image,
+        latitude: coords.lat,
+        longitude: coords.lng,
+        status: isCheckout ? "Pulang" : "Hadir",
+      };
+
+      console.log("[GPS_FRONTEND_PAYLOAD]", payload);
+
       // 1. Perform fetch and AWAIT it to ensure the database successfully records it!
       const res = await fetch("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userObj.id,
-          device_id: deviceId,
-          foto_base64: base64Image,
-          latitude: coords.lat,
-          longitude: coords.lng,
-          status: isCheckout ? "Pulang" : "Hadir",
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
