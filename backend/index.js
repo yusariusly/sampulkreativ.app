@@ -745,6 +745,56 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// Middleware to validate device session for employee role
+const validateDeviceSession = async (req, res, next) => {
+  try {
+    const user_id = req.body.user_id || req.query.user_id || req.headers['x-user-id'];
+    const device_id = req.body.device_id || req.query.device_id || req.headers['x-device-id'];
+
+    if (!user_id) {
+      return res.status(400).json({ error: 'User ID wajib disertakan' });
+    }
+
+    const [rows] = await pool.query(
+      'SELECT * FROM users WHERE id = ? LIMIT 1',
+      [user_id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+    }
+
+    const user = rows[0];
+
+    // Only validate device session for user (employee) role
+    if (user.role === 'user') {
+      if (user.is_active !== 1) {
+        return res.status(403).json({ error: 'Akun Anda dinonaktifkan atau belum disetujui admin' });
+      }
+
+      if (!user.device_id || user.device_id.trim() === '') {
+        // Exclude logout path so frontend can clear local storage
+        if (req.path === '/api/auth/logout') {
+          req.user = user;
+          return next();
+        }
+        return res.status(401).json({ error: 'Perangkat Anda belum terdaftar atau telah di-reset. Silakan login kembali.' });
+      }
+
+      if (!device_id || device_id !== user.device_id) {
+        return res.status(401).json({ error: 'Sesi perangkat Anda tidak valid. Silakan login kembali.' });
+      }
+    }
+
+    // Attach user context to request object
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error('Error in validateDeviceSession middleware:', error);
+    res.status(500).json({ error: 'Terjadi kesalahan verifikasi sesi perangkat' });
+  }
+};
+
 // API Routes
 
 // 1. Auth Login
@@ -818,15 +868,20 @@ app.post('/api/auth/login-employee', async (req, res) => {
       // If already bound to another device
       if (user.device_id !== device_id) {
         return res.status(403).json({
-          error: 'Akun ini sudah terikat pada perangkat lain.'
+          error: 'Akun ini sudah terdaftar pada perangkat lain. Silakan lakukan Logout dari perangkat tersebut terlebih dahulu. Apabila perangkat sudah tidak dapat digunakan, silakan hubungi Administrator untuk melakukan Reset Device.'
         });
       }
     } else {
-      // If not bound yet, bind it now!
-      await pool.query(
-        'UPDATE users SET device_id = ?, device_info = ? WHERE id = ?',
-        [device_id, device_info, user.id]
+      // If not bound yet, bind it now with race condition check (atomic update)
+      const [updateResult] = await pool.query(
+        'UPDATE users SET device_id = ?, device_info = ? WHERE id = ? AND (device_id IS NULL OR device_id = ?)',
+        [device_id, device_info, user.id, device_id]
       );
+      if (updateResult.affectedRows === 0) {
+        return res.status(403).json({
+          error: 'Akun ini sudah terdaftar pada perangkat lain. Silakan lakukan Logout dari perangkat tersebut terlebih dahulu. Apabila perangkat sudah tidak dapat digunakan, silakan hubungi Administrator untuk melakukan Reset Device.'
+        });
+      }
       user.device_id = device_id;
       user.device_info = device_info;
     }
@@ -852,6 +907,30 @@ app.post('/api/auth/login-employee', async (req, res) => {
   } catch (error) {
     console.error('Gagal melakukan login karyawan:', error);
     res.status(500).json({ error: 'Terjadi kesalahan internal server' });
+  }
+});
+
+app.post('/api/auth/logout', validateDeviceSession, async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (!user.device_id) {
+      return res.json({ success: true, message: 'Logout berhasil' });
+    }
+
+    const [result] = await pool.query(
+      'UPDATE users SET device_id = NULL, device_info = NULL WHERE id = ? AND device_id = ?',
+      [user.id, user.device_id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(401).json({ error: 'Sesi perangkat tidak valid atau sudah dibersihkan' });
+    }
+
+    res.json({ success: true, message: 'Logout berhasil' });
+  } catch (error) {
+    console.error('Gagal melakukan logout:', error);
+    res.status(500).json({ error: 'Terjadi kesalahan internal server saat logout' });
   }
 });
 
@@ -2033,24 +2112,22 @@ app.post('/api/users/approve', async (req, res) => {
 });
 
 // 8. Update Profile Photo
-app.post('/api/users/update-profile', async (req, res) => {
+app.post('/api/users/update-profile', validateDeviceSession, async (req, res) => {
   try {
-    const { user_id, foto_base64 } = req.body;
-    if (!user_id || !foto_base64) {
+    const { foto_base64 } = req.body;
+    if (!foto_base64) {
       return res.status(400).json({ error: 'Data update tidak lengkap' });
     }
 
-    const [userRows] = await pool.query('SELECT * FROM users WHERE id = ?', [user_id]);
-    if (userRows.length === 0) {
-      return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
-    }
+    const user = req.user;
+    const user_id = user.id;
 
     if (!foto_base64.startsWith('data:image')) {
       return res.status(400).json({ error: 'Format foto tidak valid' });
     }
 
     // 1. Hapus foto lama dari Supabase Storage jika ada
-    const currentPhoto = userRows[0].foto_profile;
+    const currentPhoto = user.foto_profile;
     if (currentPhoto) {
       await deleteFromSupabase(currentPhoto);
     }
@@ -2068,17 +2145,11 @@ app.post('/api/users/update-profile', async (req, res) => {
 });
 
 // 9. Update Bio Data
-app.post('/api/users/update-bio', async (req, res) => {
+app.post('/api/users/update-bio', validateDeviceSession, async (req, res) => {
   try {
-    const { user_id, tanggal_lahir, gender, alamat, jabatan, email, no_telp, kategori, password } = req.body;
-    if (!user_id) {
-      return res.status(400).json({ error: 'User ID wajib disertakan' });
-    }
-
-    const [userRows] = await pool.query('SELECT * FROM users WHERE id = ?', [user_id]);
-    if (userRows.length === 0) {
-      return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
-    }
+    const { tanggal_lahir, gender, alamat, jabatan, email, no_telp, kategori, password } = req.body;
+    const user = req.user;
+    const user_id = user.id;
 
     let updateFields = 'tanggal_lahir = ?, gender = ?, alamat = ?';
     let params = [tanggal_lahir || null, gender || null, alamat || null];
@@ -2310,23 +2381,15 @@ app.get('/api/remote/requests/me', async (req, res) => {
 });
 
 // 2. Apply WFH
-app.post('/api/remote/requests', async (req, res) => {
+app.post('/api/remote/requests', validateDeviceSession, async (req, res) => {
   try {
-    const { user_id, alasan } = req.body;
-    if (!user_id || !alasan) {
-      return res.status(400).json({ error: 'User ID dan alasan wajib disertakan' });
+    const { alasan } = req.body;
+    if (!alasan) {
+      return res.status(400).json({ error: 'Alasan wajib disertakan' });
     }
 
-    // Check user role & status
-    const [userRows] = await pool.query("SELECT nama_lengkap, email, role, is_active FROM users WHERE id = ?", [user_id]);
-    if (userRows.length === 0) {
-      return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
-    }
-
-    const user = userRows[0];
-    if (user.is_active !== 1) {
-      return res.status(403).json({ error: 'Akun Anda dinonaktifkan atau belum disetujui admin' });
-    }
+    const user = req.user;
+    const user_id = user.id;
 
     // Verify WFH creation permission using remoteService
     const wfhStatus = await remoteService.getTodayRemoteStatus(pool, user_id);
@@ -2504,12 +2567,14 @@ app.post('/api/remote/requests/:id/reject', async (req, res) => {
 });
 
 // 6. Cancel WFH Request (by User or Admin)
-app.post('/api/remote/requests/:id/cancel', async (req, res) => {
+app.post('/api/remote/requests/:id/cancel', validateDeviceSession, async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id, role } = req.body; // role can be 'admin' or 'user'
-    if (!id || !user_id) {
-      return res.status(400).json({ error: 'ID dan User ID wajib disertakan' });
+    const user = req.user;
+    const user_id = user.id;
+    const role = user.role;
+    if (!id) {
+      return res.status(400).json({ error: 'ID wajib disertakan' });
     }
 
     let query = '';
@@ -2555,13 +2620,16 @@ app.post('/api/remote/requests/:id/cancel', async (req, res) => {
 });
 
 // 7. Submit Daily Report
-app.post('/api/remote/requests/:id/report', async (req, res) => {
+app.post('/api/remote/requests/:id/report', validateDeviceSession, async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id, report_content, attachment_base64 } = req.body;
-    if (!id || !user_id || !report_content) {
-      return res.status(400).json({ error: 'ID, User ID, dan isi laporan wajib disertakan' });
+    const { report_content, attachment_base64 } = req.body;
+    if (!id || !report_content) {
+      return res.status(400).json({ error: 'ID dan isi laporan wajib disertakan' });
     }
+
+    const user = req.user;
+    const user_id = user.id;
 
     // A. Validasi Izin Kirim Laporan via remoteService
     const wfhStatus = await remoteService.getTodayRemoteStatus(pool, user_id);

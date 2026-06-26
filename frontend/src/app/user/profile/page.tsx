@@ -2,7 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { User, Camera, Printer, X, CreditCard, Download } from "lucide-react";
+import { User, Camera, Printer, X, CreditCard, Download, LogOut } from "lucide-react";
+import { MembershipCategoryCard } from "./components/MembershipCategoryCard";
+import { getDeviceId, clearSession } from "../../utils/session";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -24,6 +26,8 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
 
   const [showCardModal, setShowCardModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isKategoriSubmitting, setIsKategoriSubmitting] = useState(false);
   const [jabatan, setJabatan] = useState("Karyawan");
   const [userRole, setUserRole] = useState("Karyawan");
   const [kategori, setKategori] = useState("Karyawan");
@@ -128,7 +132,7 @@ export default function ProfilePage() {
           const res = await fetch("/api/users/update-profile", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user_id: userId, foto_base64: base64 }),
+            body: JSON.stringify({ user_id: userId, device_id: getDeviceId(), foto_base64: base64 }),
           });
           
           const data = await res.json();
@@ -175,6 +179,7 @@ export default function ProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: userId,
+          device_id: getDeviceId(),
           tanggal_lahir: tanggalLahir,
           gender: gender,
           alamat: alamat,
@@ -213,6 +218,69 @@ export default function ProfilePage() {
       setError("Gagal menghubungi server");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateKategori = async (newKategori: string) => {
+    setIsKategoriSubmitting(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const res = await fetch("/api/users/update-bio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          device_id: getDeviceId(),
+          kategori: newKategori
+        })
+      });
+      
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setKategori(newKategori);
+        
+        // Update local storage
+        const storedUser = localStorage.getItem("v2_user");
+        if (storedUser) {
+          const userObj = JSON.parse(storedUser);
+          userObj.kategori = newKategori;
+          localStorage.setItem("v2_user", JSON.stringify(userObj));
+        }
+      } else {
+        setError(data.error || "Gagal memperbarui kategori");
+      }
+    } catch (err) {
+      setError("Gagal menghubungi server untuk memperbarui kategori");
+    } finally {
+      setIsKategoriSubmitting(false);
+    }
+  };
+
+  const handleConfirmLogout = async () => {
+    setError("");
+    setSuccessMsg("");
+    try {
+      const res = await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          device_id: getDeviceId()
+        })
+      });
+      
+      const data = await res.json();
+      if (res.ok && data.success) {
+        clearSession();
+        router.push("/");
+      } else {
+        setError(data.error || "Gagal melakukan logout");
+      }
+    } catch (err) {
+      setError("Gagal menghubungi server untuk melakukan logout");
+    } finally {
+      setShowLogoutModal(false);
     }
   };
 
@@ -282,6 +350,13 @@ export default function ProfilePage() {
             Download Kartu Karyawan
           </button>
         </div>
+
+        {/* Category Selector Component */}
+        <MembershipCategoryCard
+          currentCategory={kategori}
+          onChangeCategory={handleUpdateKategori}
+          isSubmitting={isKategoriSubmitting}
+        />
 
         {/* Change Password Card */}
         <div className="bg-white rounded-2xl shadow-xs p-5 mb-4 border border-gray-100/50">
@@ -534,6 +609,7 @@ export default function ProfilePage() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                           user_id: userId,
+                          device_id: getDeviceId(),
                           email: email,
                           no_telp: noTelp
                         })
@@ -568,6 +644,49 @@ export default function ProfilePage() {
               <p className="text-[9px] text-gray-400 text-center mt-3 leading-normal">
                 💡 <b>Tips:</b> Pilih opsi <b>"Simpan sebagai PDF"</b> atau <b>"Save as PDF"</b> pada dialog cetak browser Anda untuk mengunduh file kartu karyawan.
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Button Card */}
+      <div className="mt-2 mb-4 print:hidden">
+        <button
+          type="button"
+          onClick={() => setShowLogoutModal(true)}
+          className="w-full py-3.5 rounded-xl text-[#EF4444] bg-white border border-[#FCA5A5]/60 font-bold hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+        >
+          <LogOut size={16} />
+          Keluar dari Akun (Logout)
+        </button>
+      </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-xl border border-gray-150 relative">
+            <h3 className="text-lg font-bold text-gray-800 mb-1">
+              Keluar Akun
+            </h3>
+            <p className="text-gray-400 text-xs mb-6">
+              Apakah Anda yakin ingin keluar dari akun ini?
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setShowLogoutModal(false)}
+                className="py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors cursor-pointer text-center"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLogout}
+                className="py-3 bg-[#EF4444] hover:bg-[#DC2626] text-white font-bold rounded-xl text-sm transition-colors cursor-pointer text-center"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>
