@@ -65,12 +65,21 @@ async function getTodayRemoteFacts(dbClient, userId) {
     [userId, todayJakarta]
   );
   
+  // Calculate tomorrow in Jakarta
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowJakarta = getJakartaDate(tomorrow);
+
+  const startTimestamp = `${todayJakarta}T00:00:00+07:00`;
+  const endTimestamp = `${tomorrowJakarta}T00:00:00+07:00`;
+
   const [absensiRows] = await dbClient.query(
     `SELECT status FROM absensi 
      WHERE user_id = $1 
        AND waktu_absen >= $2::timestamptz 
-       AND waktu_absen < ($2::timestamptz + INTERVAL '1 day')`,
-    [userId, todayJakarta]
+       AND waktu_absen < $3::timestamptz`,
+    [userId, startTimestamp, endTimestamp]
   );
 
   return {

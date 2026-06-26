@@ -38,7 +38,7 @@ export default function AdminRemotePage() {
       const res = await fetch("/api/remote/requests");
       if (res.ok) {
         const data = await res.json();
-        setRequests(data);
+        setRequests(Array.isArray(data) ? data : (data.requests || []));
       }
     } catch (err) {
       console.error("Gagal memuat daftar remote working:", err);
