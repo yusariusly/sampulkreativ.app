@@ -1412,7 +1412,15 @@ app.post('/api/attendance', async (req, res) => {
 
         if (!isWFHActive) {
           const distance = getDistanceInMeters(parseFloat(latitude), parseFloat(longitude), officeLat, officeLng);
-          console.log(`[GPS_DISTANCE]\nUser Latitude: ${latitude}\nUser Longitude: ${longitude}\n\nOffice Latitude: ${officeLat}\nOffice Longitude: ${officeLng}\n\nDistance Result: ${distance}\nRadius Allowed: 30`);
+          console.log("[GPS_ATTENDANCE_VERIFICATION]", {
+            officeLatRaw: officeLatStr,
+            officeLngRaw: officeLngStr,
+            officeLat,
+            officeLng,
+            userLat: parseFloat(latitude),
+            userLng: parseFloat(longitude),
+            distance
+          });
           if (distance > 30) {
             return res.status(400).json({ 
               error: `Jarak Anda terlalu jauh (${Math.round(distance)} meter dari kantor). Maksimal diperbolehkan: 30 meter.` 
