@@ -199,56 +199,96 @@ Attachment: ${filePath || 'None'}`);
   });
 
   const subject = `[Pengajuan ${status}] ${senderName} - ${formattedDate}`;
-  let text = '';
   
-  if (status === 'Sakit') {
-    text = `Yth. HRD / Administrator,
-
-Dengan hormat,
-
-Melalui email ini, saya mengajukan permohonan izin ketidakhadiran kerja karena sakit pada hari ini, ${formattedDate}.
-
-Sebagai bukti pendukung, saya melampirkan foto surat keterangan sakit dari dokter bersama email ini.
-
-Atas perhatian Bapak/Ibu, saya ucapkan terima kasih.
-
-Hormat saya,
-${senderName}`;
-  } else {
-    text = `Yth. HRD / Administrator,
-
-Dengan hormat,
-
-Melalui email ini, saya mengajukan permohonan izin ketidakhadiran kerja pada hari ini, ${formattedDate}, dengan alasan/keperluan sebagai berikut:
-
-"${reason}"
-
-Sebagai bukti pendukung, saya melampirkan foto/dokumen pendukung bersama email ini.
-
-Atas perhatian dan izin yang diberikan Bapak/Ibu, saya ucapkan terima kasih.
-
-Hormat saya,
-${senderName}`;
-  }
-
   const attachments = [];
+  let inlineImageHtml = '';
+
   if (fileBuffer) {
     attachments.push({
       filename: fileName || 'lampiran.jpg',
       content: fileBuffer,
+      cid: 'attachment_preview'
     });
+    inlineImageHtml = `
+      <div style="margin-top: 20px; border-top: 1px dashed #eee; padding-top: 15px;">
+        <p style="margin: 0 0 10px 0; font-size: 14px; color: #666; font-weight: 600;">Pratinjau Dokumen Lampiran:</p>
+        <img src="cid:attachment_preview" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid #e5e7eb; box-shadow: 0 2px 4px rgba(0,0,0,0.02);" />
+      </div>
+    `;
   } else if (filePath && fs.existsSync(filePath)) {
     attachments.push({
       filename: fileName || 'lampiran.jpg',
       path: filePath,
+      cid: 'attachment_preview'
     });
+    inlineImageHtml = `
+      <div style="margin-top: 20px; border-top: 1px dashed #eee; padding-top: 15px;">
+        <p style="margin: 0 0 10px 0; font-size: 14px; color: #666; font-weight: 600;">Pratinjau Dokumen Lampiran:</p>
+        <img src="cid:attachment_preview" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid #e5e7eb; box-shadow: 0 2px 4px rgba(0,0,0,0.02);" />
+      </div>
+    `;
   }
+
+  const html = `
+    <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; padding: 30px 15px; color: #374151; line-height: 1.6;">
+      <div style="max-width: 550px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04); border-top: 6px solid #2AB0B2;">
+        
+        <!-- Header Banner -->
+        <div style="background-color: #2AB0B2; padding: 25px 20px; text-align: center; color: #ffffff;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.5px;">Permohonan Izin / Sakit</h2>
+          <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.85; text-transform: uppercase; letter-spacing: 1px;">Sistem Absensi Online</p>
+        </div>
+        
+        <!-- Content Body -->
+        <div style="padding: 30px 25px;">
+          <p style="margin-top: 0; font-size: 15px; color: #4b5563;">Yth. HRD / Administrator,</p>
+          <p style="font-size: 15px; color: #4b5563;">Melalui email ini, saya mengajukan permohonan izin ketidakhadiran kerja dengan rincian berikut:</p>
+          
+          <table style="width: 100%; border-collapse: collapse; margin: 25px 0; font-size: 14px; background-color: #fafafa; border-radius: 8px; overflow: hidden;">
+            <tr>
+              <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; color: #6b7280; font-weight: 600; width: 130px;">Nama Karyawan</td>
+              <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; color: #111827; font-weight: 500;">${senderName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; color: #6b7280; font-weight: 600;">Status Kehadiran</td>
+              <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6;">
+                <span style="display: inline-block; padding: 4px 12px; background-color: ${status === 'Sakit' ? '#fef3c7' : '#e0f2fe'}; color: ${status === 'Sakit' ? '#d97706' : '#0369a1'}; border-radius: 9999px; font-weight: 600; font-size: 12px;">
+                  ${status}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; color: #6b7280; font-weight: 600;">Hari / Tanggal</td>
+              <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; color: #111827;">${formattedDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 15px; color: #6b7280; font-weight: 600; vertical-align: top;">Keterangan / Alasan</td>
+              <td style="padding: 12px 15px; color: #111827; white-space: pre-wrap;">${status === 'Sakit' ? 'Sakit (Foto bukti surat keterangan dokter terlampir)' : reason}</td>
+            </tr>
+          </table>
+
+          ${inlineImageHtml}
+
+          <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+            <p style="margin: 0; font-size: 14px; color: #6b7280;">Hormat saya,</p>
+            <p style="margin: 5px 0 0 0; font-weight: 600; color: #1f2937; font-size: 15px;">${senderName}</p>
+          </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #f3f4f6; font-size: 12px; color: #9ca3af;">
+          Email ini dikirim secara otomatis oleh Sistem Absensi SampulKreativ.<br/>
+          &copy; ${new Date().getFullYear()} <a href="https://sampulkreativ.id" style="color: #2AB0B2; text-decoration: none; font-weight: 500;">sampulkreativ.id</a>. All rights reserved.
+        </div>
+      </div>
+    </div>
+  `;
 
   const mailOptions = {
     from: `"${senderName}" <${finalSender}>`,
     to,
     subject,
-    text,
+    html,
     attachments,
   };
 
@@ -296,33 +336,57 @@ async function sendRemoteApprovalEmail({ employeeName, rawToken, alasan, date, f
   });
 
   const mailOptions = {
-    from: `"SampulKreativ System" <${finalSender}>`,
+    from: `"${employeeName}" <${finalSender}>`,
     to,
     subject: `[Pengajuan WFH] ${employeeName} - ${date}`,
     html: `
-      <div style="font-family: sans-serif; padding: 20px; color: #333;">
-        <h2>Permohonan Kerja Jarak Jauh (Remote Working / WFH)</h2>
-        <p>Halo Administrator / Atasan,</p>
-        <p>Karyawan berikut mengajukan permohonan Remote Working:</p>
-        <table style="border-collapse: collapse; width: 100%; max-width: 500px; margin-bottom: 20px;">
-          <tr>
-            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; width: 150px;">Nama Karyawan</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${employeeName}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Tanggal Kerja</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${date}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Alasan</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${alasan}</td>
-          </tr>
-        </table>
-        <p>Silakan klik tautan di bawah ini untuk memproses persetujuan:</p>
-        <a href="${approvalLink}" style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Tinjau Pengajuan</a>
-        <br/><br/>
-        <p>Atau buka tautan berikut secara manual:</p>
-        <p>${approvalLink}</p>
+      <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; padding: 30px 15px; color: #374151; line-height: 1.6;">
+        <div style="max-width: 550px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04); border-top: 6px solid #2AB0B2;">
+          
+          <!-- Header Banner -->
+          <div style="background-color: #2AB0B2; padding: 25px 20px; text-align: center; color: #ffffff;">
+            <h2 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.5px;">Pengajuan Kerja Jarak Jauh (WFH)</h2>
+            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.85; text-transform: uppercase; letter-spacing: 1px;">Sistem Absensi Online</p>
+          </div>
+          
+          <!-- Content Body -->
+          <div style="padding: 30px 25px;">
+            <p style="margin-top: 0; font-size: 15px; color: #4b5563;">Halo Administrator / Atasan,</p>
+            <p style="font-size: 15px; color: #4b5563;">Karyawan berikut mengajukan permohonan Remote Working (WFH):</p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin: 25px 0; font-size: 14px; background-color: #fafafa; border-radius: 8px; overflow: hidden;">
+              <tr>
+                <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; color: #6b7280; font-weight: 600; width: 130px;">Nama Karyawan</td>
+                <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; color: #111827; font-weight: 500;">${employeeName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; color: #6b7280; font-weight: 600;">Tanggal Kerja</td>
+                <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; color: #111827;">${date}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 15px; color: #6b7280; font-weight: 600; vertical-align: top;">Alasan Pengajuan</td>
+                <td style="padding: 12px 15px; color: #111827; white-space: pre-wrap;">${alasan}</td>
+              </tr>
+            </table>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${approvalLink}" style="display: inline-block; padding: 12px 28px; background-color: #2AB0B2; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px rgba(42, 176, 178, 0.15); transition: background-color 0.2s;">
+                Tinjau Pengajuan
+              </a>
+            </div>
+
+            <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 15px;">
+              <p style="margin: 0; font-size: 13px; color: #6b7280;">Jika tombol di atas tidak dapat diklik, salin dan buka tautan berikut di browser Anda:</p>
+              <p style="margin: 5px 0 0 0; font-size: 13px; color: #2AB0B2; word-break: break-all;">${approvalLink}</p>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #f3f4f6; font-size: 12px; color: #9ca3af;">
+            Email ini dikirim secara otomatis oleh Sistem Absensi SampulKreativ.<br/>
+            &copy; ${new Date().getFullYear()} <a href="https://sampulkreativ.id" style="color: #2AB0B2; text-decoration: none; font-weight: 500;">sampulkreativ.id</a>. All rights reserved.
+          </div>
+        </div>
       </div>
     `
   };
@@ -367,29 +431,80 @@ async function sendDailyReportEmail({ employeeName, reportContent, attachmentUrl
     auth: { user, pass },
   });
 
+  let inlineImageHtml = '';
+  if (attachmentUrl) {
+    const isImage = /\.(jpg|jpeg|png|gif|webp|svg)/i.test(attachmentUrl) || attachmentUrl.includes('foto_profile') || attachmentUrl.includes('attachments');
+    if (isImage) {
+      inlineImageHtml = `
+        <div style="margin-top: 20px; border-top: 1px dashed #e5e7eb; padding-top: 15px;">
+          <p style="margin: 0 0 10px 0; font-size: 14px; color: #4b5563; font-weight: 600;">Pratinjau Lampiran Gambar:</p>
+          <img src="${attachmentUrl}" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid #e5e7eb; box-shadow: 0 2px 4px rgba(0,0,0,0.02);" />
+        </div>
+      `;
+    }
+  }
+
+  const attachmentDisplayHtml = attachmentUrl 
+    ? `
+      <div style="margin-top: 20px; font-size: 14px;">
+        <span style="color: #6b7280; font-weight: 600;">Dokumen Lampiran:</span> 
+        <a href="${attachmentUrl}" target="_blank" style="color: #2AB0B2; text-decoration: none; font-weight: 600; margin-left: 5px;">
+          Buka / Unduh Berkas &rarr;
+        </a>
+      </div>
+      ${inlineImageHtml}
+    `
+    : '<p style="font-size: 14px; color: #9ca3af; font-style: italic; margin-top: 20px;">Tidak ada lampiran berkas.</p>';
+
   const mailOptions = {
-    from: `"SampulKreativ System" <${finalSender}>`,
+    from: `"${employeeName}" <${finalSender}>`,
     to,
     subject: `[Daily Report WFH] ${employeeName} - ${date}`,
     html: `
-      <div style="font-family: sans-serif; padding: 20px; color: #333;">
-        <h2>Laporan Kerja Harian (Daily Report WFH)</h2>
-        <p>Halo Administrator / Atasan,</p>
-        <p>Berikut adalah laporan kerja harian yang disubmit oleh:</p>
-        <table style="border-collapse: collapse; width: 100%; max-width: 500px; margin-bottom: 20px;">
-          <tr>
-            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; width: 150px;">Nama Karyawan</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${employeeName}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Tanggal Kerja</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${date}</td>
-          </tr>
-        </table>
-        <div style="background-color: #F3F4F6; padding: 15px; border-radius: 5px; margin-bottom: 20px; white-space: pre-wrap;">
-          ${reportContent}
+      <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; padding: 30px 15px; color: #374151; line-height: 1.6;">
+        <div style="max-width: 550px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04); border-top: 6px solid #2AB0B2;">
+          
+          <!-- Header Banner -->
+          <div style="background-color: #2AB0B2; padding: 25px 20px; text-align: center; color: #ffffff;">
+            <h2 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.5px;">Laporan Kerja Harian (Daily Report)</h2>
+            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.85; text-transform: uppercase; letter-spacing: 1px;">Sistem Absensi Online</p>
+          </div>
+          
+          <!-- Content Body -->
+          <div style="padding: 30px 25px;">
+            <p style="margin-top: 0; font-size: 15px; color: #4b5563;">Halo Administrator / Atasan,</p>
+            <p style="font-size: 15px; color: #4b5563;">Berikut adalah laporan kerja harian (WFH) yang diserahkan oleh:</p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin: 25px 0; font-size: 14px; background-color: #fafafa; border-radius: 8px; overflow: hidden;">
+              <tr>
+                <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; color: #6b7280; font-weight: 600; width: 130px;">Nama Karyawan</td>
+                <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; color: #111827; font-weight: 500;">${employeeName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 15px; color: #6b7280; font-weight: 600;">Tanggal Laporan</td>
+                <td style="padding: 12px 15px; color: #111827;">${date}</td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 20px;">
+              <p style="margin: 0 0 8px 0; font-size: 14px; color: #6b7280; font-weight: 600;">Rincian Laporan Kerja:</p>
+              <div style="background-color: #f9fafb; border: 1px solid #f3f4f6; padding: 20px; border-radius: 8px; font-size: 14px; color: #1f2937; white-space: pre-wrap; line-height: 1.6;">${reportContent}</div>
+            </div>
+
+            ${attachmentDisplayHtml}
+
+            <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+              <p style="margin: 0; font-size: 14px; color: #6b7280;">Hormat saya,</p>
+              <p style="margin: 5px 0 0 0; font-weight: 600; color: #1f2937; font-size: 15px;">${employeeName}</p>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #f3f4f6; font-size: 12px; color: #9ca3af;">
+            Email ini dikirim secara otomatis oleh Sistem Absensi SampulKreativ.<br/>
+            &copy; ${new Date().getFullYear()} <a href="https://sampulkreativ.id" style="color: #2AB0B2; text-decoration: none; font-weight: 500;">sampulkreativ.id</a>. All rights reserved.
+          </div>
         </div>
-        ${attachmentUrl ? `<p><strong>Lampiran Berkas:</strong> <a href="${attachmentUrl}" target="_blank" style="color: #4F46E5; font-weight: bold;">Lihat Berkas Lampiran</a></p>` : '<p><em>Tidak ada lampiran berkas.</em></p>'}
       </div>
     `
   };
