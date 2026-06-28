@@ -21,19 +21,19 @@ export const DiscretePointsRow: React.FC<DiscretePointsRowProps> = ({
   const clampedPoints = Math.max(0, Math.min(maxPoints, pointsEarned));
 
   return (
-    <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-      <div className="flex items-center gap-2 text-gray-700">
-        <Icon size={16} className="text-gray-400 flex-shrink-0" />
-        <span className="text-xs font-semibold text-gray-600">{aspectLabel}</span>
+    <div className="flex items-center justify-between py-2 border-b border-slate-100 last:border-b-0">
+      <div className="flex items-center gap-2 text-slate-700">
+        <Icon size={14} className="text-slate-400 flex-shrink-0 stroke-[2.2px]" />
+        <span className="text-xs font-semibold text-slate-650">{aspectLabel}</span>
       </div>
-      <div className="flex items-center gap-1.5" aria-label={`Poin: ${clampedPoints} dari ${maxPoints}`}>
+      <div className="flex items-center gap-1" aria-label={`Poin: ${clampedPoints} dari ${maxPoints}`}>
         {Array.from({ length: maxPoints }).map((_, index) => {
           const isActive = index < clampedPoints;
           return (
             <span
               key={index}
-              className={`w-3.5 h-3.5 rounded-full transition-colors duration-200 ${
-                isActive ? "bg-amber-400 shadow-xs" : "bg-gray-200"
+              className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
+                isActive ? "bg-amber-400 shadow-3xs" : "bg-slate-200/80"
               }`}
             />
           );

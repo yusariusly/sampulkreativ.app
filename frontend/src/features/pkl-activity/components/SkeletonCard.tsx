@@ -7,7 +7,7 @@ import React from "react";
 
 export const SkeletonCard: React.FC = () => {
   return (
-    <div className="bg-white rounded-2xl p-5 border border-gray-150 shadow-xs animate-pulse space-y-4">
+    <div className="bg-white rounded-[20px] p-5 border border-slate-150 shadow-3xs animate-pulse space-y-4">
       {/* Skeleton header */}
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 bg-gray-200 rounded-full" />
