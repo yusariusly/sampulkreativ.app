@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import QueryProvider from "@/features/pkl-activity/providers/QueryProvider";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -40,7 +41,9 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="sampulkreativ.app" />
       </head>
       <body className="min-h-full flex flex-col font-sans">
-        {children}
+        <QueryProvider>
+          {children}
+        </QueryProvider>
         <Script id="pwa-sw-register" strategy="afterInteractive">
           {`
             if ('serviceWorker' in navigator) {
@@ -61,3 +64,4 @@ export default function RootLayout({
     </html>
   );
 }
+

@@ -38,8 +38,8 @@ const validateDeviceSession = async (req, res, next) => {
 
     const user = rows[0];
 
-    // Hanya validasi device session untuk user (employee / student) role
-    if (user.role === 'user') {
+    // Hanya validasi device session untuk employee, student, atau mentor role
+    if (['employee', 'student', 'mentor'].includes(user.role)) {
       if (user.is_active !== 1) {
         return res.status(403).json({
           status: 'error',

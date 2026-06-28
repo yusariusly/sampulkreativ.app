@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar } from "lucide-react";
+import { StudentHistoryView } from "@/features/pkl-activity";
+
 
 const STATUS_STYLES: Record<string, string> = {
   Hadir: "bg-green-500 text-white shadow-xs",
@@ -27,8 +29,22 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function HistoryPage() {
   const router = useRouter();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isStudent, setIsStudent] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("v2_user");
+      if (stored) {
+        try {
+          return JSON.parse(stored).role === "student";
+        } catch {
+          // No-op
+        }
+      }
+    }
+    return false;
+  });
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -41,6 +57,7 @@ export default function HistoryPage() {
 
       try {
         const userObj = JSON.parse(storedUser);
+        setIsStudent(userObj.role === "student");
         const res = await fetch(`/api/attendance?user_id=${userObj.id}`);
         if (res.ok) {
           const data = await res.json();
@@ -71,6 +88,10 @@ export default function HistoryPage() {
     const mm = String(d.getMinutes()).padStart(2, "0");
     return `${hh}:${mm} WIB`;
   };
+
+  if (isStudent) {
+    return <StudentHistoryView />;
+  }
 
   return (
     <div className="flex flex-col h-full bg-[#F0F2F5]">

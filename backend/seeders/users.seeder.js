@@ -5,8 +5,8 @@ async function seedUsers(dbClient) {
   const users = [
     { id: 'usr-admin', username: 'admin', password: 'admin', name: 'Administrator', role: 'admin' },
     { id: 'usr-mentor', username: 'mentor', password: 'mentor', name: 'Kak Pembimbing', role: 'mentor' },
-    { id: 'usr-student', username: 'siswa', password: 'siswa', name: 'Siswa Magang 1', role: 'user' },
-    { id: 'usr-student2', username: 'siswa2', password: 'siswa2', name: 'Siswa Magang 2', role: 'user' }
+    { id: 'usr-student', username: 'siswa', password: 'siswa', name: 'Siswa Magang 1', role: 'student' },
+    { id: 'usr-student2', username: 'siswa2', password: 'siswa2', name: 'Siswa Magang 2', role: 'student' }
   ];
 
   for (const user of users) {

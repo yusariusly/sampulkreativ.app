@@ -717,7 +717,7 @@ async function initDb() {
       }
 
       const [emptyUsers] = await pool.query(
-        "SELECT id, created_at FROM users WHERE role = 'user' AND (no_karyawan IS NULL OR no_karyawan = '') ORDER BY created_at ASC, id ASC"
+        "SELECT id, created_at FROM users WHERE role = 'employee' AND (no_karyawan IS NULL OR no_karyawan = '') ORDER BY created_at ASC, id ASC"
       );
       for (const u of emptyUsers) {
         const joinDate = u.created_at ? new Date(u.created_at) : new Date();
@@ -828,11 +828,11 @@ async function initDb() {
       await pool.query("ALTER TABLE payroll_slips ADD COLUMN bonus DECIMAL(12, 2) DEFAULT 0.00");
     } catch (err) {}
 
-    // Migrate any existing 'pkl' roles to 'user'
+    // Migrate any existing 'pkl' roles to 'student'
     try {
-      await pool.query("UPDATE users SET role = 'user' WHERE role = 'pkl'");
+      await pool.query("UPDATE users SET role = 'student' WHERE role = 'pkl'");
     } catch (err) {
-      console.error("Gagal melakukan migrasi role pkl ke user:", err);
+      console.error("Gagal melakukan migrasi role pkl ke student:", err);
     }
 
     // 2. Seed admin user if no users exist
@@ -952,8 +952,8 @@ const validateDeviceSession = async (req, res, next) => {
 
     const user = rows[0];
 
-    // Only validate device session for user (employee) role
-    if (user.role === 'user') {
+    // Only validate device session for employee, student, or mentor roles
+    if (['employee', 'student', 'mentor'].includes(user.role)) {
       if (user.is_active !== 1) {
         return res.status(403).json({ error: 'Akun Anda dinonaktifkan atau belum disetujui admin' });
       }
@@ -1030,7 +1030,7 @@ app.post('/api/auth/login-employee', async (req, res) => {
 
     // Find the user
     const [rows] = await pool.query(
-      "SELECT * FROM users WHERE LOWER(username) = ? AND role = 'user'",
+      "SELECT * FROM users WHERE LOWER(username) = ? AND role IN ('employee', 'student', 'mentor')",
       [trimmedUsername]
     );
 
@@ -1160,13 +1160,13 @@ app.post('/api/auth/register-device', async (req, res) => {
       const noKaryawan = await generateNoKaryawan();
       await pool.query(
         'INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, device_id, device_info, no_karyawan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, trimmedUsername, 'no_password', trimmedNama, 'user', 0, '/uploads/placeholder.jpg', device_id, device_info, noKaryawan]
+        [userId, trimmedUsername, 'no_password', trimmedNama, 'employee', 0, '/uploads/placeholder.jpg', device_id, device_info, noKaryawan]
       );
       user = {
         id: userId,
         username: trimmedUsername,
         nama_lengkap: trimmedNama,
-        role: 'user',
+        role: 'employee',
         is_active: 0,
         foto_profile: '/uploads/placeholder.jpg',
         device_id: device_id,
@@ -1308,7 +1308,7 @@ app.get('/api/attendance', async (req, res) => {
     if (user_id) {
       await fillAlpaForUser(user_id);
     } else {
-      const [users] = await pool.query("SELECT id FROM users WHERE role = 'user' AND is_active = 1");
+      const [users] = await pool.query("SELECT id FROM users WHERE role IN ('employee', 'student', 'mentor') AND is_active = 1");
       for (const u of users) {
         await fillAlpaForUser(u.id);
       }
@@ -1648,7 +1648,7 @@ app.post('/api/attendance', async (req, res) => {
     }
 
     // Device Verification: Ensure the device matches registered device (only if device_id is set)
-    if (user.role === 'user' && user.device_id && user.device_id.trim() !== '') {
+    if (['employee', 'student', 'mentor'].includes(user.role) && user.device_id && user.device_id.trim() !== '') {
       const { device_id } = req.body;
       if (!device_id || device_id !== user.device_id) {
         return res.status(403).json({ 
@@ -1864,14 +1864,15 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ error: 'Username sudah digunakan' });
     }
 
-    let dbRole = 'user';
+    const allowedRoles = ['employee', 'student', 'mentor', 'admin'];
     const lowRole = role.toLowerCase();
-    if (lowRole === 'admin') {
-      dbRole = 'admin';
+    if (!allowedRoles.includes(lowRole)) {
+      return res.status(400).json({ error: 'Role tidak valid' });
     }
+    const dbRole = lowRole;
 
     let noKaryawan = null;
-    if (dbRole === 'user') {
+    if (dbRole === 'employee') {
       noKaryawan = await generateNoKaryawan();
     }
 
@@ -1937,13 +1938,13 @@ app.put('/api/users', async (req, res) => {
     }
 
     if (role) {
-      let dbRole = 'user';
+      const allowedRoles = ['employee', 'student', 'mentor', 'admin'];
       const lowRole = role.toLowerCase();
-      if (lowRole === 'admin') {
-        dbRole = 'admin';
+      if (!allowedRoles.includes(lowRole)) {
+        return res.status(400).json({ error: 'Role tidak valid' });
       }
       updateFields += ', role = ?';
-      params.push(dbRole);
+      params.push(lowRole);
     }
 
     if (jabatan !== undefined) {
@@ -2407,7 +2408,7 @@ app.get('/api/payroll/config', async (req, res) => {
         COALESCE(c.bonus, 0.00) as bonus
       FROM users u 
       LEFT JOIN payroll_config c ON u.id = c.user_id 
-      WHERE u.role = 'user' AND u.is_active = 1
+      WHERE u.role = 'employee' AND u.is_active = 1
     `);
     res.json(rows);
   } catch (error) {
@@ -2511,9 +2512,12 @@ app.post('/api/payroll/slips', async (req, res) => {
     }
 
     // Get user details
-    const [userRows] = await pool.query('SELECT username, nama_lengkap FROM users WHERE id = ?', [user_id]);
+    const [userRows] = await pool.query('SELECT username, nama_lengkap, role FROM users WHERE id = ?', [user_id]);
     if (userRows.length === 0) {
       return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+    }
+    if (userRows[0].role !== 'employee') {
+      return res.status(400).json({ error: 'Payroll hanya diperuntukkan bagi karyawan (employee)' });
     }
     const { username, nama_lengkap } = userRows[0];
 
@@ -3025,6 +3029,11 @@ app.get('/api/remote/requests', async (req, res) => {
 // ==========================================
 
 const pklActivityRouter = require('./src/modules/pkl-activity/routes');
+const swaggerUi = require('swagger-ui-express');
+const openapiDocument = require('./src/docs/openapi.json');
+
+// Mount Swagger UI under /api-docs
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiDocument));
 
 // Mount router under /api/v1
 app.use('/api/v1', pklActivityRouter);

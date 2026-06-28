@@ -52,9 +52,9 @@ async function runControllerTests() {
   // 1. SETUP DATABASE
   console.log('[SETUP] Mempersiapkan data uji di database...');
   await db.query("UPDATE users SET device_id = ?, is_active = 1 WHERE id = 'usr-student'", [testDevice]);
-  await db.query("UPDATE users SET is_active = 1 WHERE id = 'usr-mentor'");
+  await db.query("UPDATE users SET device_id = ?, is_active = 1 WHERE id = 'usr-mentor'", [testDevice]);
   
-  // Bersihkan data lama untuk tanggal pengetesan
+  // Model cleanup to avoid issues
   await db.query("DELETE FROM pkl_mentor_daily_sessions WHERE mentor_id = 'usr-mentor' AND session_date = ?", [testDate]);
   await db.query("DELETE FROM pkl_daily_evaluations WHERE evaluation_date = ?", [testDate]);
 
@@ -64,7 +64,8 @@ async function runControllerTests() {
     'x-device-id': testDevice
   };
   const mentorHeaders = {
-    'x-user-id': 'usr-mentor'
+    'x-user-id': 'usr-mentor',
+    'x-device-id': testDevice
   };
 
   // ==========================================
@@ -353,7 +354,7 @@ async function runControllerTests() {
   // Clean up
   await db.query("DELETE FROM pkl_mentor_daily_sessions WHERE mentor_id = 'usr-mentor' AND session_date = ?", [testDate]);
   await db.query("DELETE FROM pkl_daily_evaluations WHERE evaluation_date = ?", [testDate]);
-  await db.query("UPDATE users SET device_id = NULL WHERE id = 'usr-student'");
+  await db.query("UPDATE users SET device_id = NULL WHERE id IN ('usr-student', 'usr-mentor')");
 
   process.exit(testsFailed === 0 ? 0 : 1);
 }

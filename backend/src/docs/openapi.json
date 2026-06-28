@@ -1,0 +1,766 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SampulKreativ PKL Activity API",
+    "description": "Dokumentasi REST API fitur Aktivitas PKL (Siswa Magang & Pembimbing/Mentor) untuk aplikasi SampulKreativ.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5005",
+      "description": "Local Development Server"
+    }
+  ],
+  "security": [
+    {
+      "UserIdAuth": [],
+      "DeviceIdAuth": []
+    }
+  ],
+  "paths": {
+    "/api/v1/siswa/aktivitas": {
+      "get": {
+        "tags": ["Siswa (Student)"],
+        "summary": "Mengambil Dashboard Aktif Siswa",
+        "description": "Mengambil informasi aktivitas hari ini, progess PKL, program kerja minggu aktif, dan papan apresiasi siswa magang.",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "Tanggal pengujian (Format: YYYY-MM-DD). Default adalah hari ini (GMT+7).",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil memuat data dashboard aktif.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentDashboardResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validasi data input gagal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesi tidak valid / tidak memiliki akses perangkat.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Siswa tidak ditemukan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/siswa/riwayat": {
+      "get": {
+        "tags": ["Siswa (Student)"],
+        "summary": "Mengambil Riwayat Poin Mingguan Terbit",
+        "description": "Mengambil daftar riwayat perolehan poin mingguan siswa magang yang telah dipublikasikan secara resmi oleh pembimbing.",
+        "responses": {
+          "200": {
+            "description": "Berhasil memuat daftar riwayat.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentHistoryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Siswa tidak terdaftar.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/siswa/tugas/{taskId}": {
+      "patch": {
+        "tags": ["Siswa (Student)"],
+        "summary": "Mengubah Checklist Tugas Program Kerja",
+        "description": "Mengubah status penyelesaian (is_completed) tugas program kerja mandiri oleh siswa magang.",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "description": "ID Tugas program kerja",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["is_completed"],
+                "properties": {
+                  "is_completed": {
+                    "type": "boolean",
+                    "description": "Status kelengkapan tugas"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil mengubah status tugas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload tidak valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mentor/siswa": {
+      "get": {
+        "tags": ["Pembimbing (Mentor)"],
+        "summary": "Mengambil Daftar Siswa Bimbingan & Status Harian",
+        "description": "Mengambil daftar seluruh siswa magang bimbingan mentor beserta nilai poin evaluasi harian pada tanggal tertentu.",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "Tanggal evaluasi (Format: YYYY-MM-DD). Default adalah hari ini (GMT+7).",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil memuat daftar siswa bimbingan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorStudentsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Format parameter tidak valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mentor/evaluasi-harian": {
+      "put": {
+        "tags": ["Pembimbing (Mentor)"],
+        "summary": "Menyimpan Poin Evaluasi Harian Siswa (Auto-save)",
+        "description": "Menyimpan atau memperbarui poin harian siswa untuk 5 aspek (Waktu, Sikap, Hasil Kerja, Kerapian, Inisiatif). Operasi bersifat idempotent.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DailyEvaluationPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil menyimpan evaluasi harian.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Data masukan tidak valid atau sesi hari ini sudah terkunci.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Hak akses ditolak (Bukan siswa bimbingan mentor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mentor/evaluasi-harian/kirim": {
+      "post": {
+        "tags": ["Pembimbing (Mentor)"],
+        "summary": "Mengunci dan Mengirim Sesi Evaluasi Harian",
+        "description": "Mengunci seluruh draf poin harian siswa bimbingan mentor pada tanggal tertentu. Sesi yang telah dikunci tidak dapat diubah kembali.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["session_date"],
+                "properties": {
+                  "session_date": {
+                    "type": "string",
+                    "description": "Tanggal sesi evaluasi yang ingin dikunci (YYYY-MM-DD)",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil mengunci sesi evaluasi harian.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload tidak valid, atau ada siswa yang belum diberi nilai pada tanggal tersebut, atau sesi sudah dikunci sebelumnya.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mentor/rekap-mingguan": {
+      "get": {
+        "tags": ["Pembimbing (Mentor)"],
+        "summary": "Mengambil Kompilasi Draf Mingguan",
+        "description": "Mengambil rekapitulasi poin mingguan dari akumulasi poin harian siswa magang bimbingan mentor pada minggu tertentu beserta status draf feedback.",
+        "parameters": [
+          {
+            "name": "week_number",
+            "in": "query",
+            "required": true,
+            "description": "Nomor minggu aktif PKL yang ingin diperiksa",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil memuat daftar rekapitulasi mingguan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorWeeklyRekapResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Query parameter tidak valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mentor/rekap-mingguan/{studentId}": {
+      "put": {
+        "tags": ["Pembimbing (Mentor)"],
+        "summary": "Menyimpan Draf Catatan Feedback Mingguan",
+        "description": "Menyimpan draft apresiasi cepat (tags) dan komentar kualitatif mingguan untuk siswa tertentu.",
+        "parameters": [
+          {
+            "name": "studentId",
+            "in": "path",
+            "required": true,
+            "description": "ID Siswa PKL",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeeklyFeedbackPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil menyimpan feedback mingguan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeeklyFeedbackSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload tidak valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Hak akses ditolak (Bukan siswa bimbingan mentor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mentor/rekap-mingguan/publikasikan": {
+      "post": {
+        "tags": ["Pembimbing (Mentor)"],
+        "summary": "Mempublikasikan Rekap Poin Mingguan ke Papan Apresiasi Siswa",
+        "description": "Mempublikasikan secara batch seluruh draf rekap mingguan siswa bimbingan mentor pada minggu tertentu ke papan apresiasi dashboard siswa.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["week_number"],
+                "properties": {
+                  "week_number": {
+                    "type": "integer",
+                    "description": "Nomor minggu aktif PKL yang ingin dirilis"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil mempublikasikan rekap mingguan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nomor minggu tidak valid, atau ada draf siswa yang catatan feedback/tag apresiasinya belum lengkap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "UserIdAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-user-id",
+        "description": "ID User pengirim request (diperlukan untuk Otentikasi)"
+      },
+      "DeviceIdAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-device-id",
+        "description": "ID Device perangkat siswa (wajib jika role adalah user/student)"
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "error"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Kode eror unik aplikasi",
+                "example": "DAILY_SESSION_LOCKED"
+              },
+              "message": {
+                "type": "string",
+                "description": "Pesan deskripsi eror",
+                "example": "Sesi evaluasi pada tanggal ini sudah dikunci dan dikirim"
+              },
+              "details": {
+                "type": "array",
+                "description": "Informasi tambahan (misal kegagalan validasi field)",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "example": "wkt_point"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Poin aspek wkt_point harus bernilai 0 atau 1."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "SuccessResultResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "example": true
+              }
+            }
+          }
+        }
+      },
+      "StudentDashboardResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "today": {
+                "type": "object",
+                "properties": {
+                  "date": { "type": "string", "example": "2026-06-26" },
+                  "clothes": { "type": "string", "example": "Batik & Celana Bahan Hitam" },
+                  "attendance_status": { "type": "string", "example": "MASUK" },
+                  "attendance_time": { "type": "string", "example": "07:45" }
+                }
+              },
+              "progress": {
+                "type": "object",
+                "properties": {
+                  "active_week": { "type": "integer", "example": 3 },
+                  "total_weeks": { "type": "integer", "example": 16 },
+                  "percentage": { "type": "integer", "example": 19 }
+                }
+              },
+              "program_kerja": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string", "example": "Membuat wireframe & desain database" },
+                  "tasks": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "task_id": { "type": "string", "example": "tsk-1-1" },
+                        "title": { "type": "string", "example": "Membuat ERD skema basis data" },
+                        "is_completed": { "type": "boolean", "example": true }
+                      }
+                    }
+                  }
+                }
+              },
+              "papan_apresiasi": {
+                "type": "object",
+                "properties": {
+                  "is_published": { "type": "boolean", "example": true },
+                  "total_points": { "type": "integer", "example": 4 },
+                  "aspects": {
+                    "type": "object",
+                    "properties": {
+                      "wkt_point": { "type": "integer", "example": 1 },
+                      "skp_point": { "type": "integer", "example": 1 },
+                      "has_point": { "type": "integer", "example": 1 },
+                      "ker_point": { "type": "integer", "example": 0 },
+                      "ini_point": { "type": "integer", "example": 1 }
+                    }
+                  },
+                  "feedback": {
+                    "type": "object",
+                    "properties": {
+                      "tags": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "example": ["⏱️ Disiplin", "💡 Kreatif"]
+                      },
+                      "comments": { "type": "string", "example": "Kerja bagus minggu ini!" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "StudentHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "week_number": { "type": "integer", "example": 2 },
+                "total_points": { "type": "integer", "example": 5 },
+                "tags": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "example": ["⏱️ Disiplin", "🤝 Kerjasama"]
+                },
+                "comments": { "type": "string", "example": "Sangat membantu tim frontend." }
+              }
+            }
+          }
+        }
+      },
+      "MentorStudentsResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "student_id": { "type": "string", "example": "std-siswa1" },
+                "student_name": { "type": "string", "example": "Siswa Magang 1" },
+                "student_avatar": { "type": "string", "example": null },
+                "school_name": { "type": "string", "example": "SMKN 1 Jakarta" },
+                "program_title": { "type": "string", "example": "Software Engineer" },
+                "active_week": { "type": "integer", "example": 3 },
+                "evaluations": {
+                  "type": "object",
+                  "nullable": true,
+                  "properties": {
+                    "wkt_point": { "type": "integer", "example": 1 },
+                    "skp_point": { "type": "integer", "example": 1 },
+                    "has_point": { "type": "integer", "example": 1 },
+                    "ker_point": { "type": "integer", "example": 0 },
+                    "ini_point": { "type": "integer", "example": 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DailyEvaluationPayload": {
+        "type": "object",
+        "required": ["evaluation_date", "student_id", "wkt_point", "skp_point", "has_point", "ker_point", "ini_point"],
+        "properties": {
+          "evaluation_date": {
+            "type": "string",
+            "description": "Tanggal poin diberikan (YYYY-MM-DD)",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "example": "2026-06-26"
+          },
+          "student_id": {
+            "type": "string",
+            "description": "ID Siswa PKL bimbingan",
+            "example": "std-siswa1"
+          },
+          "wkt_point": { "type": "integer", "enum": [0, 1], "example": 1 },
+          "skp_point": { "type": "integer", "enum": [0, 1], "example": 1 },
+          "has_point": { "type": "integer", "enum": [0, 1], "example": 1 },
+          "ker_point": { "type": "integer", "enum": [0, 1], "example": 0 },
+          "ini_point": { "type": "integer", "enum": [0, 1], "example": 1 }
+        }
+      },
+      "MentorWeeklyRekapResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "student_id": { "type": "string", "example": "std-siswa1" },
+                "student_name": { "type": "string", "example": "Siswa Magang 1" },
+                "total_points": { "type": "integer", "example": 4 },
+                "is_published": { "type": "boolean", "example": false },
+                "feedback": {
+                  "type": "object",
+                  "properties": {
+                    "tags": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "example": ["⏱️ Disiplin"]
+                    },
+                    "comments": { "type": "string", "example": "Kerja bagus!" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "WeeklyFeedbackPayload": {
+        "type": "object",
+        "required": ["week_number", "tags"],
+        "properties": {
+          "week_number": {
+            "type": "integer",
+            "description": "Nomor minggu aktif PKL",
+            "example": 3
+          },
+          "tags": {
+            "type": "array",
+            "description": "Tag apresiasi cepat yang dipilih (Min. 1 tag)",
+            "items": {
+              "type": "string"
+            },
+            "example": ["⏱️ Disiplin", "💡 Kreatif"]
+          },
+          "comments": {
+            "type": "string",
+            "description": "Komentar evaluasi pembimbing",
+            "example": "Sangat membantu tim frontend."
+          }
+        }
+      },
+      "WeeklyFeedbackSuccessResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "example": true
+              },
+              "warning": {
+                "type": "string",
+                "nullable": true,
+                "example": null,
+                "description": "Peringatan opsional jika ada nilai harian siswa yang belum diisi"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

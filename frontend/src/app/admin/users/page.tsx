@@ -7,6 +7,9 @@ const ROLE_STYLE: Record<string, string> = {
   pengguna: "bg-gray-100 text-gray-600",
   permanent: "bg-blue-50 text-blue-600",
   user: "bg-gray-100 text-gray-600",
+  employee: "bg-blue-50 text-blue-600",
+  student: "bg-purple-50 text-purple-600",
+  mentor: "bg-amber-50 text-[#F59E0B]",
   admin: "bg-teal-50 text-teal-600",
 };
 
@@ -31,12 +34,13 @@ export default function AdminUsersPage() {
 
   // Form states
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [editingUserRole, setEditingUserRole] = useState<string>("user");
+  const [editingUserRole, setEditingUserRole] = useState<string>("employee");
   const [fullname, setFullname] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<string>("user");
+  const [role, setRole] = useState<string>("employee");
   const [jabatan, setJabatan] = useState<string>("");
+  const [noKaryawan, setNoKaryawan] = useState<string>("");
   const [isActive, setIsActive] = useState(true);
 
   // Override states
@@ -86,12 +90,13 @@ export default function AdminUsersPage() {
 
   const resetForm = () => {
     setEditingUserId(null);
-    setEditingUserRole("user");
+    setEditingUserRole("employee");
     setFullname("");
     setUsername("");
     setPassword("");
-    setRole("user");
+    setRole("employee");
     setJabatan("");
+    setNoKaryawan("");
     setIsActive(true);
   };
 
@@ -102,6 +107,7 @@ export default function AdminUsersPage() {
     setUsername(u.username);
     setIsActive(u.is_active);
     setJabatan(u.jabatan || "");
+    setNoKaryawan(u.no_karyawan || "");
     setPassword("");
     showToast(`✏️ Mode edit untuk "${u.nama_lengkap}" aktif`);
   };
@@ -117,6 +123,12 @@ export default function AdminUsersPage() {
       return;
     }
 
+    const currentFormRole = editingUserId ? editingUserRole : role;
+    if (currentFormRole === "employee" && !noKaryawan.trim()) {
+      showToast("⚠️ Nomor Karyawan wajib diisi untuk role Karyawan");
+      return;
+    }
+
     if (!editingUserId && !password.trim()) {
       showToast("⚠️ Password wajib diisi untuk akun baru");
       return;
@@ -124,13 +136,15 @@ export default function AdminUsersPage() {
 
     try {
       if (editingUserId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const bodyPayload: any = {
           id: editingUserId,
           nama_lengkap: fullname.trim(),
           username: username.trim().toLowerCase(),
           is_active: isActive,
           role: editingUserRole,
-          jabatan: jabatan.trim()
+          jabatan: jabatan.trim(),
+          no_karyawan: editingUserRole === "employee" ? noKaryawan.trim() : undefined
         };
         if (password.trim() !== "") {
           bodyPayload.password = password.trim();
@@ -155,7 +169,8 @@ export default function AdminUsersPage() {
           username: username.trim().toLowerCase(),
           password: password.trim(),
           role: role,
-          jabatan: jabatan.trim()
+          jabatan: jabatan.trim(),
+          no_karyawan: role === "employee" ? noKaryawan.trim() : undefined
         };
 
         const res = await fetch("/api/users", {
@@ -408,20 +423,18 @@ export default function AdminUsersPage() {
             {/* Role Selector */}
             <div className="flex flex-col gap-1.5 mb-4">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Role / Status Kerja</label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     if (editingUserId) {
-                      setEditingUserRole("user");
+                      setEditingUserRole("employee");
                     } else {
-                      setRole("user");
-                      setUsername("");
-                      setPassword("");
+                      setRole("employee");
                     }
                   }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
-                    (editingUserId ? editingUserRole : role) === "user"
+                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                    effectiveRole === "employee"
                       ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
                       : "bg-white text-gray-500 border-gray-200 hover:border-[#2AB0B2] hover:text-[#2AB0B2]"
                   }`}
@@ -433,15 +446,49 @@ export default function AdminUsersPage() {
                   type="button"
                   onClick={() => {
                     if (editingUserId) {
+                      setEditingUserRole("student");
+                    } else {
+                      setRole("student");
+                    }
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                    effectiveRole === "student"
+                      ? "bg-purple-600 text-white border-purple-600"
+                      : "bg-white text-gray-500 border-gray-200 hover:border-purple-600 hover:text-purple-600"
+                  }`}
+                >
+                  <User size={13} />
+                  Siswa PKL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editingUserId) {
+                      setEditingUserRole("mentor");
+                    } else {
+                      setRole("mentor");
+                    }
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                    effectiveRole === "mentor"
+                      ? "bg-amber-500 text-white border-amber-500"
+                      : "bg-white text-gray-500 border-gray-200 hover:border-amber-500 hover:text-amber-500"
+                  }`}
+                >
+                  <ShieldCheck size={13} />
+                  Mentor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editingUserId) {
                       setEditingUserRole("admin");
                     } else {
                       setRole("admin");
-                      setUsername("");
-                      setPassword("");
                     }
                   }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
-                    (editingUserId ? editingUserRole : role) === "admin"
+                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                    effectiveRole === "admin"
                       ? "bg-[#1C3D3F] text-white border-[#1C3D3F]"
                       : "bg-white text-gray-500 border-gray-200 hover:border-[#1C3D3F] hover:text-[#1C3D3F]"
                   }`}
@@ -474,6 +521,20 @@ export default function AdminUsersPage() {
                     value={jabatan}
                     onChange={(e) => setJabatan(e.target.value)}
                     className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
+                  />
+                </div>
+              )}
+
+              {/* Nomor Karyawan - Show only when effectiveRole is employee */}
+              {effectiveRole === "employee" && (
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Nomor Karyawan (wajib)"
+                    value={noKaryawan}
+                    onChange={(e) => setNoKaryawan(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
+                    required
                   />
                 </div>
               )}

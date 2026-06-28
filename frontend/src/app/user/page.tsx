@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Camera, Clock, AlertTriangle, X } from "lucide-react";
 import { getDeviceId } from "../utils/session";
 import { compressImage, IMAGE_PRESETS } from "../utils/image";
+import { useStudentDashboard, StudentDashboardView, SkeletonCard, ErrorState } from "@/features/pkl-activity";
+
 
 const REPORT_UPLOAD_CONFIG = {
   MAX_FILE_SIZE_BYTES: 5 * 1024 * 1024, // 5MB
@@ -18,6 +20,19 @@ export default function UserHomePage() {
   const [clockInTime, setClockInTime] = useState<string | null>(null);
   const [clockOutTime, setClockOutTime] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isStudent, setIsStudent] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("v2_user");
+      if (stored) {
+        try {
+          return JSON.parse(stored).role === "student";
+        } catch (e) {}
+      }
+    }
+    return false;
+  });
+
+  const studentDashboard = useStudentDashboard(undefined, { enabled: isStudent });
   
   // Clock state
   const [now, setNow] = useState(new Date());
@@ -257,6 +272,7 @@ export default function UserHomePage() {
       const userObj = JSON.parse(storedUser);
       setFullname(userObj.nama_lengkap);
       setProfilePhoto(userObj.foto_profile || null);
+      setIsStudent(userObj.role === "student");
       await fetchWfhStatus(userObj.id);
 
       const res = await fetch(`/api/attendance?user_id=${userObj.id}`);
@@ -442,6 +458,37 @@ export default function UserHomePage() {
     }
   };
 
+  if (isStudent) {
+    if (studentDashboard.isLoading) {
+      return (
+        <div className="flex flex-col h-full bg-[#F0F2F5] px-5 pt-6 pb-6 space-y-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      );
+    }
+    if (studentDashboard.isError) {
+      return (
+        <div className="flex flex-col h-full bg-[#F0F2F5] px-5 pt-6 pb-6 justify-center">
+          <ErrorState
+            onRetry={studentDashboard.refetch}
+            message="Gagal memuat dashboard aktivitas siswa."
+          />
+        </div>
+      );
+    }
+    if (studentDashboard.data) {
+      return (
+        <StudentDashboardView
+          data={studentDashboard.data}
+          toggleTask={studentDashboard.toggleTask}
+          isToggling={studentDashboard.isToggling}
+        />
+      );
+    }
+  }
+
   return (
     <div className="flex flex-col h-full bg-[#F0F2F5] px-5 pt-6 pb-6 select-none relative">
       {/* Greeting */}
@@ -509,7 +556,7 @@ export default function UserHomePage() {
                 Batalkan
               </button>
             </div>
-            <p className="text-xs text-gray-400 italic">"Alasan: {wfhRequest.alasan}"</p>
+            <p className="text-xs text-gray-400 italic">&ldquo;Alasan: {wfhRequest.alasan}&rdquo;</p>
           </div>
         ) : wfhRequest.status === "APPROVED" && isWfhActive ? (
           <div className="flex flex-col gap-2">

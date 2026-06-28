@@ -4,9 +4,9 @@ const studentController = require('../controllers/student.controller');
 const validator = require('../validators/student.validator');
 const { validateDeviceSession, requireRole } = require('./middlewares');
 
-// Semua rute siswa wajib melalui verifikasi session & pembatasan peran 'user' (student)
+// Semua rute siswa wajib melalui verifikasi session & pembatasan peran 'student'
 router.use(validateDeviceSession);
-router.use(requireRole(['user']));
+router.use(requireRole(['student']));
 
 // GET /api/v1/siswa/aktivitas
 router.get('/aktivitas', studentController.getAktivitasSiswa);
