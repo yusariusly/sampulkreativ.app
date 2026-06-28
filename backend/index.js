@@ -901,6 +901,23 @@ async function initDb() {
       console.warn("Gagal membuat index remote_requests:", indexErr);
     }
 
+    // 6. Run database migrations dynamically
+    try {
+      const { runMigrations } = require('./services/migration-runner');
+      await runMigrations(pool);
+    } catch (migError) {
+      console.error("Gagal menjalankan migrasi basis data terprogram:", migError);
+      throw migError; // Mencegah server startup jika migrasi gagal
+    }
+
+    // 7. Run database seeders dynamically in development
+    try {
+      const { runSeeders } = require('./seeders/index');
+      await runSeeders(pool);
+    } catch (seedError) {
+      console.error("Gagal menjalankan database seeder terprogram:", seedError);
+    }
+
     isDbInitialized = true;
     console.log("Database initialized and verified successfully.");
   } catch (error) {
@@ -3003,6 +3020,54 @@ app.get('/api/remote/requests', async (req, res) => {
 });
 
 
+// ==========================================
+// PKL Activity Routes & Global Error Handler
+// ==========================================
+
+const pklActivityRouter = require('./src/modules/pkl-activity/routes');
+
+// Mount router under /api/v1
+app.use('/api/v1', pklActivityRouter);
+
+// Global Error Handler for PKL Activity
+app.use((err, req, res, next) => {
+  console.error('Express App Caught Error:', err);
+
+  let statusCode = 500;
+  let errorCode = 'SERVER_ERROR';
+  let message = err.message || 'Terjadi kesalahan internal server';
+  let details = [];
+
+  if (err.code === 'INVALID_INPUT') {
+    statusCode = 400;
+    errorCode = 'INVALID_INPUT';
+    message = err.message || 'Validasi data masukan gagal.';
+    details = err.details || [];
+  } else if (err.code === 'FORBIDDEN') {
+    statusCode = 403;
+    errorCode = 'FORBIDDEN';
+    message = err.message || 'Anda tidak memiliki akses ke resource ini';
+  } else if (err.code === 'NOT_FOUND') {
+    statusCode = 404;
+    errorCode = 'NOT_FOUND';
+    message = err.message || 'Resource tidak ditemukan';
+  } else if (err.code === 'DAILY_SESSION_LOCKED') {
+    statusCode = 400;
+    errorCode = 'DAILY_SESSION_LOCKED';
+    message = err.message || 'Sesi evaluasi harian sudah terkunci';
+  }
+
+  res.status(statusCode).json({
+    status: 'error',
+    error: {
+      code: errorCode,
+      message,
+      details
+    }
+  });
+});
+
+
 if (process.env.VERCEL) {
   initDb().catch(err => console.error("Gagal melakukan inisialisasi basis data PostgreSQL di Vercel:", err));
 } else {
@@ -3012,4 +3077,5 @@ if (process.env.VERCEL) {
   });
 }
 
+app.pool = pool;
 module.exports = app;

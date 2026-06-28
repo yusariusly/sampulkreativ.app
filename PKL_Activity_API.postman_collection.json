@@ -1,0 +1,206 @@
+{
+  "info": {
+    "_postman_id": "c1f2e3d4-bba2-4f56-87ef-5e99cdd5146b",
+    "name": "PKL Activity API - SampulKreativ",
+    "description": "Koleksi request API untuk fitur Aktivitas PKL (Siswa dan Mentor) pada aplikasi SampulKreativ.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Siswa (Student)",
+      "item": [
+        {
+          "name": "Get Dashboard Aktif",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-user-id", "value": "usr-student", "type": "text" },
+              { "key": "x-device-id", "value": "test-device-student", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/siswa/aktivitas?date=2026-06-26",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "siswa", "aktivitas"],
+              "query": [
+                { "key": "date", "value": "2026-06-26", "description": "Opsional tanggal (YYYY-MM-DD)" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Riwayat Poin Mingguan",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-user-id", "value": "usr-student", "type": "text" },
+              { "key": "x-device-id", "value": "test-device-student", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/siswa/riwayat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "siswa", "riwayat"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Checklist Tugas Program Kerja",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "x-user-id", "value": "usr-student", "type": "text" },
+              { "key": "x-device-id", "value": "test-device-student", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_completed\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/siswa/tugas/tsk-1-1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "siswa", "tugas", "tsk-1-1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pembimbing (Mentor)",
+      "item": [
+        {
+          "name": "Get Siswa Bimbingan & Poin Harian",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-user-id", "value": "usr-mentor", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/mentor/siswa?date=2026-06-26",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "mentor", "siswa"],
+              "query": [
+                { "key": "date", "value": "2026-06-26", "description": "Filter tanggal (YYYY-MM-DD)" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Auto-save Evaluasi Poin Harian",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "x-user-id", "value": "usr-mentor", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"evaluation_date\": \"2026-06-26\",\n  \"student_id\": \"std-siswa1\",\n  \"wkt_point\": 1,\n  \"skp_point\": 1,\n  \"has_point\": 1,\n  \"ker_point\": 0,\n  \"ini_point\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/mentor/evaluasi-harian",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "mentor", "evaluasi-harian"]
+            }
+          }
+        },
+        {
+          "name": "Kunci & Kirim Sesi Harian",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-user-id", "value": "usr-mentor", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_date\": \"2026-06-26\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/mentor/evaluasi-harian/kirim",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "mentor", "evaluasi-harian", "kirim"]
+            }
+          }
+        },
+        {
+          "name": "Get Rekap Mingguan Draft",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-user-id", "value": "usr-mentor", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/mentor/rekap-mingguan?week_number=3",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "mentor", "rekap-mingguan"],
+              "query": [
+                { "key": "week_number", "value": "3", "description": "Minggu aktif PKL" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Simpan Catatan Feedback Mingguan",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "x-user-id", "value": "usr-mentor", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"week_number\": 3,\n  \"tags\": [\"⏱️ Disiplin\", \"💡 Kreatif\"],\n  \"comments\": \"Mengerjakan tugas dengan baik\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/mentor/rekap-mingguan/std-siswa1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "mentor", "rekap-mingguan", "std-siswa1"]
+            }
+          }
+        },
+        {
+          "name": "Publikasikan Rekap Mingguan",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-user-id", "value": "usr-mentor", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"week_number\": 3\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/mentor/rekap-mingguan/publikasikan",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "mentor", "rekap-mingguan", "publikasikan"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5005",
+      "type": "string"
+    }
+  ]
+}
