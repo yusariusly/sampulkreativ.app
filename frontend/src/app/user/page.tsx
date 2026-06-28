@@ -469,11 +469,12 @@ export default function UserHomePage() {
       );
     }
     if (studentDashboard.isError) {
+      const errMsg = (studentDashboard.error as any)?.error?.message || "Gagal memuat dashboard aktivitas siswa.";
       return (
         <div className="flex flex-col h-full bg-[#F0F2F5] px-5 pt-6 pb-6 justify-center">
           <ErrorState
             onRetry={studentDashboard.refetch}
-            message="Gagal memuat dashboard aktivitas siswa."
+            message={errMsg}
           />
         </div>
       );
