@@ -4,7 +4,8 @@
  */
 
 import React from "react";
-import { History } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { History, ArrowLeft } from "lucide-react";
 import { useStudentHistory } from "../hooks/useStudentHistory";
 import { WeeklyAccordionItem } from "./WeeklyAccordionItem";
 import { SkeletonCard } from "./SkeletonCard";
@@ -12,6 +13,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 
 export const StudentHistoryView: React.FC = () => {
+  const router = useRouter();
   const {
     data: historyData,
     isLoading: isHistoryLoading,
@@ -20,11 +22,20 @@ export const StudentHistoryView: React.FC = () => {
   } = useStudentHistory();
 
   return (
-    <div className="flex flex-col h-full bg-[#F0F2F5]">
+    <div className="flex flex-col h-full bg-[#F8FAFC]">
       {/* Header Panel */}
-      <div className="flex items-center justify-center gap-2.5 py-5 px-5 select-none bg-[#2AB0B2] shadow-sm">
-        <History size={20} color="white" />
-        <h1 className="text-white font-bold text-lg">Riwayat Evaluasi PKL</h1>
+      <div className="flex items-center justify-between py-4 px-5 select-none bg-[#2AB0B2] shadow-sm text-white">
+        <button
+          onClick={() => router.push("/user?view=pkl")}
+          className="p-1 rounded-lg hover:bg-white/10 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
+        >
+          <ArrowLeft size={16} /> Kembali
+        </button>
+        <div className="flex items-center gap-2">
+          <History size={18} />
+          <h1 className="font-bold text-sm">Riwayat Evaluasi PKL</h1>
+        </div>
+        <div className="w-16" />
       </div>
 
       {/* List Container */}

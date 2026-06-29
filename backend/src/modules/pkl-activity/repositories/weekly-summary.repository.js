@@ -142,10 +142,9 @@ async function findWeeklySummariesByMentor(dbClient, mentorId, weekNumber) {
     FROM pkl_students s
     JOIN users u ON s.user_id = u.id
     LEFT JOIN pkl_weekly_summaries ws ON s.id = ws.student_id AND ws.week_number = ?
-    WHERE s.mentor_id = ?
     ORDER BY u.nama_lengkap ASC
   `;
-  const [rows] = await dbClient.query(query, [weekNumber, mentorId]);
+  const [rows] = await dbClient.query(query, [weekNumber]);
   return rows;
 }
 
@@ -161,10 +160,45 @@ async function publishAllByMentor(dbClient, mentorId, weekNumber) {
     UPDATE pkl_weekly_summaries 
     SET is_published = 1, updated_at = NOW() 
     WHERE week_number = ? AND student_id IN (
-      SELECT id FROM pkl_students WHERE mentor_id = ?
+      SELECT id FROM pkl_students
     )
   `;
-  const [result] = await dbClient.query(query, [weekNumber, mentorId]);
+  const [result] = await dbClient.query(query, [weekNumber]);
+  return result.affectedRows > 0;
+}
+
+/**
+ * Mendapatkan rekap mingguan terpublikasi terakhir untuk siswa tertentu
+ * @param {object} dbClient - Database client/pool
+ * @param {string} studentId - ID Siswa PKL
+ * @returns {Promise<object|null>} Rekap mingguan terbaru yang sudah dipublikasi
+ */
+async function findLatestPublished(dbClient, studentId) {
+  const query = `
+    SELECT * FROM pkl_weekly_summaries
+    WHERE student_id = ? AND is_published = 1
+    ORDER BY week_number DESC LIMIT 1
+  `;
+  const [rows] = await dbClient.query(query, [studentId]);
+  return rows[0] || null;
+}
+
+/**
+ * Membatalkan publikasi rekap mingguan untuk semua siswa di bawah bimbingan mentor tertentu
+ * @param {object} dbClient - Database client/pool
+ * @param {string} mentorId - ID Mentor pembimbing
+ * @param {number} weekNumber - Nomor Minggu
+ * @returns {Promise<boolean>} True jika proses berhasil
+ */
+async function unpublishAllByMentor(dbClient, mentorId, weekNumber) {
+  const query = `
+    UPDATE pkl_weekly_summaries 
+    SET is_published = 0, updated_at = NOW() 
+    WHERE week_number = ? AND student_id IN (
+      SELECT id FROM pkl_students
+    )
+  `;
+  const [result] = await dbClient.query(query, [weekNumber]);
   return result.affectedRows > 0;
 }
 
@@ -175,5 +209,7 @@ module.exports = {
   upsert,
   publish,
   findWeeklySummariesByMentor,
-  publishAllByMentor
+  publishAllByMentor,
+  unpublishAllByMentor,
+  findLatestPublished
 };

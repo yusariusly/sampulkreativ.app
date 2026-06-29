@@ -51,7 +51,7 @@ export default function SuccessPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full bg-[#F0F2F5] px-7 select-none">
+    <div className="flex flex-col items-center justify-center h-full bg-[#F8FAFC] px-7 select-none">
       <div
         className="w-28 h-28 rounded-full flex items-center justify-center mb-7 animate-bounce"
         style={{ backgroundColor: absenType === "pulang" ? "#E0E7FF" : "#D1FAE5" }}

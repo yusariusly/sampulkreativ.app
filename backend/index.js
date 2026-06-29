@@ -1,5 +1,6 @@
 const express = require('express');
 const mysql = require('pg');
+mysql.types.setTypeParser(1082, (val) => val); // Prevent pg from shifting DATE values by returning them as raw strings
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
@@ -572,6 +573,8 @@ const pgPool = new mysql.Pool({
 });
 
 const pool = {
+  pgPool: pgPool,
+  connect: () => pgPool.connect(),
   query: async (text, params) => {
     let pgText = text;
     pgText = pgText.replace(/TINYINT\(1\)/gi, 'SMALLINT');
@@ -583,12 +586,35 @@ const pool = {
     pgText = pgText.replace(/ON DUPLICATE KEY UPDATE key_value = key_value/gi, 
       'ON CONFLICT (key_name) DO NOTHING');
 
-    let paramIndex = 1;
     const hasPgPlaceholders = text.includes('$');
-    pgText = pgText.replace(/\?/g, () => `$${paramIndex++}`);
+    let pgParams = [];
+    if (params && !hasPgPlaceholders) {
+      let paramIndex = 1;
+      let queryParts = pgText.split('?');
+      let newPgText = '';
+      for (let i = 0; i < queryParts.length - 1; i++) {
+        newPgText += queryParts[i];
+        const paramVal = params[i];
+        if (Array.isArray(paramVal)) {
+          if (paramVal.length === 0) {
+            newPgText += 'NULL';
+          } else {
+            const expanded = paramVal.map(() => `$${paramIndex++}`).join(', ');
+            newPgText += expanded;
+            pgParams.push(...paramVal);
+          }
+        } else {
+          newPgText += `$${paramIndex++}`;
+          pgParams.push(paramVal);
+        }
+      }
+      newPgText += queryParts[queryParts.length - 1];
+      pgText = newPgText;
+    } else {
+      pgParams = params || [];
+    }
 
-    const finalParams = (params && !hasPgPlaceholders) ? params.slice(0, paramIndex - 1) : params;
-    const res = await pgPool.query(pgText, finalParams);
+    const res = await pgPool.query(pgText, pgParams);
     
     const rows = res.rows.map(row => {
       const mappedRow = { ...row };
@@ -600,6 +626,61 @@ const pool = {
       return mappedRow;
     });
 
+    rows.affectedRows = res.rowCount;
+    return [rows];
+  },
+  queryWithClient: async (client, text, params) => {
+    let pgText = text;
+    pgText = pgText.replace(/TINYINT\(1\)/gi, 'SMALLINT');
+    pgText = pgText.replace(/DATETIME/gi, 'TIMESTAMP');
+    pgText = pgText.replace(/ON DUPLICATE KEY UPDATE token = \?, created_at = \?, is_active = \?/gi, 
+      'ON CONFLICT (id) DO UPDATE SET token = EXCLUDED.token, created_at = EXCLUDED.created_at, is_active = EXCLUDED.is_active');
+    pgText = pgText.replace(/ON DUPLICATE KEY UPDATE key_value = \?/gi, 
+      'ON CONFLICT (key_name) DO UPDATE SET key_value = EXCLUDED.key_value');
+    pgText = pgText.replace(/ON DUPLICATE KEY UPDATE key_value = key_value/gi, 
+      'ON CONFLICT (key_name) DO NOTHING');
+
+    const hasPgPlaceholders = text.includes('$');
+    let pgParams = [];
+    if (params && !hasPgPlaceholders) {
+      let paramIndex = 1;
+      let queryParts = pgText.split('?');
+      let newPgText = '';
+      for (let i = 0; i < queryParts.length - 1; i++) {
+        newPgText += queryParts[i];
+        const paramVal = params[i];
+        if (Array.isArray(paramVal)) {
+          if (paramVal.length === 0) {
+            newPgText += 'NULL';
+          } else {
+            const expanded = paramVal.map(() => `$${paramIndex++}`).join(', ');
+            newPgText += expanded;
+            pgParams.push(...paramVal);
+          }
+        } else {
+          newPgText += `$${paramIndex++}`;
+          pgParams.push(paramVal);
+        }
+      }
+      newPgText += queryParts[queryParts.length - 1];
+      pgText = newPgText;
+    } else {
+      pgParams = params || [];
+    }
+
+    const res = await client.query(pgText, pgParams);
+    
+    const rows = res.rows.map(row => {
+      const mappedRow = { ...row };
+      for (const key in mappedRow) {
+        if (key === 'cnt' || key === 'count') {
+          mappedRow[key] = Number(mappedRow[key]);
+        }
+      }
+      return mappedRow;
+    });
+
+    rows.affectedRows = res.rowCount;
     return [rows];
   }
 };
@@ -831,8 +912,10 @@ async function initDb() {
     // Migrate any existing 'pkl' roles to 'student'
     try {
       await pool.query("UPDATE users SET role = 'student' WHERE role = 'pkl'");
+      await pool.query("UPDATE users SET kategori = 'PKL' WHERE role = 'student'");
+      await pool.query("UPDATE users SET kategori = 'Karyawan' WHERE role = 'employee'");
     } catch (err) {
-      console.error("Gagal melakukan migrasi role pkl ke student:", err);
+      console.error("Gagal melakukan migrasi role pkl ke student/kategori:", err);
     }
 
     // 2. Seed admin user if no users exist
@@ -858,6 +941,7 @@ async function initDb() {
     await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('smtp_pass', '') ON DUPLICATE KEY UPDATE key_value = key_value");
     await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('smtp_to', '') ON DUPLICATE KEY UPDATE key_value = key_value");
     await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('smtp_sender', '') ON DUPLICATE KEY UPDATE key_value = key_value");
+    await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('show_pkl_scoreboard', '1') ON DUPLICATE KEY UPDATE key_value = key_value");
 
     // 4. Seed default QR if empty
     const [qrRows] = await pool.query("SELECT COUNT(*) as cnt FROM qr_token");
@@ -1515,12 +1599,12 @@ async function triggerTelegramNotification(newRecord, fileBuffer, filename) {
     const [chatIdPklSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
     const [chatIdKaryawanSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_karyawan'");
     
-    const [userRows] = await pool.query("SELECT kategori FROM users WHERE id = ?", [newRecord.user_id]);
-    const userKategori = userRows[0]?.kategori || 'Karyawan';
+    const [userRows] = await pool.query("SELECT role FROM users WHERE id = ?", [newRecord.user_id]);
+    const userRole = userRows[0]?.role || 'employee';
     
     const botToken = botTokenSetting[0]?.key_value;
     let chatId = '';
-    if (userKategori === 'PKL') {
+    if (userRole === 'student') {
       chatId = chatIdPklSetting[0]?.key_value || '';
     } else {
       chatId = chatIdKaryawanSetting[0]?.key_value || chatIdPklSetting[0]?.key_value || '';
@@ -1838,23 +1922,84 @@ app.post('/api/attendance/override', async (req, res) => {
   }
 });
 
+app.get('/api/pkl-templates', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT 
+        t.id, 
+        t.title, 
+        t.duration_months,
+        CAST(COUNT(s.id) AS INTEGER) as student_count
+      FROM pkl_program_templates t
+      LEFT JOIN pkl_students s ON t.id = s.program_template_id AND s.status = 'ACTIVE'
+      GROUP BY t.id, t.title, t.duration_months
+      ORDER BY t.title ASC
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error("Gagal memuat program template:", error);
+    res.status(500).json({ error: 'Gagal memuat program template' });
+  }
+});
+
+app.get('/api/pkl-templates/:templateId/students', async (req, res) => {
+  try {
+    const { templateId } = req.params;
+    const [rows] = await pool.query(`
+      SELECT u.id, u.nama_lengkap, s.school_name 
+      FROM pkl_students s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.program_template_id = ? AND s.status = 'ACTIVE'
+      ORDER BY u.nama_lengkap ASC
+    `, [templateId]);
+    res.json(rows);
+  } catch (error) {
+    console.error("Gagal memuat siswa template:", error);
+    res.status(500).json({ error: 'Gagal memuat siswa template' });
+  }
+});
+
 // 4. Users CRUD API
 app.get('/api/users', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, username, nama_lengkap, role, is_active, foto_profile, device_id, device_info, tanggal_lahir, gender, alamat, jabatan, email, no_telp, kategori, no_karyawan FROM users');
-    const mapped = rows.map(u => ({
-      ...u,
-      is_active: u.is_active === 1
-    }));
+    const [rows] = await pool.query(`
+      SELECT 
+        u.id, u.username, u.nama_lengkap, u.role, u.is_active, u.foto_profile, u.device_id, u.device_info, 
+        u.tanggal_lahir, u.gender, u.alamat, u.jabatan, u.email, u.no_telp, u.kategori, u.no_karyawan,
+        s.school_name, s.mentor_id, m.nama_lengkap AS mentor_name, 
+        s.program_template_id, t.title AS program_template_name, 
+        s.start_date, s.end_date, s.status AS pkl_status
+      FROM users u
+      LEFT JOIN pkl_students s ON u.id = s.user_id
+      LEFT JOIN users m ON s.mentor_id = m.id
+      LEFT JOIN pkl_program_templates t ON s.program_template_id = t.id
+    `);
+    const mapped = rows.map(u => {
+      let start_date = null;
+      if (u.start_date) {
+        start_date = new Date(u.start_date).toISOString().split('T')[0];
+      }
+      let end_date = null;
+      if (u.end_date) {
+        end_date = new Date(u.end_date).toISOString().split('T')[0];
+      }
+      return {
+        ...u,
+        is_active: u.is_active === 1,
+        start_date,
+        end_date
+      };
+    });
     res.json(mapped);
   } catch (error) {
+    console.error("Gagal memuat daftar pengguna:", error);
     res.status(500).json({ error: 'Gagal memuat daftar pengguna' });
   }
 });
 
 app.post('/api/users', async (req, res) => {
   try {
-    const { nama_lengkap, username, password, role, jabatan, email, no_telp } = req.body;
+    const { nama_lengkap, username, password, role, jabatan, email, no_telp, school_name, mentor_id, program_template_id, start_date, end_date } = req.body;
     if (!nama_lengkap || !username || !password || !role) {
       return res.status(400).json({ error: 'Data pengguna tidak lengkap' });
     }
@@ -1870,6 +2015,16 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ error: 'Role tidak valid' });
     }
     const dbRole = lowRole;
+
+    if (dbRole === 'student') {
+      if (!school_name || !mentor_id || !program_template_id || !start_date || !end_date) {
+        return res.status(400).json({ error: 'Data profil PKL tidak lengkap' });
+      }
+      const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
+      if (start_date > todayStr) {
+        return res.status(400).json({ error: 'Tanggal mulai magang tidak boleh di masa depan' });
+      }
+    }
 
     let noKaryawan = null;
     if (dbRole === 'employee') {
@@ -1887,14 +2042,36 @@ app.post('/api/users', async (req, res) => {
       jabatan: jabatan ? jabatan.trim() : 'Karyawan',
       email: email ? email.trim() : '',
       no_telp: no_telp ? no_telp.trim() : '',
-      no_karyawan: noKaryawan
+      no_karyawan: noKaryawan,
+      kategori: dbRole === 'student' ? 'PKL' : 'Karyawan'
     };
 
-    await pool.query(
-      `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, jabatan, email, no_telp, no_karyawan) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile, newUser.jabatan, newUser.email, newUser.no_telp, noKaryawan]
-    );
+    const client = await pgPool.connect();
+    try {
+      await client.query('BEGIN');
+      await pool.queryWithClient(client,
+        `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, jabatan, email, no_telp, no_karyawan, kategori) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile, newUser.jabatan, newUser.email, newUser.no_telp, noKaryawan, newUser.kategori]
+      );
+
+      if (dbRole === 'student') {
+        const studentProfileId = `std-${Date.now()}`;
+        await pool.queryWithClient(client,
+          `INSERT INTO pkl_students (id, user_id, mentor_id, program_template_id, school_name, start_date, end_date, status) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+          [studentProfileId, newUser.id, mentor_id, program_template_id, school_name.trim(), start_date, end_date]
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      console.error("Gagal melakukan transaksi insert user & siswa:", dbErr);
+      return res.status(500).json({ error: 'Gagal membuat pengguna baru' });
+    } finally {
+      client.release();
+    }
 
     const { password: _, ...safeUser } = newUser;
     res.json({ success: true, user: { ...safeUser, is_active: true } });
@@ -1905,7 +2082,7 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users', async (req, res) => {
   try {
-    const { id, nama_lengkap, username, password, is_active, role, jabatan, email, no_telp } = req.body;
+    const { id, nama_lengkap, username, password, is_active, role, jabatan, email, no_telp, school_name, mentor_id, program_template_id, start_date, end_date } = req.body;
     if (!id || !nama_lengkap || !username) {
       return res.status(400).json({ error: 'Data update tidak lengkap' });
     }
@@ -1919,6 +2096,19 @@ app.put('/api/users', async (req, res) => {
     const [dupRows] = await pool.query('SELECT * FROM users WHERE id != ? AND LOWER(username) = ?', [id, username.trim().toLowerCase()]);
     if (dupRows.length > 0) {
       return res.status(400).json({ error: 'Username/nomor HP sudah digunakan oleh akun lain' });
+    }
+
+    const currentRole = user.role;
+    const targetRole = role ? role.toLowerCase() : currentRole;
+
+    if (targetRole === 'student') {
+      if (!school_name || !mentor_id || !program_template_id || !start_date || !end_date) {
+        return res.status(400).json({ error: 'Data profil PKL tidak lengkap' });
+      }
+      const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
+      if (start_date > todayStr) {
+        return res.status(400).json({ error: 'Tanggal mulai magang tidak boleh di masa depan' });
+      }
     }
 
     let updateFields = 'nama_lengkap = ?, username = ?';
@@ -1943,8 +2133,8 @@ app.put('/api/users', async (req, res) => {
       if (!allowedRoles.includes(lowRole)) {
         return res.status(400).json({ error: 'Role tidak valid' });
       }
-      updateFields += ', role = ?';
-      params.push(lowRole);
+      updateFields += ', role = ?, kategori = ?';
+      params.push(lowRole, lowRole === 'student' ? 'PKL' : 'Karyawan');
     }
 
     if (jabatan !== undefined) {
@@ -1962,11 +2152,56 @@ app.put('/api/users', async (req, res) => {
       params.push(no_telp.trim());
     }
 
+    let generatedNoKaryawan = null;
+    if (targetRole === 'employee' && (!user.no_karyawan || user.no_karyawan.trim() === '')) {
+      generatedNoKaryawan = await generateNoKaryawan();
+      updateFields += ', no_karyawan = ?';
+      params.push(generatedNoKaryawan);
+    }
+
     params.push(id);
 
-    await pool.query(`UPDATE users SET ${updateFields} WHERE id = ?`, params);
+    const client = await pgPool.connect();
+    try {
+      await client.query('BEGIN');
+      await pool.queryWithClient(client, `UPDATE users SET ${updateFields} WHERE id = ?`, params);
+
+      if (targetRole === 'student') {
+        const [studentRows] = await pool.queryWithClient(client, 'SELECT id FROM pkl_students WHERE user_id = ?', [id]);
+        if (studentRows.length > 0) {
+          await pool.queryWithClient(client,
+            `UPDATE pkl_students 
+             SET mentor_id = ?, program_template_id = ?, school_name = ?, start_date = ?, end_date = ?, status = 'ACTIVE' 
+             WHERE user_id = ?`,
+            [mentor_id, program_template_id, school_name.trim(), start_date, end_date, id]
+          );
+        } else {
+          const studentProfileId = `std-${Date.now()}`;
+          await pool.queryWithClient(client,
+            `INSERT INTO pkl_students (id, user_id, mentor_id, program_template_id, school_name, start_date, end_date, status) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+            [studentProfileId, id, mentor_id, program_template_id, school_name.trim(), start_date, end_date]
+          );
+        }
+      } else if (currentRole === 'student' && targetRole !== 'student') {
+        await pool.queryWithClient(client,
+          `UPDATE pkl_students SET status = 'ARCHIVED' WHERE user_id = ?`,
+          [id]
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      console.error("Gagal memperbarui data pengguna & siswa:", dbErr);
+      return res.status(500).json({ error: 'Gagal memperbarui data pengguna' });
+    } finally {
+      client.release();
+    }
+
     res.json({ success: true });
   } catch (error) {
+    console.error("Gagal memperbarui pengguna:", error);
     res.status(500).json({ error: 'Gagal memperbarui pengguna' });
   }
 });
@@ -1989,9 +2224,23 @@ app.delete('/api/users', async (req, res) => {
     }
 
     // Delete the user record (keep attendance records intact as requested)
-    await pool.query('DELETE FROM users WHERE id = ?', [user.id]);
+    // Wrap in a transaction to safely reassign students to admin and delete the user
+    const client = await pgPool.connect();
+    try {
+      await client.query('BEGIN');
+      await pool.queryWithClient(client, 'UPDATE pkl_students SET mentor_id = ? WHERE mentor_id = ?', ['usr-admin', user.id]);
+      await pool.queryWithClient(client, 'DELETE FROM users WHERE id = ?', [user.id]);
+      await client.query('COMMIT');
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      console.error("Gagal menghapus pengguna (transaksi DB):", dbErr);
+      throw dbErr;
+    } finally {
+      client.release();
+    }
     res.json({ success: true });
   } catch (error) {
+    console.error("Gagal menghapus pengguna (API error):", error);
     res.status(500).json({ error: 'Gagal menghapus pengguna dari database' });
   }
 });
@@ -2046,6 +2295,7 @@ app.get('/api/settings', async (req, res) => {
       smtp_sender: '',
       payroll_approver_name: 'M. Firas Faisal',
       payroll_approver_role: 'Direktur Utama',
+      show_pkl_scoreboard: '1'
     };
     rows.forEach(row => {
       settings[row.key_name] = row.key_value;
@@ -2073,7 +2323,8 @@ app.post('/api/settings', async (req, res) => {
       smtp_to,
       smtp_sender,
       payroll_approver_name,
-      payroll_approver_role
+      payroll_approver_role,
+      show_pkl_scoreboard
     } = req.body;
     
     if (deadline_time) {
@@ -2217,6 +2468,14 @@ app.post('/api/settings', async (req, res) => {
       );
     }
 
+    if (show_pkl_scoreboard !== undefined) {
+      const val = show_pkl_scoreboard.toString().trim();
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('show_pkl_scoreboard', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [val, val]
+      );
+    }
+
     res.json({ 
       success: true, 
       settings: { 
@@ -2232,7 +2491,8 @@ app.post('/api/settings', async (req, res) => {
         smtp_pass,
         smtp_to,
         payroll_approver_name,
-        payroll_approver_role
+        payroll_approver_role,
+        show_pkl_scoreboard
       } 
     });
   } catch (error) {
@@ -3023,6 +3283,187 @@ app.get('/api/remote/requests', async (req, res) => {
   }
 });
 
+// ==========================================
+// ADMIN PKL CURRICULUM INPUT ENDPOINTS
+// ==========================================
+
+app.post('/api/pkl-templates', async (req, res) => {
+  try {
+    const { title, duration_months } = req.body;
+    if (!title || !duration_months) {
+      return res.status(400).json({ error: 'Title dan durasi wajib diisi' });
+    }
+    const id = 'tmpl-' + Math.random().toString(36).substr(2, 9);
+    await pool.query('INSERT INTO pkl_program_templates (id, title, duration_months) VALUES (?, ?, ?)', [id, title, parseInt(duration_months)]);
+    res.json({ success: true, data: { id, title, duration_months } });
+  } catch (error) {
+    console.error('Gagal membuat template:', error);
+    res.status(500).json({ error: 'Gagal membuat template' });
+  }
+});
+
+app.delete('/api/pkl-templates/:id', async (req, res) => {
+  const client = await pgPool.connect();
+  try {
+    await client.query('BEGIN');
+    const templateId = req.params.id;
+    const [weeks] = await pool.queryWithClient(client, 'SELECT id FROM pkl_program_weeks WHERE template_id = ?', [templateId]);
+    const weekIds = weeks.map(w => w.id);
+    if (weekIds.length > 0) {
+      await pool.queryWithClient(client, 'DELETE FROM pkl_program_tasks WHERE week_id IN (?)', [weekIds]);
+      await pool.queryWithClient(client, 'DELETE FROM pkl_program_weeks WHERE template_id = ?', [templateId]);
+    }
+    await pool.queryWithClient(client, 'UPDATE pkl_students SET program_template_id = NULL WHERE program_template_id = ?', [templateId]);
+    await pool.queryWithClient(client, 'DELETE FROM pkl_program_templates WHERE id = ?', [templateId]);
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('Gagal menghapus template:', error);
+    res.status(500).json({ error: 'Gagal menghapus template' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/pkl-templates/:templateId/weeks', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT id, template_id, week_number, month_number, milestone_title FROM pkl_program_weeks WHERE template_id = ? ORDER BY week_number ASC', [req.params.templateId]);
+    res.json(rows);
+  } catch (error) {
+    console.error('Gagal mengambil data minggu:', error);
+    res.status(500).json({ error: 'Gagal mengambil data minggu' });
+  }
+});
+
+app.post('/api/pkl-templates/:templateId/weeks', async (req, res) => {
+  try {
+    const templateId = req.params.templateId;
+    const { week_number, month_number, milestone_title } = req.body;
+    if (!week_number || !month_number || !milestone_title) {
+      return res.status(400).json({ error: 'Week number, month number, dan milestone title wajib diisi' });
+    }
+    const id = 'wk-' + Math.random().toString(36).substr(2, 9);
+    await pool.query('INSERT INTO pkl_program_weeks (id, template_id, week_number, month_number, milestone_title) VALUES (?, ?, ?, ?, ?)', 
+      [id, templateId, parseInt(week_number), parseInt(month_number), milestone_title]
+    );
+    res.json({ success: true, data: { id, template_id: templateId, week_number, month_number, milestone_title } });
+  } catch (error) {
+    console.error('Gagal membuat data minggu:', error);
+    res.status(500).json({ error: 'Gagal membuat data minggu' });
+  }
+});
+
+app.delete('/api/pkl-weeks/:id', async (req, res) => {
+  const client = await pgPool.connect();
+  try {
+    await client.query('BEGIN');
+    const weekId = req.params.id;
+    await pool.queryWithClient(client, 'DELETE FROM pkl_program_tasks WHERE week_id = ?', [weekId]);
+    await pool.queryWithClient(client, 'DELETE FROM pkl_program_weeks WHERE id = ?', [weekId]);
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('Gagal menghapus minggu:', error);
+    res.status(500).json({ error: 'Gagal menghapus minggu' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/pkl-weeks/:weekId/tasks', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT id, week_id, task_title, is_mandatory FROM pkl_program_tasks WHERE week_id = ? ORDER BY id ASC', [req.params.weekId]);
+    res.json(rows);
+  } catch (error) {
+    console.error('Gagal mengambil data tugas:', error);
+    res.status(500).json({ error: 'Gagal mengambil data tugas' });
+  }
+});
+
+app.post('/api/pkl-weeks/:weekId/tasks', async (req, res) => {
+  try {
+    const weekId = req.params.weekId;
+    const { task_title, is_mandatory } = req.body;
+    if (!task_title) {
+      return res.status(400).json({ error: 'Task title wajib diisi' });
+    }
+    const id = 'tsk-' + Math.random().toString(36).substr(2, 9);
+    await pool.query('INSERT INTO pkl_program_tasks (id, week_id, task_title, is_mandatory) VALUES (?, ?, ?, ?)', 
+      [id, weekId, task_title, is_mandatory ? 1 : 0]
+    );
+    res.json({ success: true, data: { id, week_id: weekId, task_title, is_mandatory } });
+  } catch (error) {
+    console.error('Gagal membuat data tugas:', error);
+    res.status(500).json({ error: 'Gagal membuat data tugas' });
+  }
+});
+
+app.delete('/api/pkl-tasks/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM pkl_program_tasks WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Gagal menghapus tugas:', error);
+    res.status(500).json({ error: 'Gagal menghapus tugas' });
+  }
+});
+
+// ==========================================
+// Dress Code & Aspect Settings API
+// ==========================================
+
+app.get('/api/pkl-dress-code', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT day_number, day_name, clothes_description FROM pkl_dress_code ORDER BY day_number ASC');
+    res.json(rows);
+  } catch (error) {
+    console.error('Gagal mengambil jadwal pakaian:', error);
+    res.status(500).json({ error: 'Gagal mengambil jadwal pakaian' });
+  }
+});
+
+app.put('/api/pkl-dress-code', async (req, res) => {
+  try {
+    const { day_number, clothes_description } = req.body;
+    if (day_number === undefined || !clothes_description) {
+      return res.status(400).json({ error: 'Data tidak lengkap' });
+    }
+    await pool.query('UPDATE pkl_dress_code SET clothes_description = ? WHERE day_number = ?', [clothes_description, day_number]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Gagal menyimpan jadwal pakaian:', error);
+    res.status(500).json({ error: 'Gagal menyimpan jadwal pakaian' });
+  }
+});
+
+app.get('/api/pkl-aspect-settings', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT aspect_key, label, icon_name, is_active FROM pkl_aspect_settings ORDER BY aspect_key ASC');
+    res.json(rows);
+  } catch (error) {
+    console.error('Gagal mengambil pengaturan aspek:', error);
+    res.status(500).json({ error: 'Gagal mengambil pengaturan aspek' });
+  }
+});
+
+app.put('/api/pkl-aspect-settings', async (req, res) => {
+  try {
+    const { aspect_key, label, icon_name, is_active } = req.body;
+    if (!aspect_key || !label || !icon_name || is_active === undefined) {
+      return res.status(400).json({ error: 'Data tidak lengkap' });
+    }
+    await pool.query(
+      'UPDATE pkl_aspect_settings SET label = ?, icon_name = ?, is_active = ? WHERE aspect_key = ?',
+      [label, icon_name, is_active ? 1 : 0, aspect_key]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Gagal menyimpan pengaturan aspek:', error);
+    res.status(500).json({ error: 'Gagal menyimpan pengaturan aspek' });
+  }
+});
 
 // ==========================================
 // PKL Activity Routes & Global Error Handler

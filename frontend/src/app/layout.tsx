@@ -39,6 +39,42 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="sampulkreativ.app" />
+        <Script id="session-isolation" strategy="beforeInteractive">
+          {`
+            (function() {
+              if (typeof window !== 'undefined') {
+                var originalGetItem = localStorage.getItem.bind(localStorage);
+                var originalSetItem = localStorage.setItem.bind(localStorage);
+                var originalRemoveItem = localStorage.removeItem.bind(localStorage);
+
+                var sessionKeys = ['v2_user', 'v2_clockInDate', 'v2_clockOutDate', 'v2_clockInTime', 'v2_scanned_token'];
+
+                localStorage.getItem = function(key) {
+                  if (sessionKeys.includes(key)) {
+                    return sessionStorage.getItem(key);
+                  }
+                  return originalGetItem(key);
+                };
+
+                localStorage.setItem = function(key, value) {
+                  if (sessionKeys.includes(key)) {
+                    sessionStorage.setItem(key, value);
+                    return;
+                  }
+                  originalSetItem(key, value);
+                };
+
+                localStorage.removeItem = function(key) {
+                  if (sessionKeys.includes(key)) {
+                    sessionStorage.removeItem(key);
+                    return;
+                  }
+                  originalRemoveItem(key);
+                };
+              }
+            })();
+          `}
+        </Script>
       </head>
       <body className="min-h-full flex flex-col font-sans">
         <QueryProvider>

@@ -61,24 +61,29 @@ export default function SelfiePage() {
 
   // Initialize & Restart Webcam Stream based on facingMode
   useEffect(() => {
+    let isMounted = true;
     let currentStream: MediaStream | null = null;
 
     const startCamera = async () => {
       try {
         setCameraError(null);
         if (typeof window !== "undefined" && !window.isSecureContext) {
-          setCameraError(
-            "Kamera diblokir karena koneksi tidak aman (HTTP). Silakan gunakan protokol HTTPS agar dapat mengambil foto selfie kehadiran."
-          );
-          setHasCamera(false);
+          if (isMounted) {
+            setCameraError(
+              "Kamera diblokir karena koneksi tidak aman (HTTP). Silakan gunakan protokol HTTPS agar dapat mengambil foto selfie kehadiran."
+            );
+            setHasCamera(false);
+          }
           return;
         }
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          setCameraError(
-            "Kamera tidak didukung oleh browser Anda atau diblokir karena protokol HTTP. Silakan gunakan protokol HTTPS yang aman."
-          );
-          setHasCamera(false);
+          if (isMounted) {
+            setCameraError(
+              "Kamera tidak didukung oleh browser Anda atau diblokir karena protokol HTTP. Silakan gunakan protokol HTTPS yang aman."
+            );
+            setHasCamera(false);
+          }
           return;
         }
 
@@ -90,6 +95,12 @@ export default function SelfiePage() {
           },
           audio: false,
         });
+
+        if (!isMounted) {
+          mediaStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
         currentStream = mediaStream;
         setStream(mediaStream);
         setHasCamera(true);
@@ -99,16 +110,18 @@ export default function SelfiePage() {
           await videoRef.current.play().catch(err => console.error("Selfie video play error:", err));
         }
       } catch (err) {
-        console.warn(`Kamera (${facingMode}) tidak dapat diakses:`, err);
-        setCameraError("Gagal mengakses kamera. Silakan pastikan izin kamera diizinkan untuk situs ini.");
-        setHasCamera(false);
+        if (isMounted) {
+          console.warn(`Kamera (${facingMode}) tidak dapat diakses:`, err);
+          setCameraError("Gagal mengakses kamera. Silakan pastikan izin kamera diizinkan untuk situs ini.");
+          setHasCamera(false);
+        }
       }
     };
 
     startCamera();
 
     return () => {
-      // Cleanup tracks on unmount or facingMode change
+      isMounted = false;
       if (currentStream) {
         currentStream.getTracks().forEach((track) => track.stop());
       }

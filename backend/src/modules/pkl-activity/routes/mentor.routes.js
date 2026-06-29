@@ -26,4 +26,7 @@ router.put('/rekap-mingguan/:studentId', validator.validateWeeklyFeedback, verif
 // POST /api/v1/mentor/rekap-mingguan/publikasikan
 router.post('/rekap-mingguan/publikasikan', validator.validatePublishSummary, mentorController.publishWeeklySummary);
 
+// POST /api/v1/mentor/rekap-mingguan/sembunyikan
+router.post('/rekap-mingguan/sembunyikan', validator.validatePublishSummary, mentorController.unpublishWeeklySummary);
+
 module.exports = router;

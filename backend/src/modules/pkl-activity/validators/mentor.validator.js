@@ -6,7 +6,9 @@ const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 // Schema untuk GET /api/v1/mentor/siswa
 const getSiswaBimbinganSchema = z.object({
   query: z.object({
-    date: z.string().regex(dateRegex, 'Format tanggal harus YYYY-MM-DD').optional()
+    date: z.string().regex(dateRegex, 'Format tanggal harus YYYY-MM-DD').optional(),
+    start_date: z.string().regex(dateRegex, 'Format tanggal harus YYYY-MM-DD').optional(),
+    end_date: z.string().regex(dateRegex, 'Format tanggal harus YYYY-MM-DD').optional()
   })
 });
 

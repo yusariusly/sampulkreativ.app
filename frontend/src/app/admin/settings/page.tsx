@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Settings, Clock, CheckCircle2, Save, MapPin, Send, Mail } from "lucide-react";
+import { Settings, Clock, CheckCircle2, Save, MapPin, Send, Mail, Trophy } from "lucide-react";
 
 export default function AdminSettingsPage() {
   const [deadlineTime, setDeadlineTime] = useState("08:30");
@@ -11,6 +11,7 @@ export default function AdminSettingsPage() {
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramChatIdKaryawan, setTelegramChatIdKaryawan] = useState("");
+  const [showPklScoreboard, setShowPklScoreboard] = useState(true);
 
   // SMTP state
   const [smtpHost, setSmtpHost] = useState("");
@@ -68,6 +69,9 @@ export default function AdminSettingsPage() {
         if (data.smtp_sender !== undefined) {
           setSmtpSender(data.smtp_sender);
         }
+        if (data.show_pkl_scoreboard !== undefined) {
+          setShowPklScoreboard(data.show_pkl_scoreboard === '1');
+        }
       }
     } catch (err) {
       console.error("Gagal mengambil pengaturan:", err);
@@ -111,7 +115,8 @@ export default function AdminSettingsPage() {
           smtp_user: smtpUser,
           smtp_pass: smtpPass,
           smtp_to: smtpTo,
-          smtp_sender: smtpSender
+          smtp_sender: smtpSender,
+          show_pkl_scoreboard: showPklScoreboard ? "1" : "0"
         }),
       });
 
@@ -333,6 +338,28 @@ export default function AdminSettingsPage() {
               <p className="text-gray-400 text-xs leading-relaxed">
                 Konfigurasi di atas digunakan untuk mengirim email pemberitahuan izin dan sakit. Nama pengirim email akan disesuaikan otomatis dengan nama karyawan yang mengajukan izin/sakit.
               </p>
+
+              {/* Scoreboard Visibility Section */}
+              <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4 pt-4">
+                <Trophy size={22} className="text-[#2AB0B2]" />
+                <h3 className="font-bold text-gray-800 text-lg">Visibilitas Scoreboard Siswa</h3>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div>
+                  <h4 className="font-bold text-gray-800 text-sm">Tampilkan Scoreboard ke Siswa</h4>
+                  <p className="text-gray-400 text-xs mt-1">Mengizinkan siswa PKL melihat halaman klasemen dan pemeringkatan mingguan.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showPklScoreboard}
+                    onChange={(e) => setShowPklScoreboard(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2AB0B2]"></div>
+                </label>
+              </div>
 
               <div className="pt-4 border-t border-gray-100">
                 <button

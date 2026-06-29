@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { User, Camera, Printer, X, CreditCard, Download, LogOut } from "lucide-react";
-import { MembershipCategoryCard } from "./components/MembershipCategoryCard";
 import { getDeviceId, clearSession } from "../../utils/session";
 import { compressImage, IMAGE_PRESETS } from "../../utils/image";
 
@@ -28,7 +27,7 @@ export default function ProfilePage() {
 
   const [showCardModal, setShowCardModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [isKategoriSubmitting, setIsKategoriSubmitting] = useState(false);
+
   const [jabatan, setJabatan] = useState("Karyawan");
   const [userRole, setUserRole] = useState("Karyawan");
   const [kategori, setKategori] = useState("Karyawan");
@@ -199,41 +198,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleUpdateKategori = async (newKategori: string) => {
-    setIsKategoriSubmitting(true);
-    setError("");
-    setSuccessMsg("");
-    try {
-      const res = await fetch("/api/users/update-bio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userId,
-          device_id: getDeviceId(),
-          kategori: newKategori
-        })
-      });
-      
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setKategori(newKategori);
-        
-        // Update local storage
-        const storedUser = localStorage.getItem("v2_user");
-        if (storedUser) {
-          const userObj = JSON.parse(storedUser);
-          userObj.kategori = newKategori;
-          localStorage.setItem("v2_user", JSON.stringify(userObj));
-        }
-      } else {
-        setError(data.error || "Gagal memperbarui kategori");
-      }
-    } catch (err) {
-      setError("Gagal menghubungi server untuk memperbarui kategori");
-    } finally {
-      setIsKategoriSubmitting(false);
-    }
-  };
+
 
   const handleConfirmLogout = async () => {
     setError("");
@@ -251,6 +216,7 @@ export default function ProfilePage() {
       const data = await res.json();
       if (res.ok && data.success) {
         clearSession();
+        localStorage.removeItem("v2_device_id");
         router.push("/");
       } else {
         setError(data.error || "Gagal melakukan logout");
@@ -312,29 +278,27 @@ export default function ProfilePage() {
             <p className="text-[#2AB0B2] text-xs font-mono font-bold mt-1 select-all">{noKaryawan}</p>
           )}
           
-          <button
-            type="button"
-            onClick={() => {
-              if (!jabatan || jabatan.trim() === "" || jabatan.trim().toLowerCase() === "karyawan") {
-                setError("⚠️ Jabatan Anda belum ditentukan oleh Administrator. Silakan hubungi Administrator.");
-              } else {
-                setError("");
-                setShowCardModal(true);
-              }
-            }}
-            className="mt-4 px-4 py-2.5 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
-          >
-            <CreditCard size={13} />
-            Download Kartu Karyawan
-          </button>
+          {userRole !== 'student' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!jabatan || jabatan.trim() === "" || jabatan.trim().toLowerCase() === "karyawan") {
+                  setError("⚠️ Jabatan Anda belum ditentukan oleh Administrator. Silakan hubungi Administrator.");
+                } else {
+                  setError("");
+                  setShowCardModal(true);
+                }
+              }}
+              className="mt-4 px-4 py-2.5 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <CreditCard size={13} />
+              Download Kartu Karyawan
+            </button>
+          )}
         </div>
 
         {/* Category Selector Component */}
-        <MembershipCategoryCard
-          currentCategory={kategori}
-          onChangeCategory={handleUpdateKategori}
-          isSubmitting={isKategoriSubmitting}
-        />
+
 
         {/* Change Password Card */}
         <div className="bg-white rounded-2xl shadow-xs p-5 mb-4 border border-gray-100/50">
@@ -632,16 +596,16 @@ export default function ProfilePage() {
         <button
           type="button"
           onClick={() => setShowLogoutModal(true)}
-          className="w-full py-3.5 rounded-xl text-[#EF4444] bg-white border border-[#FCA5A5]/60 font-bold hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+          className="w-full py-3.5 rounded-xl text-white bg-slate-900 hover:bg-slate-800 font-extrabold transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 text-xs uppercase tracking-wider active:scale-[0.98]"
         >
-          <LogOut size={16} />
-          Keluar dari Akun (Logout)
+          <LogOut size={15} className="text-red-500" />
+          Keluar dari Akun
         </button>
       </div>
 
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 select-none">
           <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-xl border border-gray-150 relative">
             <h3 className="text-lg font-bold text-gray-800 mb-1">
               Keluar Akun

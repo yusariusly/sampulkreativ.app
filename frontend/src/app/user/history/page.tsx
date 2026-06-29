@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Calendar } from "lucide-react";
+import React, { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Calendar, ArrowLeft } from "lucide-react";
 import { StudentHistoryView } from "@/features/pkl-activity";
-
 
 const STATUS_STYLES: Record<string, string> = {
   Hadir: "bg-green-500 text-white shadow-xs",
@@ -27,8 +26,10 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export default function HistoryPage() {
+function HistoryPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentView = searchParams.get("view") || "absen";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,11 +95,20 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#F0F2F5]">
+    <div className="flex flex-col h-full bg-[#F8FAFC]">
       {/* Header Panel */}
-      <div className="flex items-center justify-center gap-2.5 py-5 px-5 select-none bg-[#2AB0B2] shadow-sm">
-        <Calendar size={20} color="white" />
-        <h1 className="text-white font-bold text-lg">Riwayat Absensi</h1>
+      <div className="flex items-center justify-between py-4 px-5 select-none bg-[#2AB0B2] shadow-sm text-white">
+        <button
+          onClick={() => router.push(`/user?view=${currentView}`)}
+          className="p-1 rounded-lg hover:bg-white/10 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
+        >
+          <ArrowLeft size={16} /> Kembali
+        </button>
+        <div className="flex items-center gap-2">
+          <Calendar size={18} />
+          <h1 className="font-bold text-sm">Riwayat Absensi</h1>
+        </div>
+        <div className="w-16" />
       </div>
 
       {/* List Container */}
@@ -141,5 +151,17 @@ export default function HistoryPage() {
         </p>
       )}
     </div>
+  );
+}
+
+export default function HistoryPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-slate-400 text-xs font-medium">
+        Memuat riwayat...
+      </div>
+    }>
+      <HistoryPageContent />
+    </Suspense>
   );
 }

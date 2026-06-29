@@ -17,9 +17,11 @@ async function getSiswaBimbingan(req, res, next) {
     const mentorId = req.user.id;
     // Default menggunakan tanggal hari ini (GMT+7)
     const dateStr = req.query.date || new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const startDate = req.query.start_date;
+    const endDate = req.query.end_date;
 
     const dbClient = req.app.pool;
-    const students = await studentService.getMentorStudents(dbClient, mentorId, dateStr);
+    const students = await studentService.getMentorStudents(dbClient, mentorId, dateStr, startDate, endDate);
 
     res.status(200).json({
       status: 'success',
@@ -149,11 +151,35 @@ async function publishWeeklySummary(req, res, next) {
   }
 }
 
+/**
+ * Menyembunyikan (membatalkan publikasi) rekap mingguan untuk semua siswa bimbingan mentor pada minggu terkait
+ * POST /api/v1/mentor/rekap-mingguan/sembunyikan
+ */
+async function unpublishWeeklySummary(req, res, next) {
+  try {
+    const mentorId = req.user.id;
+    const body = req.body;
+
+    const dbClient = req.app.pool;
+    const success = await weeklySummaryService.unpublishWeeklySummary(dbClient, mentorId, body.week_number);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        success
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getSiswaBimbingan,
   saveDailyEvaluation,
   submitDailySession,
   getWeeklyRekapList,
   saveWeeklyFeedback,
-  publishWeeklySummary
+  publishWeeklySummary,
+  unpublishWeeklySummary
 };

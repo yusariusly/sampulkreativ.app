@@ -24,14 +24,11 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
   const summaries = await weeklySumRepo.findWeeklySummariesByMentor(dbClient, mentorId, weekNumber);
   const summaryMap = new Map(summaries.map(s => [s.student_id, s]));
 
-  // 3. Ambil seluruh daily evaluations untuk semua siswa mentor tersebut (Mencegah N+1)
+  // 3. Ambil seluruh daily evaluations untuk semua siswa (Mencegah N+1)
   const [evalRows] = await dbClient.query(`
     SELECT student_id, evaluation_date, wkt_point, skp_point, has_point, ker_point, ini_point
     FROM pkl_daily_evaluations
-    WHERE student_id IN (
-      SELECT id FROM pkl_students WHERE mentor_id = ?
-    )
-  `, [mentorId]);
+  `);
 
   // Kelompokkan data evaluasi berdasarkan student_id
   const evalMap = new Map();
@@ -72,6 +69,7 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
       student_id: student.student_id,
       student_name: student.student_name,
       school_name: student.school_name,
+      start_date: student.start_date,
       week_number: weekNumber,
       total_points: savedSummary ? savedSummary.total_points : calculatedPoints,
       comments: savedSummary ? (savedSummary.comments || '') : '',
@@ -169,8 +167,21 @@ async function publishWeeklySummary(dbClient, mentorId, weekNumber) {
   return success;
 }
 
+/**
+ * Menyembunyikan (membatalkan publikasi) rekap mingguan untuk semua siswa bimbingan mentor pada minggu terkait
+ * @param {object} dbClient - Database client/pool
+ * @param {string} mentorId - ID Mentor pembimbing
+ * @param {number} weekNumber - Nomor Minggu aktif
+ * @returns {Promise<boolean>} True jika pembatalan publikasi berhasil
+ */
+async function unpublishWeeklySummary(dbClient, mentorId, weekNumber) {
+  const success = await weeklySumRepo.unpublishAllByMentor(dbClient, mentorId, weekNumber);
+  return success;
+}
+
 module.exports = {
   getWeeklyRekapList,
   saveWeeklyFeedback,
-  publishWeeklySummary
+  publishWeeklySummary,
+  unpublishWeeklySummary
 };

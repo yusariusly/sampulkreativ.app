@@ -12,7 +12,8 @@ async function seedSettings(dbClient) {
     { key_name: 'smtp_user', key_value: '' },
     { key_name: 'smtp_pass', key_value: '' },
     { key_name: 'smtp_to', key_value: '' },
-    { key_name: 'smtp_sender', key_value: '' }
+    { key_name: 'smtp_sender', key_value: '' },
+    { key_name: 'show_pkl_scoreboard', key_value: '1' }
   ];
 
   for (const setting of settings) {

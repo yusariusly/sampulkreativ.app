@@ -115,8 +115,8 @@ const verifyStudentOwnership = async (req, res, next) => {
     }
 
     const [rows] = await req.app.pool.query(
-      'SELECT 1 FROM pkl_students WHERE id = ? AND mentor_id = ? LIMIT 1',
-      [studentId, mentorId]
+      'SELECT 1 FROM pkl_students WHERE id = ? LIMIT 1',
+      [studentId]
     );
 
     if (rows.length === 0) {

@@ -23,11 +23,6 @@ async function validateMentorStudentOwnership(dbClient, studentId, mentorId) {
     err.code = 'NOT_FOUND';
     throw err;
   }
-  if (student.mentor_id !== mentorId) {
-    const err = new Error('Anda tidak memiliki akses ke data siswa ini');
-    err.code = 'FORBIDDEN';
-    throw err;
-  }
   return true;
 }
 
@@ -42,11 +37,24 @@ function calculatePklProgress(startDateStr, durationMonths, currentDateStr) {
   const start = new Date(startDateStr);
   const now = currentDateStr ? new Date(currentDateStr) : new Date();
 
-  // Hitung selisih hari
-  const diffTime = Math.max(0, now.getTime() - start.getTime());
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  // Dapatkan Senin dari start week
+  const startDay = start.getDay();
+  const diffToMondayStart = startDay === 0 ? -6 : 1 - startDay;
+  const mondayOfStartWeek = new Date(start);
+  mondayOfStartWeek.setDate(start.getDate() + diffToMondayStart);
+  mondayOfStartWeek.setHours(0, 0, 0, 0);
+
+  // Dapatkan Senin dari target week
+  const targetDay = now.getDay();
+  const diffToMondayTarget = targetDay === 0 ? -6 : 1 - targetDay;
+  const mondayOfTargetWeek = new Date(now);
+  mondayOfTargetWeek.setDate(now.getDate() + diffToMondayTarget);
+  mondayOfTargetWeek.setHours(0, 0, 0, 0);
+
+  // Hitung selisih hari antara kedua Senin tersebut
+  const diffTime = mondayOfTargetWeek.getTime() - mondayOfStartWeek.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
   
-  // 1 minggu = 7 hari
   let activeWeek = Math.floor(diffDays / 7) + 1;
   const totalWeeks = durationMonths * 4; // Ketentuan V1: 1 bulan = 4 minggu
 
@@ -64,12 +72,23 @@ function calculatePklProgress(startDateStr, durationMonths, currentDateStr) {
 
 /**
  * Menentukan jenis pakaian harian siswa PKL berdasarkan hari dalam seminggu
+ * @param {object} dbClient - Database client/pool
  * @param {string} dateStr - Tanggal pengujian (YYYY-MM-DD)
- * @returns {string} Nama jenis pakaian
+ * @returns {Promise<string>} Nama jenis pakaian
  */
-function getClothesOfTheDay(dateStr) {
+async function getClothesOfTheDay(dbClient, dateStr) {
   const d = new Date(dateStr);
-  const day = d.getDay(); // 0: Minggu, 1: Senin, ..., 5: Jumat
+  const day = d.getDay(); // 0: Minggu, 1: Senin, ..., 5: Jumat, 6: Sabtu
+
+  try {
+    const [rows] = await dbClient.query('SELECT clothes_description FROM pkl_dress_code WHERE day_number = ?', [day]);
+    if (rows && rows.length > 0) {
+      return rows[0].clothes_description;
+    }
+  } catch (error) {
+    console.warn('[DressCode] Gagal mengambil dari DB, menggunakan fallback:', error.message);
+  }
+
   switch (day) {
     case 1: // Senin
     case 2: // Selasa
@@ -84,6 +103,7 @@ function getClothesOfTheDay(dateStr) {
   }
 }
 
+
 /**
  * Mendapatkan rentang tanggal (Senin s.d Minggu) untuk minggu aktif relatif terhadap start_date siswa
  * @param {string} startDateStr - Tanggal Mulai PKL (YYYY-MM-DD)
@@ -92,14 +112,27 @@ function getClothesOfTheDay(dateStr) {
  */
 function getWeekDateRange(startDateStr, weekNumber) {
   const start = new Date(startDateStr);
-  // Mulai minggu ke-W: start_date + (W - 1) * 7 hari
-  const weekStart = new Date(start.getTime() + (weekNumber - 1) * 7 * 24 * 60 * 60 * 1000);
-  const weekEnd = new Date(weekStart.getTime() + (7 * 24 * 60 * 60 * 1000) - (24 * 60 * 60 * 1000));
+  const day = start.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const mondayOfStartWeek = new Date(start);
+  mondayOfStartWeek.setDate(start.getDate() + diffToMonday);
 
-  const format = (d) => d.toISOString().split('T')[0];
+  const targetMonday = new Date(mondayOfStartWeek);
+  targetMonday.setDate(mondayOfStartWeek.getDate() + (weekNumber - 1) * 7);
+
+  const targetSunday = new Date(targetMonday);
+  targetSunday.setDate(targetMonday.getDate() + 6); // Senin s.d Minggu
+
+  const format = (d) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const date = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${date}`;
+  };
+
   return {
-    startDate: format(weekStart),
-    endDate: format(weekEnd)
+    startDate: format(targetMonday),
+    endDate: format(targetSunday)
   };
 }
 
@@ -112,14 +145,14 @@ function getWeekDateRange(startDateStr, weekNumber) {
  */
 async function getStudentDashboard(dbClient, userId, todayDateStr) {
   const student = await studentRepo.findByUserId(dbClient, userId);
-  if (!student) {
-    const err = new Error('Siswa tidak terdaftar');
+  if (!student || student.status !== 'ACTIVE') {
+    const err = new Error('Siswa tidak terdaftar atau profil PKL tidak aktif');
     err.code = 'NOT_FOUND';
     throw err;
   }
 
   // 1. Progress PKL
-  const progress = calculatePklProgress(student.start_date, 4, todayDateStr); // Default 4 bulan (16 minggu)
+  const progress = calculatePklProgress(student.start_date, student.duration_months || 4, todayDateStr);
 
   // 2. Info Kehadiran Hari Ini
   const tomorrow = new Date(todayDateStr);
@@ -154,7 +187,7 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
 
   const todayInfo = {
     date: todayDateStr,
-    clothes: getClothesOfTheDay(todayDateStr),
+    clothes: await getClothesOfTheDay(dbClient, todayDateStr),
     attendance_status: attendanceStatus,
     attendance_time: attendanceTime
   };
@@ -163,10 +196,28 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
   const allTasks = await taskRepo.findTasksByStudentId(dbClient, student.student_id);
   const activeWeekTasks = allTasks.filter(t => t.week_number === progress.active_week);
   
-  // Dapatkan milestone title minggu aktif
+  // Dapatkan semua minggu dari program template
   const weeks = await taskRepo.findWeeksByTemplateId(dbClient, student.program_template_id);
+  
+  // Susun data minggu beserta tugasnya
+  const weeksWithTasks = weeks.map(w => {
+    const weekTasks = allTasks.filter(t => t.week_id === w.id);
+    return {
+      id: w.id,
+      week_number: w.week_number,
+      month_number: w.month_number,
+      milestone_title: w.milestone_title,
+      tasks: weekTasks.map(t => ({
+        task_id: t.task_id,
+        title: t.task_title,
+        is_completed: t.is_completed === 1,
+        is_mandatory: t.is_mandatory === 1
+      }))
+    };
+  });
+
   const activeWeekMeta = weeks.find(w => w.week_number === progress.active_week);
-  const milestoneTitle = activeWeekMeta ? activeWeekMeta.milestone_title : 'Milestone Mingguan';
+  const milestoneTitle = activeWeekMeta ? activeWeekMeta.milestone_title : 'Aktivitas Mingguan';
 
   const programKerja = {
     title: milestoneTitle,
@@ -174,19 +225,35 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
       task_id: t.task_id,
       title: t.task_title,
       is_completed: t.is_completed === 1
-    }))
+    })),
+    active_week: progress.active_week,
+    weeks: weeksWithTasks
   };
 
   // 4. Papan Apresiasi (Poin Reward)
-  const summary = await weeklySumRepo.findByStudentAndWeek(dbClient, student.student_id, progress.active_week);
+  const [settingsRows] = await dbClient.query("SELECT key_value FROM settings WHERE key_name = 'show_pkl_scoreboard' LIMIT 1");
+  const showPklScoreboard = settingsRows.length > 0 ? settingsRows[0].key_value === '1' : true;
+
+  let summary = await weeklySumRepo.findByStudentAndWeek(dbClient, student.student_id, progress.active_week);
+  let displayedWeek = progress.active_week;
+
+  if (!summary || (summary.is_published !== 1 && summary.is_published !== true)) {
+    // Fallback: ambil rekap terpublikasi terakhir
+    const latestPublished = await weeklySumRepo.findLatestPublished(dbClient, student.student_id);
+    if (latestPublished) {
+      summary = latestPublished;
+      displayedWeek = latestPublished.week_number;
+    }
+  }
+
   let papanApresiasi = {
     is_published: false,
     message: 'Poin minggu ini sedang diproses oleh pembimbing.'
   };
 
-  if (summary && summary.is_published === 1) {
-    // Cari rentang tanggal minggu aktif untuk rekap aspek
-    const range = getWeekDateRange(student.start_date, progress.active_week);
+  if (showPklScoreboard && summary && (summary.is_published === 1 || summary.is_published === true)) {
+    // Cari rentang tanggal minggu yang ditampilkan untuk rekap aspek
+    const range = getWeekDateRange(student.start_date, displayedWeek);
     const aspectsTotal = await dailyEvalRepo.getPointSummaryByWeek(dbClient, student.student_id, range.startDate, range.endDate);
 
     let parsedTags = [];
@@ -198,6 +265,7 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
 
     papanApresiasi = {
       is_published: true,
+      week_number: displayedWeek,
       total_points: summary.total_points,
       aspects: {
         wkt_point: aspectsTotal.wkt_total,
@@ -213,11 +281,22 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
     };
   }
 
+  // Load dynamic aspect settings
+  let aspectSettings = [];
+  try {
+    const [aspectRows] = await dbClient.query('SELECT aspect_key, label, icon_name, is_active FROM pkl_aspect_settings');
+    aspectSettings = aspectRows;
+  } catch (err) {
+    console.warn('[AspectSettings] Gagal memuat dari DB:', err.message);
+  }
+
   return {
     today: todayInfo,
     progress,
     program_kerja: programKerja,
-    papan_apresiasi: papanApresiasi
+    papan_apresiasi: papanApresiasi,
+    aspect_settings: aspectSettings,
+    show_pkl_scoreboard: showPklScoreboard
   };
 }
 
@@ -226,9 +305,54 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
  * @param {object} dbClient - Database client/pool
  * @param {string} mentorId - ID Mentor pembimbing
  * @param {string} dateStr - Tanggal evaluasi harian aktif (YYYY-MM-DD)
+ * @param {string} [startDate] - Tanggal awal rentang (YYYY-MM-DD)
+ * @param {string} [endDate] - Tanggal akhir rentang (YYYY-MM-DD)
  * @returns {Promise<Array<object>>} Daftar siswa bimbingan beserta perolehan poin harian
  */
-async function getMentorStudents(dbClient, mentorId, dateStr) {
+async function getMentorStudents(dbClient, mentorId, dateStr, startDate, endDate) {
+  if (startDate && endDate) {
+    const students = await studentRepo.findByMentorId(dbClient, mentorId);
+    const [evaluations] = await dbClient.query(
+      `SELECT id, student_id, evaluation_date, wkt_point, skp_point, has_point, ker_point, ini_point 
+       FROM pkl_daily_evaluations 
+       WHERE student_id IN (SELECT id FROM pkl_students) 
+         AND evaluation_date BETWEEN ? AND ?`,
+      [startDate, endDate]
+    );
+
+    const evalsGrouped = {};
+    evaluations.forEach(ev => {
+      const dateKey = typeof ev.evaluation_date === 'string'
+        ? ev.evaluation_date
+        : ev.evaluation_date.toISOString().split('T')[0];
+
+      if (!evalsGrouped[ev.student_id]) {
+        evalsGrouped[ev.student_id] = [];
+      }
+      evalsGrouped[ev.student_id].push({
+        evaluation_date: dateKey,
+        wkt_point: Number(ev.wkt_point),
+        skp_point: Number(ev.skp_point),
+        has_point: Number(ev.has_point),
+        ker_point: Number(ev.ker_point),
+        ini_point: Number(ev.ini_point)
+      });
+    });
+
+    return students.map(item => {
+      const progress = calculatePklProgress(item.start_date, 4, dateStr);
+      return {
+        student_id: item.student_id,
+        student_name: item.student_name,
+        student_avatar: item.student_avatar,
+        school_name: item.school_name,
+        program_title: item.program_title,
+        active_week: progress.active_week,
+        evaluations: evalsGrouped[item.student_id] || []
+      };
+    });
+  }
+
   const rawList = await studentRepo.findStudentsWithDailyEvaluation(dbClient, mentorId, dateStr);
   
   return rawList.map(item => {

@@ -61,9 +61,10 @@ export const WeeklyAccordionItem: React.FC<WeeklyAccordionItemProps> = ({ item }
                 {item.tags.map((tag, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-md"
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 bg-slate-50 text-slate-650 border border-slate-200 rounded"
                   >
-                    🏷️ {tag}
+                    <Award size={10} className="text-slate-400" />
+                    {tag}
                   </span>
                 ))}
               </div>

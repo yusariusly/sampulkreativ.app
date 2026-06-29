@@ -22,10 +22,11 @@ async function findById(dbClient, studentId) {
       u.nama_lengkap as student_name,
       u.foto_profile as student_avatar,
       m.nama_lengkap as mentor_name,
-      t.title as program_title
+      t.title as program_title,
+      t.duration_months as duration_months
     FROM pkl_students s
     JOIN users u ON s.user_id = u.id
-    JOIN users m ON s.mentor_id = m.id
+    LEFT JOIN users m ON s.mentor_id = m.id
     JOIN pkl_program_templates t ON s.program_template_id = t.id
     WHERE s.id = ?
   `;
@@ -49,13 +50,15 @@ async function findByUserId(dbClient, userId) {
       s.school_name,
       s.start_date,
       s.end_date,
+      s.status,
       u.nama_lengkap as student_name,
       u.foto_profile as student_avatar,
       m.nama_lengkap as mentor_name,
-      t.title as program_title
+      t.title as program_title,
+      t.duration_months as duration_months
     FROM pkl_students s
     JOIN users u ON s.user_id = u.id
-    JOIN users m ON s.mentor_id = m.id
+    LEFT JOIN users m ON s.mentor_id = m.id
     JOIN pkl_program_templates t ON s.program_template_id = t.id
     WHERE s.user_id = ?
   `;
@@ -85,10 +88,9 @@ async function findByMentorId(dbClient, mentorId) {
     FROM pkl_students s
     JOIN users u ON s.user_id = u.id
     JOIN pkl_program_templates t ON s.program_template_id = t.id
-    WHERE s.mentor_id = ?
     ORDER BY u.nama_lengkap ASC
   `;
-  const [rows] = await dbClient.query(query, [mentorId]);
+  const [rows] = await dbClient.query(query);
   return rows;
 }
 
@@ -112,7 +114,7 @@ async function findAll(dbClient) {
       t.title as program_title
     FROM pkl_students s
     JOIN users u ON s.user_id = u.id
-    JOIN users m ON s.mentor_id = m.id
+    LEFT JOIN users m ON s.mentor_id = m.id
     JOIN pkl_program_templates t ON s.program_template_id = t.id
     ORDER BY u.nama_lengkap ASC
   `;
@@ -230,10 +232,9 @@ async function findStudentsWithDailyEvaluation(dbClient, mentorId, date) {
     JOIN users u ON s.user_id = u.id
     JOIN pkl_program_templates t ON s.program_template_id = t.id
     LEFT JOIN pkl_daily_evaluations e ON s.id = e.student_id AND e.evaluation_date = ?
-    WHERE s.mentor_id = ?
     ORDER BY u.nama_lengkap ASC
   `;
-  const [rows] = await dbClient.query(query, [date, mentorId]);
+  const [rows] = await dbClient.query(query, [date]);
   return rows;
 }
 

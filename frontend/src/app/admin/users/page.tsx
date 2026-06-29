@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info } from "lucide-react";
 
 const ROLE_STYLE: Record<string, string> = {
   pengguna: "bg-gray-100 text-gray-600",
@@ -26,11 +26,17 @@ interface UserAccount {
   email?: string;
   no_telp?: string;
   no_karyawan?: string;
+  school_name?: string;
+  mentor_id?: string;
+  program_template_id?: string;
+  start_date?: string;
+  end_date?: string;
 }
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   // Form states
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -42,6 +48,13 @@ export default function AdminUsersPage() {
   const [jabatan, setJabatan] = useState<string>("");
   const [noKaryawan, setNoKaryawan] = useState<string>("");
   const [isActive, setIsActive] = useState(true);
+
+  // Student PKL fields
+  const [schoolName, setSchoolName] = useState("");
+  const [programTemplateId, setProgramTemplateId] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [pklTemplates, setPklTemplates] = useState<{ id: string; title: string }[]>([]);
 
   // Override states
   const [overrideUser, setOverrideUser] = useState("");
@@ -82,8 +95,21 @@ export default function AdminUsersPage() {
     }
   };
 
+  const fetchTemplates = async () => {
+    try {
+      const res = await fetch("/api/pkl-templates");
+      if (res.ok) {
+        const data = await res.json();
+        setPklTemplates(data);
+      }
+    } catch (err) {
+      console.error("Gagal mengambil program template:", err);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchTemplates();
     const interval = setInterval(fetchUsers, 4000);
     return () => clearInterval(interval);
   }, []);
@@ -98,9 +124,13 @@ export default function AdminUsersPage() {
     setJabatan("");
     setNoKaryawan("");
     setIsActive(true);
+    setSchoolName("");
+    setProgramTemplateId("");
+    setStartDate("");
+    setEndDate("");
   };
 
-  const handleEditTrigger = (u: UserAccount) => {
+  const handleEditTrigger = (u: any) => {
     setEditingUserId(u.id);
     setEditingUserRole(u.role);
     setFullname(u.nama_lengkap);
@@ -109,6 +139,10 @@ export default function AdminUsersPage() {
     setJabatan(u.jabatan || "");
     setNoKaryawan(u.no_karyawan || "");
     setPassword("");
+    setSchoolName(u.school_name || "");
+    setProgramTemplateId(u.program_template_id || "");
+    setStartDate(u.start_date || "");
+    setEndDate(u.end_date || "");
     showToast(`✏️ Mode edit untuk "${u.nama_lengkap}" aktif`);
   };
 
@@ -124,9 +158,28 @@ export default function AdminUsersPage() {
     }
 
     const currentFormRole = editingUserId ? editingUserRole : role;
-    if (currentFormRole === "employee" && !noKaryawan.trim()) {
-      showToast("⚠️ Nomor Karyawan wajib diisi untuk role Karyawan");
-      return;
+
+    if (currentFormRole === "student") {
+      if (!schoolName.trim()) {
+        showToast("⚠️ Nama sekolah wajib diisi untuk Siswa PKL");
+        return;
+      }
+      if (!programTemplateId) {
+        showToast("⚠️ Program template wajib dipilih untuk Siswa PKL");
+        return;
+      }
+      if (!startDate) {
+        showToast("⚠️ Tanggal mulai wajib diisi untuk Siswa PKL");
+        return;
+      }
+      if (startDate > todayStr) {
+        showToast("Tanggal mulai magang tidak boleh di masa depan");
+        return;
+      }
+      if (!endDate) {
+        showToast("⚠️ Tanggal selesai wajib diisi untuk Siswa PKL");
+        return;
+      }
     }
 
     if (!editingUserId && !password.trim()) {
@@ -144,7 +197,12 @@ export default function AdminUsersPage() {
           is_active: isActive,
           role: editingUserRole,
           jabatan: jabatan.trim(),
-          no_karyawan: editingUserRole === "employee" ? noKaryawan.trim() : undefined
+          no_karyawan: editingUserRole === "employee" ? noKaryawan.trim() : undefined,
+          school_name: editingUserRole === "student" ? schoolName.trim() : undefined,
+          mentor_id: editingUserRole === "student" ? "usr-admin" : undefined,
+          program_template_id: editingUserRole === "student" ? programTemplateId : undefined,
+          start_date: editingUserRole === "student" ? startDate : undefined,
+          end_date: editingUserRole === "student" ? endDate : undefined
         };
         if (password.trim() !== "") {
           bodyPayload.password = password.trim();
@@ -170,7 +228,12 @@ export default function AdminUsersPage() {
           password: password.trim(),
           role: role,
           jabatan: jabatan.trim(),
-          no_karyawan: role === "employee" ? noKaryawan.trim() : undefined
+          no_karyawan: role === "employee" ? noKaryawan.trim() : undefined,
+          school_name: role === "student" ? schoolName.trim() : undefined,
+          mentor_id: role === "student" ? "usr-admin" : undefined,
+          program_template_id: role === "student" ? programTemplateId : undefined,
+          start_date: role === "student" ? startDate : undefined,
+          end_date: role === "student" ? endDate : undefined
         };
 
         const res = await fetch("/api/users", {
@@ -279,12 +342,27 @@ export default function AdminUsersPage() {
     }
   };
 
+  // Mengambil nama sekolah unik dari data siswa magang yang terdaftar
+  const uniqueSchools = Array.from(
+    new Set(
+      users
+        .filter((u) => u.role.toLowerCase() === "student" && u.school_name)
+        .map((u) => u.school_name || "")
+    )
+  );
+
   // Determine the effective role for the current form context
   const effectiveRole = editingUserId ? editingUserRole : role.toLowerCase();
   const isAdminForm = effectiveRole === "admin";
 
   return (
     <div className="flex-1 bg-[#F0F2F5] p-4 md:p-8 select-none relative">
+      <datalist id="school-datalist">
+        {uniqueSchools.map((sch) => (
+          <option key={sch} value={sch} />
+        ))}
+      </datalist>
+
       {/* Toast Alert Notification */}
       {notification && (
         <div className="fixed top-4 right-4 z-50 p-4 bg-[#1C3D3F] text-white rounded-xl shadow-lg border border-[#2AB0B2]/30 flex items-center gap-2 font-medium text-sm transition-all animate-bounce">
@@ -423,7 +501,7 @@ export default function AdminUsersPage() {
             {/* Role Selector */}
             <div className="flex flex-col gap-1.5 mb-4">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Role / Status Kerja</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -459,24 +537,6 @@ export default function AdminUsersPage() {
                 >
                   <User size={13} />
                   Siswa PKL
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (editingUserId) {
-                      setEditingUserRole("mentor");
-                    } else {
-                      setRole("mentor");
-                    }
-                  }}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
-                    effectiveRole === "mentor"
-                      ? "bg-amber-500 text-white border-amber-500"
-                      : "bg-white text-gray-500 border-gray-200 hover:border-amber-500 hover:text-amber-500"
-                  }`}
-                >
-                  <ShieldCheck size={13} />
-                  Mentor
                 </button>
                 <button
                   type="button"
@@ -528,15 +588,101 @@ export default function AdminUsersPage() {
               {/* Nomor Karyawan - Show only when effectiveRole is employee */}
               {effectiveRole === "employee" && (
                 <div>
-                  <input
-                    type="text"
-                    placeholder="Nomor Karyawan (wajib)"
-                    value={noKaryawan}
-                    onChange={(e) => setNoKaryawan(e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
-                    required
-                  />
+                  {editingUserId ? (
+                    <input
+                      type="text"
+                      placeholder="Nomor Karyawan"
+                      value={noKaryawan}
+                      readOnly
+                      disabled
+                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-55 text-gray-500 font-mono cursor-not-allowed outline-none"
+                    />
+                  ) : (
+                    <div className="px-3 py-2.5 text-xs text-emerald-600 bg-emerald-50/50 border border-emerald-100 rounded-xl font-medium">
+                      Nomor Karyawan akan digenerate otomatis oleh sistem.
+                    </div>
+                  )}
                 </div>
+              )}
+
+              {/* Student PKL Fields - Show only when effectiveRole is student */}
+              {effectiveRole === "student" && (
+                <>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Nama Sekolah / Instansi (wajib)"
+                      value={schoolName}
+                      onChange={(e) => setSchoolName(e.target.value)}
+                      list="school-datalist"
+                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <select
+                      value={programTemplateId}
+                      onChange={(e) => setProgramTemplateId(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-600 transition-colors cursor-pointer"
+                      required
+                    >
+                      <option value="">Pilih Program Kurikulum (wajib)</option>
+                      {pklTemplates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Mulai Magang</label>
+                      <input
+                        type="date"
+                        value={startDate}
+                        max={todayStr}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors text-gray-600"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Selesai Magang</label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors text-gray-600"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Notice Tanggal Mulai Magang */}
+                  <div className={`p-3 rounded-xl border text-[10px] leading-relaxed font-semibold flex items-start gap-1.5 ${
+                    editingUserId
+                      ? "bg-amber-50 border-amber-100 text-amber-700"
+                      : "bg-[#2AB0B2]/5 border-[#2AB0B2]/10 text-slate-650"
+                  }`}>
+                    {editingUserId ? (
+                      <>
+                        <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
+                        <div>
+                          <strong>Peringatan:</strong> Mengubah tanggal mulai magang dapat menggeser perhitungan nomor minggu siswa dan berpotensi membuat riwayat nilai harian sebelumnya tampak tidak sinkron.
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Info size={12} className="flex-shrink-0 mt-0.5 text-[#2AB0B2]" />
+                        <div>
+                          <strong>Tips:</strong> Disarankan memilih hari <strong>Senin</strong> pada minggu pertama siswa mulai PKL agar pembagian pekan aktivitas (Minggu 1, 2, dst.) terhitung rapi.
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </>
               )}
 
               {/* Username Input (Admin or Employee) */}

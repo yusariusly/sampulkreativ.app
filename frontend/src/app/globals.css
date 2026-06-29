@@ -60,6 +60,12 @@
 
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+
+  *::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
   }
 
   body {
@@ -82,4 +88,17 @@
 
 .animate-scan {
   animation: scan 2.5s infinite linear;
+}
+
+@keyframes wobble {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-5px) rotate(-1deg); }
+  30% { transform: translateX(4px) rotate(0.8deg); }
+  45% { transform: translateX(-3px) rotate(-0.6deg); }
+  60% { transform: translateX(2px) rotate(0.4deg); }
+  75% { transform: translateX(-1px) rotate(-0.2deg); }
+}
+
+.animate-wobble {
+  animation: wobble 0.45s ease-in-out;
 }

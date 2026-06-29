@@ -36,9 +36,23 @@ export interface StudentDashboardData {
       title: string;
       is_completed: boolean;
     }>;
+    active_week?: number;
+    weeks?: Array<{
+      id: string;
+      week_number: number;
+      month_number: number;
+      milestone_title: string;
+      tasks: Array<{
+        task_id: string;
+        title: string;
+        is_completed: boolean;
+        is_mandatory: boolean;
+      }>;
+    }>;
   };
   papan_apresiasi: {
     is_published: boolean;
+    week_number?: number;
     total_points?: number;
     aspects?: {
       wkt_point: number;
@@ -53,6 +67,12 @@ export interface StudentDashboardData {
     } | null;
     message?: string;
   } | null;
+  aspect_settings?: Array<{
+    aspect_key: string;
+    label: string;
+    icon_name: string;
+    is_active: number;
+  }>;
 }
 
 // Student History Types

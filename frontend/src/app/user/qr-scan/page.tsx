@@ -9,6 +9,7 @@ export default function QRScanPage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const activeStreamRef = useRef<MediaStream | null>(null);
   const [scanning, setScanning] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [qrToken, setQrToken] = useState("");
@@ -62,6 +63,8 @@ export default function QRScanPage() {
         }
       });
       
+      activeStreamRef.current = stream;
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute("playsinline", "true");
@@ -77,21 +80,35 @@ export default function QRScanPage() {
     }
   };
 
-  useEffect(() => {
-    startCamera();
-
-    return () => {
-      stopCamera();
-    };
-  }, []);
-
   const stopCamera = () => {
+    if (activeStreamRef.current) {
+      activeStreamRef.current.getTracks().forEach((track) => track.stop());
+      activeStreamRef.current = null;
+    }
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const initCamera = async () => {
+      await startCamera();
+      if (!isMounted) {
+        stopCamera();
+      }
+    };
+
+    initCamera();
+
+    return () => {
+      isMounted = false;
+      stopCamera();
+    };
+  }, []);
 
   useEffect(() => {
     let timeoutId: any;

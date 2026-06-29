@@ -63,6 +63,52 @@ async function saveDailyEvaluation(dbClient, mentorId, evalData) {
 
   // 5. Simpan evaluasi ke database
   const success = await dailyEvalRepo.upsert(dbClient, evalData);
+
+  if (success) {
+    try {
+      const student = await studentRepo.findById(dbClient, evalData.student_id);
+      if (student) {
+        // Hitung progres minggu aktif evaluasi
+        const progress = studentService.calculatePklProgress(student.start_date, 4, evalData.evaluation_date);
+        const activeWeek = progress.active_week;
+
+        // Dapatkan range Senin s.d Minggu
+        const { startDate: monStr } = studentService.getWeekDateRange(student.start_date, activeWeek);
+        const monday = new Date(monStr);
+        const friday = new Date(monday.getTime() + 4 * 24 * 60 * 60 * 1000);
+        const friStr = friday.toISOString().split('T')[0];
+
+        // Ambil summary poin dari database
+        const summary = await dailyEvalRepo.getPointSummaryByWeek(dbClient, evalData.student_id, monStr, friStr);
+        const totalPoints = summary.wkt_total + summary.skp_total + summary.has_total + summary.ker_total + summary.ini_total;
+
+        // Dapatkan rekap mingguan yang sudah ada (jika ada) untuk mempertahankan comments & tags
+        const weeklySummaryRepo = require('../repositories/weekly-summary.repository');
+        const existingSummary = await weeklySummaryRepo.findByStudentAndWeek(dbClient, evalData.student_id, activeWeek);
+
+        let finalTags = '[]';
+        if (existingSummary && existingSummary.tags) {
+          finalTags = typeof existingSummary.tags === 'string'
+            ? existingSummary.tags
+            : JSON.stringify(existingSummary.tags);
+        }
+
+        const summaryData = {
+          student_id: evalData.student_id,
+          week_number: activeWeek,
+          total_points: totalPoints,
+          comments: existingSummary ? existingSummary.comments : '',
+          tags: finalTags,
+          is_published: existingSummary ? existingSummary.is_published : 0
+        };
+
+        await weeklySummaryRepo.upsert(dbClient, summaryData);
+      }
+    } catch (syncErr) {
+      console.error('⚠️ Gagal mensinkronisasikan total poin mingguan:', syncErr);
+    }
+  }
+
   return success;
 }
 
