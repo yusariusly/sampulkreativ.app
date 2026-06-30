@@ -630,8 +630,8 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
                             <div className="flex flex-col items-center flex-1">
                               <div className="relative mb-2">
                                 <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-slate-300 bg-white flex items-center justify-center">
-                                  {rank2.profile_photo && rank2.profile_photo !== "/uploads/placeholder.jpg" ? (
-                                    <img src={rank2.profile_photo} alt={rank2.student_name} className="w-full h-full object-cover" />
+                                  {(rank2.profile_photo || rank2.student_avatar) && (rank2.profile_photo || rank2.student_avatar) !== "/uploads/placeholder.jpg" ? (
+                                    <img src={rank2.profile_photo || rank2.student_avatar} alt={rank2.student_name} className="w-full h-full object-cover" />
                                   ) : (
                                     <div className={`w-full h-full flex items-center justify-center font-black text-[10px] ${getAvatarColorClass(rank2.student_id)}`}>
                                       {getInitials(rank2.student_name)}
@@ -663,8 +663,8 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
                                   <Trophy size={14} className="fill-amber-500 stroke-[2px]" />
                                 </div>
                                 <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-amber-400 bg-white flex items-center justify-center ring-2 ring-amber-400/20">
-                                  {rank1.profile_photo && rank1.profile_photo !== "/uploads/placeholder.jpg" ? (
-                                    <img src={rank1.profile_photo} alt={rank1.student_name} className="w-full h-full object-cover" />
+                                  {(rank1.profile_photo || rank1.student_avatar) && (rank1.profile_photo || rank1.student_avatar) !== "/uploads/placeholder.jpg" ? (
+                                    <img src={rank1.profile_photo || rank1.student_avatar} alt={rank1.student_name} className="w-full h-full object-cover" />
                                   ) : (
                                     <div className={`w-full h-full flex items-center justify-center font-black text-xs ${getAvatarColorClass(rank1.student_id)}`}>
                                       {getInitials(rank1.student_name)}
@@ -693,8 +693,8 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
                             <div className="flex flex-col items-center flex-1">
                               <div className="relative mb-2">
                                 <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-650 bg-white flex items-center justify-center">
-                                  {rank3.profile_photo && rank3.profile_photo !== "/uploads/placeholder.jpg" ? (
-                                    <img src={rank3.profile_photo} alt={rank3.student_name} className="w-full h-full object-cover" />
+                                  {(rank3.profile_photo || rank3.student_avatar) && (rank3.profile_photo || rank3.student_avatar) !== "/uploads/placeholder.jpg" ? (
+                                    <img src={rank3.profile_photo || rank3.student_avatar} alt={rank3.student_name} className="w-full h-full object-cover" />
                                   ) : (
                                     <div className={`w-full h-full flex items-center justify-center font-black text-[10px] ${getAvatarColorClass(rank3.student_id)}`}>
                                       {getInitials(rank3.student_name)}
@@ -755,8 +755,8 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
                               </div>
 
                               <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-150 bg-white flex-shrink-0 flex items-center justify-center">
-                                {item.profile_photo && item.profile_photo !== "/uploads/placeholder.jpg" ? (
-                                  <img src={item.profile_photo} alt={item.student_name} className="w-full h-full object-cover" />
+                                {(item.profile_photo || item.student_avatar) && (item.profile_photo || item.student_avatar) !== "/uploads/placeholder.jpg" ? (
+                                  <img src={item.profile_photo || item.student_avatar} alt={item.student_name} className="w-full h-full object-cover" />
                                 ) : (
                                   <div className={`w-full h-full flex items-center justify-center font-bold text-[9px] ${getAvatarColorClass(item.student_id)}`}>
                                     {getInitials(item.student_name)}

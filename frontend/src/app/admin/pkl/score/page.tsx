@@ -164,6 +164,39 @@ export default function PklScoreboardPage() {
     setMentor(user);
   }, [router]);
 
+  // Auto-switch selectedWeek to selected student's current active week when student changes
+  useEffect(() => {
+    if (selectedStudentId && students.length > 0) {
+      const student = students.find(s => s.student_id === selectedStudentId);
+      if (student && student.start_date) {
+        // Hitung pekan aktif siswa
+        const start = new Date(student.start_date);
+        const now = new Date();
+        
+        const startDay = start.getDay();
+        const diffToMondayStart = startDay === 0 ? -6 : 1 - startDay;
+        const mondayOfStartWeek = new Date(start);
+        mondayOfStartWeek.setDate(start.getDate() + diffToMondayStart);
+        mondayOfStartWeek.setHours(0, 0, 0, 0);
+
+        const targetDay = now.getDay();
+        const diffToMondayTarget = targetDay === 0 ? -6 : 1 - targetDay;
+        const mondayOfTargetWeek = new Date(now);
+        mondayOfTargetWeek.setDate(now.getDate() + diffToMondayTarget);
+        mondayOfTargetWeek.setHours(0, 0, 0, 0);
+
+        const diffTime = mondayOfTargetWeek.getTime() - mondayOfStartWeek.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        
+        let activeWeek = Math.floor(diffDays / 7) + 1;
+        if (activeWeek < 1) activeWeek = 1;
+        const cappedWeek = Math.min(activeWeek, 16);
+        
+        setSelectedWeek(cappedWeek);
+      }
+    }
+  }, [selectedStudentId, students]);
+
   // API Call: Fetch Aspect Settings
   const fetchAspects = useCallback(async () => {
     try {
@@ -921,12 +954,17 @@ export default function PklScoreboardPage() {
                         ini_point: 0,
                       };
                       const isFuture = day.dateStr > todayStr;
+                      const studentStartDateStr = currentStudent.start_date
+                        ? new Date(currentStudent.start_date).toISOString().split('T')[0]
+                        : "2026-06-01";
+                      const isBeforeStart = day.dateStr < studentStartDateStr;
+                      const isDisabled = isFuture || isBeforeStart;
 
                       return (
                         <div
                           key={day.dateStr}
                           className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-                            isFuture
+                            isDisabled
                               ? "bg-slate-50/50 border-slate-200/40 opacity-80"
                               : "bg-white border-slate-200/60 hover:border-slate-300"
                           }`}
@@ -940,6 +978,11 @@ export default function PklScoreboardPage() {
                               {isFuture && (
                                 <span className="text-[8px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                                   Belum Mulai
+                                </span>
+                              )}
+                              {isBeforeStart && (
+                                <span className="text-[8px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                  Belum PKL
                                 </span>
                               )}
                             </div>
@@ -958,12 +1001,12 @@ export default function PklScoreboardPage() {
                                 <button
                                   key={aspect.aspect_key}
                                   type="button"
-                                  disabled={isFuture}
+                                  disabled={isDisabled}
                                   onClick={() =>
                                     handleTogglePoint(day.dateStr, aspect.aspect_key, currentPoint)
                                   }
                                   className={`text-[10px] font-bold py-1.5 px-3 rounded-xl border flex items-center gap-1.5 transition-all ${
-                                    isFuture
+                                    isDisabled
                                       ? "bg-slate-100/50 text-slate-300 border-slate-150 cursor-not-allowed opacity-60"
                                       : hasPoint
                                       ? "bg-[#2AB0B2] text-white border-[#2AB0B2] shadow-xs cursor-pointer"
@@ -972,6 +1015,8 @@ export default function PklScoreboardPage() {
                                   title={
                                     isFuture
                                       ? `Aspek ${aspect.label} belum dapat dinilai (hari mendatang)`
+                                      : isBeforeStart
+                                      ? `Siswa belum memulai PKL pada tanggal ini`
                                       : `Klik untuk mengubah nilai aspek ${aspect.label}`
                                   }
                                 >

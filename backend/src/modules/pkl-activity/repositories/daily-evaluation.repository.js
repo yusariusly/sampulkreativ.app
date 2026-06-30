@@ -143,7 +143,9 @@ async function getPointsSummaryForMentorStudents(dbClient, mentorId, startDate, 
       COALESCE(SUM(e.ker_point), 0) + 
       COALESCE(SUM(e.ini_point), 0) as calculated_total_points
     FROM pkl_students s
+    JOIN users u ON s.user_id = u.id
     LEFT JOIN pkl_daily_evaluations e ON s.id = e.student_id AND e.evaluation_date BETWEEN ? AND ?
+    WHERE s.status = 'ACTIVE' AND u.role = 'student'
     GROUP BY s.id
   `;
   const [rows] = await dbClient.query(query, [startDate, endDate]);

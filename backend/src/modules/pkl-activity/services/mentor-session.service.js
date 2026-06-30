@@ -27,7 +27,7 @@ async function submitDailySession(dbClient, mentorId, sessionDate) {
   const [evalRows] = await dbClient.query(`
     SELECT student_id FROM pkl_daily_evaluations
     WHERE evaluation_date = ? AND student_id IN (
-      SELECT id FROM pkl_students
+      SELECT id FROM pkl_students WHERE status = 'ACTIVE'
     )
   `, [sessionDate]);
 

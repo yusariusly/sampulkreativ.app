@@ -315,7 +315,7 @@ async function getMentorStudents(dbClient, mentorId, dateStr, startDate, endDate
     const [evaluations] = await dbClient.query(
       `SELECT id, student_id, evaluation_date, wkt_point, skp_point, has_point, ker_point, ini_point 
        FROM pkl_daily_evaluations 
-       WHERE student_id IN (SELECT id FROM pkl_students) 
+       WHERE student_id IN (SELECT id FROM pkl_students WHERE status = 'ACTIVE') 
          AND evaluation_date BETWEEN ? AND ?`,
       [startDate, endDate]
     );

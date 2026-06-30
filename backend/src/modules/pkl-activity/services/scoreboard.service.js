@@ -102,34 +102,66 @@ function determineAutoBadges(weekEvals) {
   return [...new Set(badges)];
 }
 
-/**
- * Mengalkulasi pemeringkatan untuk daftar siswa pada minggu tertentu
- * @param {object} dbClient 
- * @param {Array<object>} students 
- * @param {number} weekNumber 
- * @returns {Promise<Array<object>>} Rankings sorted and resolved
- */
-async function computeRankingsForWeek(dbClient, students, weekNumber) {
+async function computeRankingsForWeek(dbClient, students, cohortWeekNumber) {
   if (students.length === 0) return [];
 
-  // Ambil weekly summaries untuk minggu ini
+  // 1. Dapatkan baseline start_date dinamis (paling awal) dari siswa aktif
+  const [minStartRes] = await dbClient.query(
+    "SELECT MIN(start_date) as min_start FROM pkl_students WHERE status = 'ACTIVE'"
+  );
+  const baselineStart = minStartRes[0]?.min_start || new Date("2026-06-29");
+  const baselineStartStr = new Date(baselineStart).toISOString().split('T')[0];
+
+  // 2. Tentukan range tanggal kalender untuk Cohort Week ini
+  const cohortRange = studentService.getWeekDateRange(baselineStartStr, cohortWeekNumber);
+
+  // 3. Ambil semua weekly summaries untuk siswa-siswa ini sekaligus
   const studentIds = students.map(s => s.student_id);
   const [sumRows] = await dbClient.query(
-    'SELECT student_id, total_points, tags, created_at FROM pkl_weekly_summaries WHERE week_number = ? AND is_published = 1 AND student_id IN (?)',
-    [weekNumber, studentIds]
+    'SELECT student_id, week_number, total_points, tags, created_at FROM pkl_weekly_summaries WHERE is_published = 1 AND student_id IN (?)',
+    [studentIds]
   );
-  const summaryMap = new Map(sumRows.map(s => [s.student_id, s]));
+  
+  // Buat Map berdasarkan student_id dan relative week_number
+  const summaryMap = new Map(
+    sumRows.map(s => [`${s.student_id}_${s.week_number}`, s])
+  );
 
-  // Ambil daily evaluations untuk rentang tanggal
+  // 4. Ambil semua daily evaluations untuk range tanggal kalender ini sekaligus
+  const [evalRows] = await dbClient.query(
+    'SELECT student_id, evaluation_date, wkt_point, skp_point, has_point, ker_point, ini_point FROM pkl_daily_evaluations WHERE evaluation_date BETWEEN ? AND ? AND student_id IN (?)',
+    [cohortRange.startDate, cohortRange.endDate, studentIds]
+  );
+
+  // Group daily evaluations by student_id
+  const evalMap = new Map();
+  for (const ev of evalRows) {
+    if (!evalMap.has(ev.student_id)) {
+      evalMap.set(ev.student_id, []);
+    }
+    evalMap.get(ev.student_id).push(ev);
+  }
+
   const results = [];
   for (const student of students) {
-    const range = studentService.getWeekDateRange(student.start_date, weekNumber);
-    const [evals] = await dbClient.query(
-      'SELECT wkt_point, skp_point, has_point, ker_point, ini_point FROM pkl_daily_evaluations WHERE student_id = ? AND evaluation_date BETWEEN ? AND ?',
-      [student.student_id, range.startDate, range.endDate]
-    );
+    // Cek apakah siswa sudah mulai PKL pada pekan ini
+    const studentStart = new Date(student.start_date);
+    const cohortEnd = new Date(cohortRange.endDate);
+    
+    // Jika start date siswa di masa depan relatif terhadap akhir pekan cohort ini, mereka belum mulai
+    if (studentStart > cohortEnd) {
+      continue; // Skip student, belum mulai PKL
+    }
 
-    // Hitung perfect days
+    // Hitung week_number relatif siswa untuk pekan cohort ini
+    // Kita gunakan tanggal awal pekan cohort (cohortRange.startDate) untuk mengevaluasi pekan relatif
+    const progress = studentService.calculatePklProgress(student.start_date, 4, cohortRange.startDate);
+    const relativeWeek = progress.active_week;
+
+    // Ambil daily evaluations yang sudah dikelompokkan
+    const evals = evalMap.get(student.student_id) || [];
+
+    // Hitung perfect days & calculated points dari daily evaluations
     let perfectDays = 0;
     let calculatedPoints = 0;
     for (const ev of evals) {
@@ -138,7 +170,7 @@ async function computeRankingsForWeek(dbClient, students, weekNumber) {
       calculatedPoints += dayTotal;
     }
 
-    const savedSummary = summaryMap.get(student.student_id);
+    const savedSummary = summaryMap.get(`${student.student_id}_${relativeWeek}`);
     const finalPoints = savedSummary ? savedSummary.total_points : calculatedPoints;
 
     let manualTags = [];
@@ -157,6 +189,7 @@ async function computeRankingsForWeek(dbClient, students, weekNumber) {
       student_id: student.student_id,
       student_name: student.student_name,
       student_avatar: student.student_avatar,
+      profile_photo: student.student_avatar,
       school_name: student.school_name,
       program_template_id: student.program_template_id,
       total_points: finalPoints,
@@ -263,6 +296,7 @@ async function getScoreboard(dbClient, user, weekNumber) {
       student_id: curr.student_id,
       student_name: finalName,
       student_avatar: curr.student_avatar,
+      profile_photo: curr.student_avatar,
       school_name: curr.school_name,
       program_template_id: curr.program_template_id,
       total_points: curr.total_points,
@@ -270,6 +304,7 @@ async function getScoreboard(dbClient, user, weekNumber) {
       badges: curr.badges,
       rank: curr.rank,
       rank_movement: movement,
+      rank_change: movement,
       is_self: isSelf
     };
   });
@@ -289,7 +324,7 @@ async function getScoreboard(dbClient, user, weekNumber) {
  */
 async function getStudentScoreboardHistory(dbClient, studentId) {
   // Verifikasi siswa ada
-  const [stuRows] = await dbClient.query('SELECT start_date FROM pkl_students WHERE id = ? LIMIT 1', [studentId]);
+  const [stuRows] = await dbClient.query("SELECT start_date FROM pkl_students WHERE id = ? AND status = 'ACTIVE' LIMIT 1", [studentId]);
   if (stuRows.length === 0) {
     const err = new Error('Siswa tidak ditemukan');
     err.code = 'NOT_FOUND';
@@ -301,7 +336,7 @@ async function getStudentScoreboardHistory(dbClient, studentId) {
 
   // Cari semua minggu aktif yang sudah dirilis summary-nya
   const [weekRows] = await dbClient.query(
-    'SELECT DISTINCT week_number FROM pkl_weekly_summaries WHERE is_published = 1 AND student_id IN (SELECT id FROM pkl_students) ORDER BY week_number ASC'
+    "SELECT DISTINCT week_number FROM pkl_weekly_summaries WHERE is_published = 1 AND student_id IN (SELECT id FROM pkl_students WHERE status = 'ACTIVE') ORDER BY week_number ASC"
   );
 
   const history = [];

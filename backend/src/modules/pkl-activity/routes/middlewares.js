@@ -115,7 +115,7 @@ const verifyStudentOwnership = async (req, res, next) => {
     }
 
     const [rows] = await req.app.pool.query(
-      'SELECT 1 FROM pkl_students WHERE id = ? LIMIT 1',
+      "SELECT 1 FROM pkl_students s JOIN users u ON s.user_id = u.id WHERE s.id = ? AND s.status = 'ACTIVE' AND u.role = 'student' LIMIT 1",
       [studentId]
     );
 

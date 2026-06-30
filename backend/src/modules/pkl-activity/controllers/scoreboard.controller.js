@@ -17,20 +17,15 @@ async function getScoreboard(req, res, next) {
     
     let weekNumber = req.query.week ? parseInt(req.query.week, 10) : null;
     
-    // Jika weekNumber tidak ditentukan, cari default minggu berjalan
+    // Jika weekNumber tidak ditentukan, cari default minggu berjalan berdasarkan baseline cohort
     if (!weekNumber) {
-      if (user.role === 'student') {
-        const student = await studentRepo.findByUserId(dbClient, user.id);
-        if (student) {
-          const diffTime = Math.abs(new Date() - new Date(student.start_date));
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          weekNumber = Math.max(1, Math.ceil(diffDays / 7));
-        } else {
-          weekNumber = 1;
-        }
-      } else {
-        weekNumber = 1;
-      }
+      const [minStartRes] = await dbClient.query(
+        "SELECT MIN(start_date) as min_start FROM pkl_students WHERE status = 'ACTIVE'"
+      );
+      const baselineStart = minStartRes[0]?.min_start || new Date("2026-06-29");
+      const diffTime = Math.abs(new Date() - new Date(baselineStart));
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      weekNumber = Math.max(1, Math.ceil(diffDays / 7));
     }
 
     const data = await scoreboardService.getScoreboard(dbClient, user, weekNumber);
