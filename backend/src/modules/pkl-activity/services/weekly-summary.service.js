@@ -20,11 +20,22 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
   const students = await studentRepo.findByMentorId(dbClient, mentorId);
   if (students.length === 0) return [];
 
-  // 2. Ambil seluruh data summary mingguan yang sudah disimpan
-  const summaries = await weeklySumRepo.findWeeklySummariesByMentor(dbClient, mentorId, weekNumber);
-  const summaryMap = new Map(summaries.map(s => [s.student_id, s]));
+  // 2. Dapatkan baseline start_date dinamis (paling awal) dari siswa aktif
+  const [minStartRes] = await dbClient.query(
+    "SELECT MIN(start_date) as min_start FROM pkl_students WHERE status = 'ACTIVE'"
+  );
+  const baselineStart = minStartRes[0]?.min_start || new Date("2026-06-29");
+  const baselineStartStr = new Date(baselineStart).toISOString().split('T')[0];
 
-  // 3. Ambil seluruh daily evaluations untuk semua siswa (Mencegah N+1)
+  // 3. Ambil seluruh data summary mingguan yang sudah disimpan untuk seluruh siswa bimbingan sekaligus
+  const studentIds = students.map(s => s.student_id);
+  const [summaryRows] = await dbClient.query(
+    'SELECT id, student_id, week_number, total_points, comments, tags, is_published FROM pkl_weekly_summaries WHERE student_id IN (?)',
+    [studentIds]
+  );
+  const summaryMap = new Map(summaryRows.map(s => [`${s.student_id}_${s.week_number}`, s]));
+
+  // 4. Ambil seluruh daily evaluations untuk semua siswa (Mencegah N+1)
   const [evalRows] = await dbClient.query(`
     SELECT student_id, evaluation_date, wkt_point, skp_point, has_point, ker_point, ini_point
     FROM pkl_daily_evaluations
@@ -39,14 +50,19 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
     evalMap.get(row.student_id).push(row);
   }
 
-  // 4. Proses kompilasi data untuk masing-masing siswa
+  // 5. Proses kompilasi data untuk masing-masing siswa
   const result = [];
   for (const student of students) {
-    const range = studentService.getWeekDateRange(student.start_date, weekNumber);
+    const range = studentService.getWeekDateRange(baselineStartStr, weekNumber);
     const studentEvals = evalMap.get(student.student_id) || [];
     
     // Filter evaluasi yang jatuh dalam rentang minggu terkait
-    const weekEvals = studentEvals.filter(e => e.evaluation_date >= range.startDate && e.evaluation_date <= range.endDate);
+    const weekEvals = studentEvals.filter(e => {
+      const evalDateStr = e.evaluation_date instanceof Date
+        ? e.evaluation_date.toISOString().split('T')[0]
+        : new Date(e.evaluation_date).toISOString().split('T')[0];
+      return evalDateStr >= range.startDate && evalDateStr <= range.endDate;
+    });
     
     // Hitung total poin aktual dari evaluasi harian
     let calculatedPoints = 0;
@@ -54,8 +70,39 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
       calculatedPoints += (ev.wkt_point || 0) + (ev.skp_point || 0) + (ev.has_point || 0) + (ev.ker_point || 0) + (ev.ini_point || 0);
     }
 
-    // Ambil rekap tersimpan jika ada
-    const savedSummary = summaryMap.get(student.student_id);
+    // Hitung range hari Senin - Jumat untuk week ini
+    const daysList = [];
+    const start = new Date(range.startDate);
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      daysList.push(d.toISOString().split('T')[0]);
+    }
+
+    const daysStatus = daysList.map(dateStr => {
+      const studentStartStr = new Date(student.start_date).toISOString().split('T')[0];
+      if (dateStr < studentStartStr) {
+        return -1; // Belum PKL
+      }
+      const ev = weekEvals.find(e => {
+        const evalDateStr = e.evaluation_date instanceof Date
+          ? e.evaluation_date.toISOString().split('T')[0]
+          : new Date(e.evaluation_date).toISOString().split('T')[0];
+        return evalDateStr === dateStr;
+      });
+      if (ev) {
+        const totalPoints = (ev.wkt_point || 0) + (ev.skp_point || 0) + (ev.has_point || 0) + (ev.ker_point || 0) + (ev.ini_point || 0);
+        if (totalPoints > 0) return 1; // Terisi
+      }
+      return 0; // Belum terisi
+    });
+
+    // Hitung week_number relatif siswa untuk pekan cohort ini
+    const progress = studentService.calculatePklProgress(student.start_date, 4, range.startDate);
+    const relativeWeek = progress.active_week;
+
+    // Ambil rekap tersimpan jika ada berdasarkan relativeWeek
+    const savedSummary = summaryMap.get(`${student.student_id}_${relativeWeek}`);
     let tags = [];
     if (savedSummary && savedSummary.tags) {
       try {
@@ -71,10 +118,12 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
       school_name: student.school_name,
       start_date: student.start_date,
       week_number: weekNumber,
-      total_points: savedSummary ? savedSummary.total_points : calculatedPoints,
+      relative_week_number: relativeWeek,
+      total_points: calculatedPoints, // Selalu gunakan poin kalkulasi riil agar terhindar dari desinkronisasi
       comments: savedSummary ? (savedSummary.comments || '') : '',
       tags: tags,
-      is_published: savedSummary ? (savedSummary.is_published === 1) : false
+      is_published: savedSummary ? (savedSummary.is_published === 1) : false,
+      days_status: daysStatus
     });
   }
 
@@ -104,9 +153,18 @@ async function saveWeeklyFeedback(dbClient, mentorId, studentId, feedbackData) {
     throw err;
   }
 
-  // 3. Cari profil siswa untuk menghitung rentang tanggal minggu
+  // 3. Cari profil siswa untuk menghitung rentang tanggal minggu berdasarkan cohort baseline
   const student = await studentRepo.findById(dbClient, studentId);
-  const range = studentService.getWeekDateRange(student.start_date, feedbackData.week_number);
+  const [minStartRes] = await dbClient.query(
+    "SELECT MIN(start_date) as min_start FROM pkl_students WHERE status = 'ACTIVE'"
+  );
+  const baselineStart = minStartRes[0]?.min_start || student.start_date;
+  const baselineStartStr = new Date(baselineStart).toISOString().split('T')[0];
+  const range = studentService.getWeekDateRange(baselineStartStr, feedbackData.week_number);
+
+  // Hitung week_number relatif siswa untuk pekan cohort ini
+  const progress = studentService.calculatePklProgress(student.start_date, 4, range.startDate);
+  const relativeWeek = progress.active_week;
 
   // 4. Hitung total poin dari evaluasi harian
   const summaryPoints = await dailyEvalRepo.getPointSummaryByWeek(dbClient, studentId, range.startDate, range.endDate);
@@ -118,10 +176,10 @@ async function saveWeeklyFeedback(dbClient, mentorId, studentId, feedbackData) {
     warningMessage = 'Catatan umpan balik direkomendasikan untuk siswa dengan perolehan poin di bawah 12.';
   }
 
-  // 6. Lakukan upsert ke database
+  // 6. Lakukan upsert ke database menggunakan relative_week
   const summaryPayload = {
     student_id: studentId,
-    week_number: feedbackData.week_number,
+    week_number: relativeWeek,
     total_points: totalPoints,
     comments: feedbackData.comments || null,
     tags: JSON.stringify(feedbackData.tags),
@@ -162,9 +220,11 @@ async function publishWeeklySummary(dbClient, mentorId, weekNumber) {
     throw err;
   }
 
-  // 3. Update status is_published = 1 untuk seluruh siswa bimbingan mentor pada minggu tersebut
-  const success = await weeklySumRepo.publishAllByMentor(dbClient, mentorId, weekNumber);
-  return success;
+  // 3. Update status is_published = 1 untuk masing-masing siswa berdasarkan pekan relatif mereka
+  for (const item of list) {
+    await weeklySumRepo.publish(dbClient, item.student_id, item.relative_week_number);
+  }
+  return true;
 }
 
 /**
@@ -175,8 +235,14 @@ async function publishWeeklySummary(dbClient, mentorId, weekNumber) {
  * @returns {Promise<boolean>} True jika pembatalan publikasi berhasil
  */
 async function unpublishWeeklySummary(dbClient, mentorId, weekNumber) {
-  const success = await weeklySumRepo.unpublishAllByMentor(dbClient, mentorId, weekNumber);
-  return success;
+  const list = await getWeeklyRekapList(dbClient, mentorId, weekNumber);
+  for (const item of list) {
+    await dbClient.query(
+      'UPDATE pkl_weekly_summaries SET is_published = 0, updated_at = NOW() WHERE student_id = ? AND week_number = ?',
+      [item.student_id, item.relative_week_number]
+    );
+  }
+  return true;
 }
 
 module.exports = {

@@ -263,9 +263,22 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
       parsedTags = summary.tags ? summary.tags.split(',') : [];
     }
 
+    let baselineStartStr = student.start_date;
+    try {
+      const [minStartRes] = await dbClient.query(
+        "SELECT MIN(start_date) as min_start FROM pkl_students WHERE status = 'ACTIVE'"
+      );
+      const baselineStart = minStartRes[0]?.min_start || student.start_date;
+      baselineStartStr = new Date(baselineStart).toISOString().split('T')[0];
+    } catch (err) {
+      console.warn('[CohortWeekForThisRange] Gagal mendapatkan min_start:', err.message);
+    }
+    const cohortWeekForThisRange = calculatePklProgress(baselineStartStr, 4, range.startDate).active_week;
+
     papanApresiasi = {
       is_published: true,
       week_number: displayedWeek,
+      cohort_week_number: cohortWeekForThisRange,
       total_points: summary.total_points,
       aspects: {
         wkt_point: aspectsTotal.wkt_total,
@@ -290,13 +303,29 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
     console.warn('[AspectSettings] Gagal memuat dari DB:', err.message);
   }
 
+  // 5. Hitung cohort active week (minggu berjalan cohort) berdasarkan siswa aktif pertama
+  let cohortActiveWeek = progress.active_week;
+  try {
+    const [minStartRes] = await dbClient.query(
+      "SELECT MIN(start_date) as min_start FROM pkl_students WHERE status = 'ACTIVE'"
+    );
+    const baselineStart = minStartRes[0]?.min_start || student.start_date;
+    const baselineStartStr = new Date(baselineStart).toISOString().split('T')[0];
+    const cohortProgress = calculatePklProgress(baselineStartStr, 4, todayDateStr);
+    cohortActiveWeek = cohortProgress.active_week;
+  } catch (err) {
+    console.warn('[CohortActiveWeek] Gagal menghitung:', err.message);
+  }
+
   return {
+    start_date: student.start_date,
     today: todayInfo,
     progress,
     program_kerja: programKerja,
     papan_apresiasi: papanApresiasi,
     aspect_settings: aspectSettings,
-    show_pkl_scoreboard: showPklScoreboard
+    show_pkl_scoreboard: showPklScoreboard,
+    cohort_active_week: cohortActiveWeek
   };
 }
 

@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Home, History, User, LogOut, Settings } from "lucide-react";
+import { Home, History, User, LogOut, Settings, ArrowLeft } from "lucide-react";
 
 function AppLogo({ size = 80 }: { size?: number }) {
   return (
@@ -16,6 +16,57 @@ function AppLogo({ size = 80 }: { size?: number }) {
       style={{ width: size, height: size }}
       className="object-contain"
     />
+  );
+}
+
+function TopNavbar({
+  showAdminModal,
+  setShowAdminModal,
+  handleLogout,
+}: {
+  showAdminModal: boolean;
+  setShowAdminModal: (show: boolean) => void;
+  handleLogout: () => void;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentView = searchParams.get("view");
+
+  return (
+    <header className="bg-white border-b border-gray-100 px-5 py-3.5 flex items-center justify-between shadow-xs select-none print:hidden flex-shrink-0">
+      <div className="flex items-center gap-2">
+        {currentView && currentView !== "menu" && (
+          <button
+            onClick={() => router.push("/user")}
+            className="p-1.5 -ml-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer mr-0.5"
+            title="Kembali"
+          >
+            <ArrowLeft size={16} />
+          </button>
+        )}
+        <AppLogo size={30} />
+        <div>
+          <p className="font-extrabold text-sm leading-none text-[#1C3D3F]">sampulkreativ.app</p>
+          <p className="text-[9px] font-semibold text-gray-400 mt-1 uppercase tracking-wider">by sampulkreativ</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => setShowAdminModal(true)}
+          className="p-2 rounded-xl text-gray-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer"
+          title="Admin Panel"
+        >
+          <Settings size={16} />
+        </button>
+        <button
+          onClick={handleLogout}
+          className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
+          title="Keluar"
+        >
+          <LogOut size={16} />
+        </button>
+      </div>
+    </header>
   );
 }
 
@@ -177,31 +228,23 @@ export default function UserLayout({
       <div id="user-layout-container" className="w-full max-w-md bg-[#F8FAFC] h-full max-h-full flex flex-col shadow-xs relative overflow-hidden">
         {/* Top Navbar */}
         {isBaseScreen && (
-          <header className="bg-white border-b border-gray-100 px-5 py-3.5 flex items-center justify-between shadow-xs select-none print:hidden">
-            <div className="flex items-center gap-2.5">
-              <AppLogo size={30} />
-              <div>
-                <p className="font-extrabold text-sm leading-none text-[#1C3D3F]">sampulkreativ.app</p>
-                <p className="text-[9px] font-semibold text-gray-400 mt-1 uppercase tracking-wider">by sampulkreativ</p>
+          <Suspense fallback={
+            <header className="bg-white border-b border-gray-100 px-5 py-3.5 flex items-center justify-between shadow-xs select-none print:hidden flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <AppLogo size={30} />
+                <div>
+                  <p className="font-extrabold text-sm leading-none text-[#1C3D3F]">sampulkreativ.app</p>
+                  <p className="text-[9px] font-semibold text-gray-400 mt-1 uppercase tracking-wider">by sampulkreativ</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setShowAdminModal(true)}
-                className="p-2 rounded-xl text-gray-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer"
-                title="Admin Panel"
-              >
-                <Settings size={16} />
-              </button>
-              <button
-                onClick={handleLogout}
-                className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
-                title="Keluar"
-              >
-                <LogOut size={16} />
-              </button>
-            </div>
-          </header>
+            </header>
+          }>
+            <TopNavbar
+              showAdminModal={showAdminModal}
+              setShowAdminModal={setShowAdminModal}
+              handleLogout={handleLogout}
+            />
+          </Suspense>
         )}
 
         {/* Screen Content Viewport */}

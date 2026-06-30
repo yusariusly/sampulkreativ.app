@@ -25,7 +25,8 @@ import {
   Filter,
   BookOpen,
   EyeOff,
-  Info
+  Info,
+  Search
 } from "lucide-react";
 
 // Types
@@ -46,6 +47,7 @@ interface StudentRekap {
   comments: string;
   tags: string[];
   is_published: boolean;
+  days_status?: number[];
 }
 
 interface DailyEval {
@@ -112,6 +114,7 @@ export default function PklScoreboardPage() {
 
   // States
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
+  const [searchTerm, setSearchTerm] = useState("");
   const [aspects, setAspects] = useState<AspectSetting[]>([]);
   const [students, setStudents] = useState<StudentRekap[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -130,8 +133,17 @@ export default function PklScoreboardPage() {
   const [loadingEvals, setLoadingEvals] = useState(false);
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Notice States
+  const [allNotices, setAllNotices] = useState<any[]>([]);
+  const [loadingNotice, setLoadingNotice] = useState(false);
+  const [savingNotice, setSavingNotice] = useState(false);
+  const [prizeName, setPrizeName] = useState("");
+  const [consequence, setConsequence] = useState("");
+  const [showRecipients, setShowRecipients] = useState(true);
+  const [autoShowRecipients, setAutoShowRecipients] = useState(true);
 
   // Feedback form states for selected student
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -164,38 +176,50 @@ export default function PklScoreboardPage() {
     setMentor(user);
   }, [router]);
 
-  // Auto-switch selectedWeek to selected student's current active week when student changes
+  // Cari start_date paling awal dari siswa yang terdaftar untuk menentukan baseline cohort
+  const cohortStartDate = useMemo(() => {
+    if (students.length === 0) return "2026-06-29";
+    const startDates = students
+      .map((s) => s.start_date)
+      .filter(Boolean) as string[];
+    if (startDates.length === 0) return "2026-06-29";
+    return startDates.reduce((min, d) => (d < min ? d : min), startDates[0]);
+  }, [students]);
+
+  // Hitung pekan aktif berjalan untuk cohort
+  const cohortActiveWeek = useMemo(() => {
+    if (!cohortStartDate) return 1;
+    const start = new Date(cohortStartDate);
+    const now = new Date();
+    
+    const startDay = start.getDay();
+    const diffToMondayStart = startDay === 0 ? -6 : 1 - startDay;
+    const mondayOfStartWeek = new Date(start);
+    mondayOfStartWeek.setDate(start.getDate() + diffToMondayStart);
+    mondayOfStartWeek.setHours(0, 0, 0, 0);
+
+    const targetDay = now.getDay();
+    const diffToMondayTarget = targetDay === 0 ? -6 : 1 - targetDay;
+    const mondayOfTargetWeek = new Date(now);
+    mondayOfTargetWeek.setDate(now.getDate() + diffToMondayTarget);
+    mondayOfTargetWeek.setHours(0, 0, 0, 0);
+
+    const diffTime = mondayOfTargetWeek.getTime() - mondayOfStartWeek.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    let activeWeek = Math.floor(diffDays / 7) + 1;
+    if (activeWeek < 1) activeWeek = 1;
+    return Math.min(activeWeek, 16);
+  }, [cohortStartDate]);
+
+  // Set selectedWeek ke pekan aktif cohort pada saat data pertama kali dimuat
+  const [hasSetInitialWeek, setHasSetInitialWeek] = useState(false);
   useEffect(() => {
-    if (selectedStudentId && students.length > 0) {
-      const student = students.find(s => s.student_id === selectedStudentId);
-      if (student && student.start_date) {
-        // Hitung pekan aktif siswa
-        const start = new Date(student.start_date);
-        const now = new Date();
-        
-        const startDay = start.getDay();
-        const diffToMondayStart = startDay === 0 ? -6 : 1 - startDay;
-        const mondayOfStartWeek = new Date(start);
-        mondayOfStartWeek.setDate(start.getDate() + diffToMondayStart);
-        mondayOfStartWeek.setHours(0, 0, 0, 0);
-
-        const targetDay = now.getDay();
-        const diffToMondayTarget = targetDay === 0 ? -6 : 1 - targetDay;
-        const mondayOfTargetWeek = new Date(now);
-        mondayOfTargetWeek.setDate(now.getDate() + diffToMondayTarget);
-        mondayOfTargetWeek.setHours(0, 0, 0, 0);
-
-        const diffTime = mondayOfTargetWeek.getTime() - mondayOfStartWeek.getTime();
-        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-        
-        let activeWeek = Math.floor(diffDays / 7) + 1;
-        if (activeWeek < 1) activeWeek = 1;
-        const cappedWeek = Math.min(activeWeek, 16);
-        
-        setSelectedWeek(cappedWeek);
-      }
+    if (students.length > 0 && !hasSetInitialWeek) {
+      setSelectedWeek(cohortActiveWeek);
+      setHasSetInitialWeek(true);
     }
-  }, [selectedStudentId, students]);
+  }, [students, cohortActiveWeek, hasSetInitialWeek]);
 
   // API Call: Fetch Aspect Settings
   const fetchAspects = useCallback(async () => {
@@ -269,19 +293,107 @@ export default function PklScoreboardPage() {
     }
   }, []);
 
+  // Fetch all notices list
+  const fetchAllNotices = useCallback(async () => {
+    if (!mentor) return;
+    setLoadingNotice(true);
+    try {
+      const res = await fetch("/api/v1/pkl/notices", {
+        headers: {
+          "x-user-id": mentor.id,
+          "x-device-id": mentor.device_id || "",
+        },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === "success") {
+          setAllNotices(json.data || []);
+        }
+      }
+    } catch (err) {
+      console.error("Gagal memuat notices:", err);
+    } finally {
+      setLoadingNotice(false);
+    }
+  }, [mentor]);
+
+  // Sync active notice to form fields when week or notice list changes
+  useEffect(() => {
+    const noticeForWeek = allNotices.find((n) => n.week_number === selectedWeek);
+    if (noticeForWeek) {
+      setPrizeName(noticeForWeek.prize_name || "");
+      setConsequence(noticeForWeek.consequence || "");
+      setShowRecipients(noticeForWeek.show_recipients !== false && noticeForWeek.show_recipients !== 0);
+      setAutoShowRecipients(noticeForWeek.auto_show_recipients !== false && noticeForWeek.auto_show_recipients !== 0);
+    } else {
+      setPrizeName("");
+      setConsequence("");
+      setShowRecipients(true);
+      setAutoShowRecipients(true);
+    }
+  }, [selectedWeek, allNotices]);
+
+  // Save notice setting
+  const handleSaveNoticeSetting = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mentor) return;
+    if (!prizeName.trim()) {
+      alert("Nama hadiah wajib diisi!");
+      return;
+    }
+    if (!consequence.trim()) {
+      alert("Konsekuensi wajib diisi!");
+      return;
+    }
+
+    setSavingNotice(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+    try {
+      const res = await fetch("/api/v1/pkl/notices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": mentor.id,
+          "x-device-id": mentor.device_id || "",
+        },
+        body: JSON.stringify({
+          week_number: selectedWeek,
+          prize_name: prizeName,
+          consequence: consequence,
+          show_recipients: showRecipients,
+          auto_show_recipients: autoShowRecipients,
+        }),
+      });
+
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || "Gagal menyimpan pengaturan");
+      }
+
+      setSuccessMsg(`Pengaturan Reward & Punishment Pekan ${selectedWeek} berhasil disimpan!`);
+      fetchAllNotices();
+    } catch (err: any) {
+      setErrorMsg(err.message || "Gagal menyimpan pengaturan");
+    } finally {
+      setSavingNotice(false);
+    }
+  };
+
   // Load Initial Data
   useEffect(() => {
     fetchScoreboardVisibility();
     if (mentor) {
       fetchAspects();
       fetchTemplates();
+      fetchAllNotices();
       if (activeTab === "evaluation") {
         fetchWeeklyRecap(selectedWeek, mentor.id, mentor.device_id || "");
       } else {
         fetchScoreboard(selectedWeek, mentor.id, mentor.device_id || "");
       }
     }
-  }, [mentor, selectedWeek, activeTab, fetchAspects, fetchTemplates, fetchWeeklyRecap, fetchScoreboard, fetchScoreboardVisibility]);
+  }, [mentor, selectedWeek, activeTab, fetchAspects, fetchTemplates, fetchWeeklyRecap, fetchScoreboard, fetchScoreboardVisibility, fetchAllNotices]);
 
   // Helper: Get Monday-Friday date range for current week number based on student info
   const getMonFriDates = (startDateStr: string, weekNum: number) => {
@@ -344,7 +456,7 @@ export default function PklScoreboardPage() {
     const loadDailyEvals = async () => {
       setLoadingEvals(true);
       try {
-        const monFri = getMonFriDates(currentStudent.start_date || "2026-06-01", selectedWeek);
+        const monFri = getMonFriDates(cohortStartDate, selectedWeek);
         const monDate = monFri[0].dateStr;
         const friDate = monFri[4].dateStr;
 
@@ -405,11 +517,39 @@ export default function PklScoreboardPage() {
     };
   }, [selectedStudentId, selectedWeek, mentor]);
 
-  // Handler: Toggle Daily Point Aspek (Auto-Save)
-  const handleTogglePoint = async (dateStr: string, aspectKey: string, currentVal: number) => {
+  // Handler: Update Daily Point Aspek locally in UI
+  const handlePointChange = (dateStr: string, aspectKey: string, valStr: string) => {
+    let parsed = valStr === "" ? 0 : parseInt(valStr, 10);
+    if (isNaN(parsed)) parsed = 0;
+    if (parsed > 25) parsed = 25;
+    if (parsed < 0) parsed = 0;
+
+    const existingEval = dailyEvals[dateStr] || {
+      evaluation_date: dateStr,
+      wkt_point: 0,
+      skp_point: 0,
+      has_point: 0,
+      ker_point: 0,
+      ini_point: 0,
+    };
+
+    setDailyEvals((prev) => ({
+      ...prev,
+      [dateStr]: {
+        ...existingEval,
+        [aspectKey]: parsed,
+      },
+    }));
+  };
+
+  // Handler: Save Daily Point Aspek to Server onBlur
+  const handleSavePointOnBlur = async (dateStr: string, aspectKey: string, valStr: string) => {
     if (!mentor || !selectedStudentId) return;
 
-    const newVal = currentVal === 1 ? 0 : 1;
+    let parsed = valStr === "" ? 0 : parseInt(valStr, 10);
+    if (isNaN(parsed)) parsed = 0;
+    const finalVal = Math.max(0, Math.min(25, parsed));
+
     const existingEval = dailyEvals[dateStr] || {
       evaluation_date: dateStr,
       wkt_point: 0,
@@ -421,14 +561,8 @@ export default function PklScoreboardPage() {
 
     const updatedEval = {
       ...existingEval,
-      [aspectKey]: newVal,
+      [aspectKey]: finalVal,
     };
-
-    // Optimistic UI Update
-    setDailyEvals((prev) => ({
-      ...prev,
-      [dateStr]: updatedEval,
-    }));
 
     try {
       const res = await fetch("/api/v1/mentor/evaluasi-harian", {
@@ -456,11 +590,6 @@ export default function PklScoreboardPage() {
       // Automatically refetch weekly recap list to synchronize sidebar student total points
       fetchWeeklyRecap(selectedWeek, mentor.id, mentor.device_id || "");
     } catch (err: any) {
-      // Revert Optimistic UI
-      setDailyEvals((prev) => ({
-        ...prev,
-        [dateStr]: existingEval,
-      }));
       setErrorMsg("Gagal melakukan auto-save poin: " + err.message);
     }
   };
@@ -632,6 +761,25 @@ export default function PklScoreboardPage() {
     }
   };
 
+  const filteredStudents = useMemo(() => {
+    if (!searchTerm.trim()) return students;
+    return students.filter((s) =>
+      s.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.school_name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [students, searchTerm]);
+
+  const getWeekRangeLabel = useCallback((weekNum: number) => {
+    try {
+      const dates = getMonFriDates(cohortStartDate, weekNum);
+      const startStr = dates[0].formatted;
+      const endStr = dates[4].formatted;
+      return `Minggu ${weekNum} (${startStr} - ${endStr})`;
+    } catch (e) {
+      return `Minggu ${weekNum}`;
+    }
+  }, [cohortStartDate]);
+
   const isAnyPublished = useMemo(() => {
     return students.some((s) => s.is_published);
   }, [students]);
@@ -677,13 +825,17 @@ export default function PklScoreboardPage() {
             <select
               value={selectedWeek}
               onChange={(e) => setSelectedWeek(parseInt(e.target.value))}
-              className="text-xs font-bold text-slate-800 outline-none bg-white cursor-pointer"
+              className="text-xs font-bold text-slate-800 outline-none bg-white cursor-pointer max-w-[280px] truncate"
             >
-              {Array.from({ length: 16 }, (_, i) => (
-                <option key={i + 1} value={i + 1}>
-                  {i + 1}
-                </option>
-              ))}
+              {Array.from({ length: 16 }, (_, i) => {
+                const wkNum = i + 1;
+                const isCurrent = wkNum === cohortActiveWeek;
+                return (
+                  <option key={wkNum} value={wkNum}>
+                    {getWeekRangeLabel(wkNum)}{isCurrent ? " (Pekan Berjalan)" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -774,17 +926,35 @@ export default function PklScoreboardPage() {
                 )}
               </div>
 
+              {/* Search Bar */}
+              {students.length > 0 && (
+                <div className="relative mb-4">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search size={14} className="text-slate-400" />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Cari siswa atau sekolah..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full text-xs font-semibold pl-9 pr-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-[#2AB0B2]/5 focus:border-[#2AB0B2] transition-all bg-slate-50/50"
+                  />
+                </div>
+              )}
+
               {loading ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="animate-spin text-[#2AB0B2]" size={24} />
                 </div>
-              ) : students.length === 0 ? (
+              ) : filteredStudents.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-xs text-slate-400 font-medium">Belum ada siswa bimbingan yang terdaftar.</p>
+                  <p className="text-xs text-slate-400 font-medium">
+                    {students.length === 0 ? "Belum ada siswa bimbingan yang terdaftar." : "Siswa tidak ditemukan."}
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {students.map((student) => {
+                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                  {filteredStudents.map((student) => {
                     const isSelected = student.student_id === selectedStudentId;
                     const hasDraft = student.tags && student.tags.length > 0;
                     return (
@@ -819,6 +989,36 @@ export default function PklScoreboardPage() {
                           <p className="text-[10px] text-slate-450 truncate mt-1">
                             {student.school_name}
                           </p>
+
+                          {/* 5 Status Dots (Monday - Friday) */}
+                          {student.days_status && (
+                            <div className="flex gap-1.5 mt-2 items-center">
+                              {student.days_status.map((status, idx) => {
+                                const dayLabels = ["S", "S", "R", "K", "J"]; // Senin, Selasa, Rabu, Kamis, Jumat
+                                let dotColorClass = "";
+                                let titleText = "";
+                                if (status === 1) {
+                                  dotColorClass = "bg-emerald-500 border-emerald-500 text-white";
+                                  titleText = `${dayLabels[idx]}: Terisi`;
+                                } else if (status === 0) {
+                                  dotColorClass = "bg-slate-100 border-slate-200 text-slate-400";
+                                  titleText = `${dayLabels[idx]}: Kosong`;
+                                } else {
+                                  dotColorClass = "bg-slate-50 border-dashed border-slate-300 text-slate-300";
+                                  titleText = `${dayLabels[idx]}: Belum PKL`;
+                                }
+                                return (
+                                  <span
+                                    key={idx}
+                                    title={titleText}
+                                    className={`w-3.5 h-3.5 rounded-full border text-[8px] font-black flex items-center justify-center select-none cursor-help transition-all ${dotColorClass}`}
+                                  >
+                                    {dayLabels[idx]}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -852,7 +1052,7 @@ export default function PklScoreboardPage() {
                 <form onSubmit={handleSaveFeedback} className="space-y-4">
                   {/* Tag Apresiasi Cepat */}
                   <div>
-                    <label className="block text-[9px] font-extrabold text-slate-455 uppercase tracking-wider mb-2">
+                    <label className="block text-[9px] font-extrabold text-slate-450 uppercase tracking-wider mb-2">
                       Tag Apresiasi Cepat (Pilih Min. 1)
                     </label>
                     <div className="flex flex-wrap gap-1.5">
@@ -865,8 +1065,8 @@ export default function PklScoreboardPage() {
                             onClick={() => handleToggleTag(tag)}
                             className={`text-[10px] font-bold px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer ${
                               isSelected
-                                ? "bg-[#2AB0B2] text-white border-[#2AB0B2] shadow-xs"
-                                : "bg-slate-50 text-slate-550 border-slate-200 hover:bg-slate-100/60"
+                                ? "bg-[#2AB0B2] text-white border-[#2AB0B2] shadow-sm"
+                                : "bg-slate-50 text-slate-650 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
                             }`}
                           >
                             {tag}
@@ -878,7 +1078,7 @@ export default function PklScoreboardPage() {
 
                   {/* Comment Input */}
                   <div>
-                    <label className="block text-[9px] font-extrabold text-slate-455 uppercase tracking-wider mb-1.5">
+                    <label className="block text-[9px] font-extrabold text-slate-450 uppercase tracking-wider mb-1.5">
                       Catatan Pembimbing
                     </label>
                     <textarea
@@ -886,7 +1086,7 @@ export default function PklScoreboardPage() {
                       placeholder="Tulis kritik konstruktif atau apresiasi detail untuk siswa..."
                       value={commentInput}
                       onChange={(e) => setCommentInput(e.target.value)}
-                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-[#2AB0B2]/5 focus:border-[#2AB0B2] transition-all bg-white"
+                      className="w-full text-xs font-semibold px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-all bg-white shadow-xs"
                     />
                     {currentStudentTotalPoints < 12 && !commentInput.trim() && (
                       <p className="text-[10px] text-amber-600 font-bold mt-1">
@@ -899,7 +1099,7 @@ export default function PklScoreboardPage() {
                   <button
                     type="submit"
                     disabled={savingFeedback}
-                    className="w-full bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-300 text-white font-extrabold text-xs py-2.5 rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer"
+                    className="w-full bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-350 text-white font-extrabold text-xs py-2.5 rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer"
                   >
                     {savingFeedback ? (
                       <Loader2 className="animate-spin" size={13} />
@@ -938,108 +1138,208 @@ export default function PklScoreboardPage() {
                       <span>Auto-Save Aktif:</span>
                     </div>
                     <p className="text-slate-500 font-medium pl-5">
-                      Klik badge aspek (+1) di bawah nama hari untuk memberikan poin harian. Nilai tersimpan otomatis ke database. Evaluasi hanya dapat diisi untuk hari kerja yang sedang berjalan atau sudah berlalu.
+                      Masukkan jumlah poin (0 - 25) pada kolom aspek untuk memberikan poin harian. Nilai tersimpan otomatis ke database ketika kursor keluar dari input (onBlur). Evaluasi hanya dapat diisi untuk hari kerja yang sedang berjalan atau sudah berlalu.
                     </p>
                   </div>
 
-                  {/* Days Loop */}
-                  {currentStudent &&
-                    getMonFriDates(currentStudent.start_date || "2026-06-01", selectedWeek).map((day) => {
-                      const evalDay = dailyEvals[day.dateStr] || {
-                        evaluation_date: day.dateStr,
-                        wkt_point: 0,
-                        skp_point: 0,
-                        has_point: 0,
-                        ker_point: 0,
-                        ini_point: 0,
-                      };
-                      const isFuture = day.dateStr > todayStr;
-                      const studentStartDateStr = currentStudent.start_date
-                        ? new Date(currentStudent.start_date).toISOString().split('T')[0]
-                        : "2026-06-01";
-                      const isBeforeStart = day.dateStr < studentStartDateStr;
-                      const isDisabled = isFuture || isBeforeStart;
-
-                      return (
-                        <div
-                          key={day.dateStr}
-                          className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-                            isDisabled
-                              ? "bg-slate-50/50 border-slate-200/40 opacity-80"
-                              : "bg-white border-slate-200/60 hover:border-slate-300"
-                          }`}
-                        >
-                          {/* Day Title & Date */}
-                          <div className="flex-shrink-0">
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                                {day.name}
-                              </h3>
-                              {isFuture && (
-                                <span className="text-[8px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                                  Belum Mulai
-                                </span>
-                              )}
-                              {isBeforeStart && (
-                                <span className="text-[8px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                                  Belum PKL
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-400 block mt-0.5">
-                              {day.formatted}
-                            </span>
-                          </div>
-
-                          {/* Aspect Points */}
-                          <div className="flex flex-wrap gap-2.5 flex-1 md:justify-end">
-                            {aspects.map((aspect) => {
-                              const currentPoint = (evalDay as any)[aspect.aspect_key] || 0;
-                              const hasPoint = currentPoint === 1;
-
-                              return (
-                                <button
-                                  key={aspect.aspect_key}
-                                  type="button"
-                                  disabled={isDisabled}
-                                  onClick={() =>
-                                    handleTogglePoint(day.dateStr, aspect.aspect_key, currentPoint)
-                                  }
-                                  className={`text-[10px] font-bold py-1.5 px-3 rounded-xl border flex items-center gap-1.5 transition-all ${
-                                    isDisabled
-                                      ? "bg-slate-100/50 text-slate-300 border-slate-150 cursor-not-allowed opacity-60"
-                                      : hasPoint
-                                      ? "bg-[#2AB0B2] text-white border-[#2AB0B2] shadow-xs cursor-pointer"
-                                      : "bg-slate-50 text-slate-550 border-slate-200/60 hover:bg-slate-100/50 cursor-pointer"
-                                  }`}
-                                  title={
-                                    isFuture
-                                      ? `Aspek ${aspect.label} belum dapat dinilai (hari mendatang)`
-                                      : isBeforeStart
-                                      ? `Siswa belum memulai PKL pada tanggal ini`
-                                      : `Klik untuk mengubah nilai aspek ${aspect.label}`
-                                  }
-                                >
+                  {/* Days Table */}
+                  {currentStudent && (
+                    <div className="overflow-x-auto border border-slate-200/80 rounded-xl shadow-3xs">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="p-3 text-[10px] font-black text-slate-450 uppercase tracking-wider min-w-[120px]">Hari</th>
+                            {aspects.map((aspect) => (
+                              <th key={aspect.aspect_key} className="p-3 text-[10px] font-black text-slate-450 uppercase tracking-wider text-center min-w-[90px]">
+                                <div className="flex flex-col items-center gap-1 justify-center">
                                   {getAspectIcon(aspect.icon_name)}
-                                  <span>{aspect.label.split(" ")[0]}</span>
-                                  <span className={`font-black rounded px-1 text-[9px] ${
-                                    isFuture
-                                      ? "bg-slate-200 text-slate-400"
-                                      : hasPoint
-                                      ? "bg-white/20"
-                                      : "bg-slate-200/80 text-slate-650"
+                                  <span className="truncate max-w-[80px]" title={aspect.label}>{aspect.label.split(" ")[0]}</span>
+                                </div>
+                              </th>
+                            ))}
+                            <th className="p-3 text-[10px] font-black text-slate-450 uppercase tracking-wider text-right min-w-[70px]">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {getMonFriDates(cohortStartDate, selectedWeek).map((day) => {
+                            const evalDay = dailyEvals[day.dateStr] || {
+                              evaluation_date: day.dateStr,
+                              wkt_point: 0,
+                              skp_point: 0,
+                              has_point: 0,
+                              ker_point: 0,
+                              ini_point: 0,
+                            };
+                            const isFuture = day.dateStr > todayStr;
+                            const studentStartDateStr = currentStudent.start_date
+                              ? new Date(currentStudent.start_date).toISOString().split('T')[0]
+                              : "2026-06-01";
+                            const isBeforeStart = day.dateStr < studentStartDateStr;
+                            const isDisabled = isFuture || isBeforeStart;
+
+                            const dayPoints = (evalDay.wkt_point || 0) +
+                              (evalDay.skp_point || 0) +
+                              (evalDay.has_point || 0) +
+                              (evalDay.ker_point || 0) +
+                              (evalDay.ini_point || 0);
+
+                            return (
+                              <tr
+                                key={day.dateStr}
+                                className={`transition-all hover:bg-slate-50/50 ${
+                                  isDisabled ? "bg-slate-50/20 opacity-70" : "bg-white"
+                                }`}
+                              >
+                                {/* Day Title & Date */}
+                                <td className="p-3">
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                                      {day.name}
+                                    </span>
+                                    <span className="text-[9px] font-bold text-slate-450 mt-0.5">
+                                      {day.formatted}
+                                    </span>
+                                    {isFuture && (
+                                      <span className="text-[7px] font-bold text-slate-400 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded mt-1 w-max">
+                                        Hari Mendatang
+                                      </span>
+                                    )}
+                                    {isBeforeStart && (
+                                      <span className="text-[7px] font-bold text-slate-400 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded mt-1 w-max">
+                                        Belum PKL
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Aspect Inputs */}
+                                {aspects.map((aspect) => {
+                                  const currentPoint = (evalDay as any)[aspect.aspect_key] || 0;
+
+                                  return (
+                                    <td key={aspect.aspect_key} className="p-3 text-center">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="25"
+                                        disabled={isDisabled}
+                                        value={isDisabled && currentPoint === 0 ? "" : currentPoint}
+                                        onChange={(e) =>
+                                          handlePointChange(day.dateStr, aspect.aspect_key, e.target.value)
+                                        }
+                                        onBlur={(e) =>
+                                          handleSavePointOnBlur(day.dateStr, aspect.aspect_key, e.target.value)
+                                        }
+                                        placeholder="0"
+                                        className={`w-14 text-center text-xs font-black py-1 px-1.5 rounded-lg border transition-all outline-none ${
+                                          isDisabled
+                                            ? "bg-slate-100/50 text-slate-350 border-slate-200/50 cursor-not-allowed"
+                                            : "bg-white text-slate-750 border-slate-200 focus:border-[#2AB0B2] focus:ring-1 focus:ring-[#2AB0B2]"
+                                        }`}
+                                      />
+                                    </td>
+                                  );
+                                })}
+
+                                {/* Day Total */}
+                                <td className="p-3 text-right">
+                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${
+                                    isDisabled
+                                      ? "text-slate-350 bg-slate-50 border-slate-150"
+                                      : dayPoints > 0
+                                      ? "text-emerald-700 bg-emerald-50 border-emerald-200/50"
+                                      : "text-slate-500 bg-slate-50 border-slate-200/80"
                                   }`}>
-                                    {hasPoint ? "+1" : "0"}
+                                    {dayPoints} Pts
                                   </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
+            </div>
+
+            {/* Pengaturan Reward & Punishment Pekan ini */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6 mt-6">
+              <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <Sparkles size={16} className="text-[#2AB0B2]" />
+                Pengaturan Reward & Punishment (Pekan {selectedWeek})
+              </h2>
+
+              <form onSubmit={handleSaveNoticeSetting} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Reward Input */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-450 uppercase tracking-wider mb-1">
+                      🏆 Nama Hadiah (Reward)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Cth: Beng Beng Maxx / Free Lunch"
+                      value={prizeName}
+                      onChange={(e) => setPrizeName(e.target.value)}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-250 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-colors bg-white font-medium"
+                    />
+                  </div>
+
+                  {/* Punishment Input */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-450 uppercase tracking-wider mb-1">
+                      ⚠️ Konsekuensi (Punishment)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Cth: Presentasi hasil pekerjaan hari Senin"
+                      value={consequence}
+                      onChange={(e) => setConsequence(e.target.value)}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-250 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-colors bg-white font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-2">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showRecipients}
+                      onChange={(e) => setShowRecipients(e.target.checked)}
+                      className="rounded border-slate-350 text-[#2AB0B2] focus:ring-[#2AB0B2]"
+                    />
+                    Tampilkan pemenang & pelanggar pekan ini
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={autoShowRecipients}
+                      onChange={(e) => setAutoShowRecipients(e.target.checked)}
+                      className="rounded border-slate-350 text-[#2AB0B2] focus:ring-[#2AB0B2]"
+                    />
+                    Tampilkan Otomatis Hari Jumat Jam 15:00 WIB
+                  </label>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={savingNotice || loadingNotice}
+                    className="bg-[#2AB0B2] hover:bg-[#1E8E90] text-white text-xs font-black py-2 px-5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+                  >
+                    {savingNotice ? (
+                      <>
+                        <Loader2 className="animate-spin" size={14} /> Menyimpan...
+                      </>
+                    ) : (
+                      "Simpan Pengaturan"
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
@@ -1223,7 +1523,6 @@ export default function PklScoreboardPage() {
                                 <th className="py-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider pl-2 w-12 text-center">Rank</th>
                                 <th className="py-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Siswa</th>
                                 <th className="py-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider hidden sm:table-cell">Sekolah</th>
-                                <th className="py-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider text-center w-20">Perfect</th>
                                 <th className="py-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Apresiasi Badges</th>
                                 <th className="py-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider text-right pr-2 w-24">Poin</th>
                               </tr>
@@ -1293,12 +1592,7 @@ export default function PklScoreboardPage() {
                                       {item.school_name}
                                     </td>
 
-                                    {/* Perfect days */}
-                                    <td className="py-3.5 text-center">
-                                      <span className="text-[10px] font-extrabold text-teal-650 bg-teal-50 px-2 py-0.5 rounded-lg border border-teal-100">
-                                        {item.perfect_days} Hari
-                                      </span>
-                                    </td>
+
 
                                     {/* Badges */}
                                     <td className="py-3.5">

@@ -25,12 +25,79 @@ import {
   Filter,
   BookOpen,
   AlertTriangle,
-  Info
+  Info,
+  Gift,
+  AlertCircle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 import { StudentDashboardData } from "../types";
 import { DiscretePointsRow } from "./DiscretePointsRow";
 import { EmptyState } from "./EmptyState";
+import { ApresiasiTabContent } from "./ApresiasiTabContent";
+
+
+// Pure canvas-based confetti helper
+function startConfetti(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  
+  let width = canvas.width = canvas.offsetWidth || 350;
+  let height = canvas.height = canvas.offsetHeight || 300;
+  
+  const colors = ['#10B981', '#34D399', '#6EE7B7', '#F59E0B', '#3B82F6', '#EF4444'];
+  const pieces: any[] = [];
+  
+  for (let i = 0; i < 60; i++) {
+    pieces.push({
+      x: Math.random() * width,
+      y: Math.random() * -height - 20,
+      r: Math.random() * 4 + 4,
+      d: Math.random() * height,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      tilt: Math.random() * 10 - 5,
+      tiltAngleIncremental: Math.random() * 0.07 + 0.02,
+      tiltAngle: 0
+    });
+  }
+  
+  let animationFrameId: number;
+  function draw() {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, width, height);
+    let active = false;
+    
+    pieces.forEach((p) => {
+      p.tiltAngle += p.tiltAngleIncremental;
+      p.y += (Math.cos(p.d) + 3 + p.r / 2) / 2;
+      p.x += Math.sin(p.tiltAngle);
+      p.tilt = Math.sin(p.tiltAngle - p.r / 2) * 5;
+      
+      if (p.y <= height) {
+        active = true;
+      }
+      
+      ctx.beginPath();
+      ctx.lineWidth = p.r;
+      ctx.strokeStyle = p.color;
+      ctx.moveTo(p.x + p.tilt + p.r / 2, p.y);
+      ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r / 2);
+      ctx.stroke();
+    });
+    
+    if (active) {
+      animationFrameId = requestAnimationFrame(draw);
+    }
+  }
+  
+  draw();
+  
+  return () => {
+    cancelAnimationFrame(animationFrameId);
+  };
+}
 
 interface StudentDashboardViewProps {
   data: StudentDashboardData;
@@ -49,12 +116,16 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
   const [sekolahName, setSekolahName] = useState("Instansi Pendidikan");
   const [selectedWeekNo, setSelectedWeekNo] = useState<number>(data.program_kerja?.active_week || data.progress?.active_week || 1);
 
+  // Notice Integration
+  const [notice, setNotice] = useState<any>(null);
+  const [activeNoticeSlide, setActiveNoticeSlide] = useState<"reward" | "punishment">("reward");
+
   // Scoreboard / Leaderboard Integration States
   const [activeSubTab, setActiveSubTab] = useState<"today" | "curriculum" | "apresiasi" | "scoreboard">("today");
   const [showPklScoreboard, setShowPklScoreboard] = useState(false);
   const [scoreboardData, setScoreboardData] = useState<any[]>([]);
   const [loadingScoreboard, setLoadingScoreboard] = useState(false);
-  const [scoreboardWeek, setScoreboardWeek] = useState<number>(1);
+  const [scoreboardWeek, setScoreboardWeek] = useState<number>(data.cohort_active_week || data.progress?.active_week || 1);
   const [userId, setUserId] = useState("");
   const [deviceId, setDeviceId] = useState("");
   const [dressCodeSchedule, setDressCodeSchedule] = useState<any[]>([]);
@@ -139,12 +210,15 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
   }, [activeSubTab, scoreboardWeek, fetchStudentScoreboard]);
 
   useEffect(() => {
-    if (data.papan_apresiasi?.is_published && data.papan_apresiasi?.week_number) {
+    if (data.papan_apresiasi?.is_published && data.papan_apresiasi?.cohort_week_number) {
+      setScoreboardWeek(data.papan_apresiasi.cohort_week_number);
+    } else if (data.papan_apresiasi?.is_published && data.papan_apresiasi?.week_number) {
       setScoreboardWeek(data.papan_apresiasi.week_number);
     } else {
-      setScoreboardWeek(1);
+      setScoreboardWeek(data.cohort_active_week || data.progress?.active_week || 1);
     }
-  }, [data.papan_apresiasi?.is_published, data.papan_apresiasi?.week_number]);
+  }, [data.papan_apresiasi?.is_published, data.papan_apresiasi?.cohort_week_number, data.papan_apresiasi?.week_number, data.cohort_active_week, data.progress?.active_week]);
+
 
   useEffect(() => {
     if (data.program_kerja?.active_week) {
@@ -154,14 +228,253 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
     }
   }, [data.program_kerja?.active_week, data.progress?.active_week]);
 
+  // Fetch active notice on mount
+  useEffect(() => {
+    const fetchNotice = async () => {
+      if (!userId || !deviceId) return;
+      try {
+        const res = await fetch("/api/v1/siswa/notice", {
+          headers: {
+            "x-user-id": userId,
+            "x-device-id": deviceId,
+          },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === "success" && json.data) {
+            setNotice(json.data);
+          }
+        }
+      } catch (err) {
+        console.error("Gagal memuat notice:", err);
+      }
+    };
+    fetchNotice();
+  }, [userId, deviceId]);
+
+  // Handle Confetti Canvas integration
+  useEffect(() => {
+    if (activeNoticeSlide === "reward" && notice?.show_recipients !== false && notice?.reward?.show_congrats) {
+      const canvas = document.getElementById("notice-confetti-canvas") as HTMLCanvasElement;
+      if (canvas) {
+        const cleanup = startConfetti(canvas);
+        return cleanup;
+      }
+    }
+  }, [activeNoticeSlide, notice]);
+
   const { today, progress, program_kerja, papan_apresiasi } = data;
 
+  const formattedStartDate = data.start_date
+    ? (() => {
+        try {
+          const dateStr = typeof data.start_date === 'string' ? data.start_date.split('T')[0] : '';
+          if (!dateStr) return null;
+          const [yr, mo, dy] = dateStr.split('-');
+          const months = [
+            "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+            "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+          ];
+          return `${parseInt(dy)} ${months[parseInt(mo) - 1]} ${yr}`;
+        } catch (e) {
+          return null;
+        }
+      })()
+    : null;
+
   const containerClass = embedded
-    ? "flex flex-col select-none space-y-4 w-full mt-2 flex-1 min-h-0"
-    : "flex flex-col h-full bg-[#F0F2F5] px-5 pt-4 pb-6 select-none space-y-4 max-w-md mx-auto w-full";
+    ? "flex flex-col select-none space-y-3.5 w-full flex-1 min-h-0"
+    : "flex flex-col h-full bg-[#F0F2F5] px-5 pt-4 pb-6 select-none space-y-3.5 max-w-md mx-auto w-full";
 
   return (
     <div className={containerClass}>
+      {/* Notice Accordion */}
+      {notice && (
+        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white flex-shrink-0">
+          {/* Confetti canvas — only when reward slide is active, recipients shown, and congrats enabled */}
+          {activeNoticeSlide === "reward" && notice.show_recipients !== false && notice.reward?.show_congrats && (
+            <canvas
+              id="notice-confetti-canvas"
+              className="absolute inset-0 pointer-events-none w-full h-full z-20"
+            />
+          )}
+
+          {/* Card Header & Controls */}
+          <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px]">📌</span>
+              <span className="text-[10px] font-black text-slate-800 uppercase tracking-wide">
+                Notice Pekan {notice.week_number}
+              </span>
+            </div>
+            
+            {/* Sliding Control Buttons */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setActiveNoticeSlide(activeNoticeSlide === "reward" ? "punishment" : "reward")}
+                className="p-1 hover:bg-slate-100 active:bg-slate-200 rounded-lg text-slate-500 transition-colors cursor-pointer"
+                aria-label="Slide Sebelumnya"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-[9px] font-extrabold text-slate-400 select-none">
+                {activeNoticeSlide === "reward" ? "1/2" : "2/2"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveNoticeSlide(activeNoticeSlide === "reward" ? "punishment" : "reward")}
+                className="p-1 hover:bg-slate-100 active:bg-slate-200 rounded-lg text-slate-500 transition-colors cursor-pointer"
+                aria-label="Slide Selanjutnya"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Slides Container with horizontal sliding layout */}
+          <div className="relative min-h-[95px] w-full overflow-hidden">
+            {/* Reward Slide */}
+            <div
+              className="w-full p-3.5 transition-all duration-500"
+              style={{
+                transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)",
+                transform: activeNoticeSlide === "reward" ? "translateX(0)" : "translateX(-100%)",
+                opacity: activeNoticeSlide === "reward" ? 1 : 0,
+                position: activeNoticeSlide === "reward" ? "relative" : "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+              }}
+            >
+              <div className="flex flex-col gap-2">
+                <span className="text-[9px] font-black text-[#0F5132] bg-emerald-50 border border-emerald-250 px-2 py-0.5 rounded w-max uppercase tracking-wider flex items-center gap-1">
+                  <Gift size={10} className="stroke-[2.5px]" />
+                  Reward Pekan ini
+                </span>
+
+                {/* Prize inline row */}
+                <div className="flex items-center gap-3">
+                  {notice.reward.prize_image_url ? (
+                    <img
+                      src={notice.reward.prize_image_url}
+                      alt="Hadiah"
+                      className="w-10 h-10 object-contain rounded-lg border border-slate-150 bg-slate-50 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center flex-shrink-0">
+                      <Gift size={16} className="text-emerald-600 stroke-[2.5px]" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-xs font-black text-slate-800 truncate leading-tight">
+                      {notice.reward.prize_name}
+                    </h4>
+                    <p className="text-[10px] text-slate-450 font-bold truncate leading-tight mt-0.5">
+                      {notice.reward.description || "Apresiasi kinerja terbaik pekan ini."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Recipient — only if show_recipients */}
+                {notice.show_recipients !== false && notice.reward.recipient && (
+                  <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200/50 rounded-lg px-2.5 py-1.5 mt-1">
+                    {notice.reward.recipient.profile_photo ? (
+                      <img
+                        src={notice.reward.recipient.profile_photo}
+                        alt={notice.reward.recipient.name}
+                        className="w-6 h-6 rounded-full border border-emerald-200 object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 text-[8px] font-black flex-shrink-0">
+                        {notice.reward.recipient.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[9px] font-extrabold text-slate-750 truncate block leading-tight">
+                        {notice.reward.recipient.name}
+                      </span>
+                    </div>
+                    <span className="text-[8px] font-black text-emerald-700 flex-shrink-0 bg-white border border-emerald-200 px-1.5 py-0.5 rounded">
+                      {notice.reward.recipient.points} Poin
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Punishment Slide */}
+            <div
+              className="w-full p-3.5 transition-all duration-500"
+              style={{
+                transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)",
+                transform: activeNoticeSlide === "punishment" ? "translateX(0)" : "translateX(100%)",
+                opacity: activeNoticeSlide === "punishment" ? 1 : 0,
+                position: activeNoticeSlide === "punishment" ? "relative" : "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+              }}
+            >
+              <div className="flex flex-col gap-2">
+                <span className="text-[9px] font-black text-[#842029] bg-rose-50 border border-rose-250 px-2 py-0.5 rounded w-max uppercase tracking-wider flex items-center gap-1">
+                  <AlertTriangle size={10} className="stroke-[2.5px]" />
+                  Punishment Pekan ini
+                </span>
+
+                {/* Consequence inline row */}
+                <div className="flex items-center gap-3">
+                  {notice.punishment.consequence_image_url ? (
+                    <img
+                      src={notice.punishment.consequence_image_url}
+                      alt="Konsekuensi"
+                      className="w-10 h-10 object-contain rounded-lg border border-slate-150 bg-slate-50 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-250 flex items-center justify-center flex-shrink-0">
+                      <AlertCircle size={16} className="text-rose-600 stroke-[2.5px]" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-xs font-black text-slate-800 truncate leading-tight">
+                      {notice.punishment.consequence}
+                    </h4>
+                    <p className="text-[10px] text-slate-450 font-bold truncate leading-tight mt-0.5">
+                      {notice.punishment.description || "Evaluasi/pembinaan untuk yang belum mencapai target pekan ini."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Recipient — only if show_recipients */}
+                {notice.show_recipients !== false && notice.punishment.recipient && (
+                  <div className="flex items-center gap-2 bg-rose-50 border border-rose-200/50 rounded-lg px-2.5 py-1.5 mt-1">
+                    {notice.punishment.recipient.profile_photo ? (
+                      <img
+                        src={notice.punishment.recipient.profile_photo}
+                        alt={notice.punishment.recipient.name}
+                        className="w-6 h-6 rounded-full border border-rose-200 object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-700 text-[8px] font-black flex-shrink-0">
+                        {notice.punishment.recipient.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[9px] font-extrabold text-slate-750 truncate block leading-tight">
+                        {notice.punishment.recipient.name}
+                      </span>
+                    </div>
+                    <span className="text-[8px] font-black text-rose-700 flex-shrink-0 bg-white border border-rose-200 px-1.5 py-0.5 rounded">
+                      {notice.punishment.recipient.points} Poin
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tab Switcher */}
       <div className={`grid ${showPklScoreboard ? "grid-cols-4" : "grid-cols-3"} bg-slate-100 p-1 rounded-lg gap-1 select-none border border-slate-200 flex-shrink-0`}>
         <button
@@ -215,46 +528,68 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
       {/* Tab Content Container */}
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 pr-0.5">
         {activeSubTab === "today" && (
-          <div className="flex flex-col gap-4">
-            {/* Kehadiran Hari Ini */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 flex flex-col gap-3">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+          <div className="flex-1 flex flex-col justify-between gap-4">
+            {/* Status Magang */}
+            <div className="bg-white rounded-2xl p-4.5 border border-slate-200 flex flex-col gap-3.5 shadow-3xs relative overflow-hidden">
+              <div className="absolute -top-12 -right-12 w-24 h-24 rounded-full bg-teal-500/5 blur-xl pointer-events-none" />
+              
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                  <Calendar size={15} className="text-[#2AB0B2]" />
-                  <span className="text-xs font-bold text-slate-800">Kehadiran Hari Ini</span>
+                  <div className="w-6 h-6 rounded-lg bg-teal-50 flex items-center justify-center text-[#2AB0B2]">
+                    <TrendingUp size={13} className="stroke-[2.5px]" />
+                  </div>
+                  <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider">Status Magang Anda</span>
                 </div>
-                <span className="text-[10px] text-slate-500 font-bold bg-slate-50 px-2 py-0.5 rounded border border-slate-200">{today.date}</span>
+                {formattedStartDate && (
+                  <span className="text-[9px] text-slate-400 font-bold">
+                    Mulai: {formattedStartDate}
+                  </span>
+                )}
               </div>
 
-              <div className="flex items-center justify-between py-1">
-                <div className="flex items-center gap-2 text-slate-500">
-                  <Clock size={14} className="stroke-[2.2px]" />
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Status Kehadiran</span>
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div className="bg-slate-50/75 border border-slate-150 p-3 rounded-2xl flex flex-col items-center justify-center transition-all hover:bg-slate-50">
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">Bulan Aktif</p>
+                    <p className="text-base font-black text-[#1C3D3F] mt-1.5 leading-none">
+                      Bulan {Math.ceil(progress.active_week / 4)}
+                    </p>
+                    <p className="text-[8px] font-semibold text-slate-400 mt-1 leading-none">
+                      Pekan {progress.active_week}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50/75 border border-slate-150 p-3 rounded-2xl flex flex-col items-center justify-center transition-all hover:bg-slate-50">
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">Durasi Magang</p>
+                    <p className="text-base font-black text-[#1C3D3F] mt-1.5 leading-none">
+                      {progress.total_weeks / 4} Bulan
+                    </p>
+                    <p className="text-[8px] font-semibold text-slate-400 mt-1 leading-none">
+                      Total {progress.total_weeks} Pekan
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  {today.attendance_status === "Hadir" || today.attendance_status === "Terlambat" ? (
-                    <span className="inline-flex items-center text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                      {today.attendance_status === "Terlambat" ? "⚠️ Terlambat" : "✓ Hadir"}
-                      {today.attendance_time && today.attendance_time !== "-" && (
-                        <span className="ml-1 text-[9px] opacity-75 font-semibold">({today.attendance_time})</span>
-                      )}
-                    </span>
-                  ) : today.attendance_status === "Sakit" ? (
-                    <span className="inline-flex items-center text-[10px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">
-                      🤒 Sakit
-                    </span>
-                  ) : today.attendance_status === "Izin" ? (
-                    <span className="inline-flex items-center text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-                      📝 Izin
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center text-[10px] font-black text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">
-                      Belum Absen
-                    </span>
-                  )}
+
+                {/* Progress bar */}
+                <div className="mt-1 space-y-1.5">
+                  <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                    <span>Kemajuan PKL</span>
+                    <span className="text-[#2AB0B2] font-black">{progress.percentage}%</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden p-[1px]">
+                    <div 
+                      className="bg-gradient-to-r from-[#2AB0B2] to-[#209092] h-1.5 rounded-full transition-all duration-700 ease-out" 
+                      style={{ width: `${progress.percentage}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-[8px] text-slate-400 font-semibold mt-1">
+                    <span>Hari ini: {today.date}</span>
+                    <span>{progress.active_week} dari {progress.total_weeks} Pekan</span>
+                  </div>
                 </div>
               </div>
             </div>
+
+
 
             {/* Jadwal Ketentuan Pakaian (List/Table) */}
             <div className="bg-white rounded-xl p-4 border border-slate-200 flex flex-col gap-3">
@@ -303,7 +638,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
         )}
 
         {activeSubTab === "curriculum" && (
-          <div className="bg-white rounded-xl p-4 border border-slate-200 flex flex-col gap-3">
+          <div className="bg-white rounded-xl p-4 border border-slate-200 flex flex-col gap-3 flex-shrink-0">
             <div className="flex justify-between items-center pb-1">
               <div className="flex items-center gap-1.5">
                 <ClipboardList size={14} className="text-[#2AB0B2]" />
@@ -419,121 +754,18 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
         )}
 
         {activeSubTab === "apresiasi" && (
-          <div className="bg-white rounded-xl p-4 border border-slate-200 flex flex-col gap-3">
-            <div className="flex justify-between items-center pb-1">
-              <div className="flex items-center gap-1.5">
-                <Award size={14} className="text-[#2AB0B2]" />
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Apresiasi & Poin Pekan Ini</span>
-              </div>
-              {papan_apresiasi && papan_apresiasi.is_published && papan_apresiasi.week_number && (
-                <span className="text-[9px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                  Minggu {papan_apresiasi.week_number}
-                </span>
-              )}
-            </div>
-
-            {papan_apresiasi && papan_apresiasi.is_published ? (
-              <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1 flex flex-col gap-3">
-                {/* Total points */}
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8.5 h-8.5 rounded-lg bg-[#2AB0B2] flex items-center justify-center text-white">
-                      <Star size={15} className="fill-white stroke-[2.5px]" />
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Poin</p>
-                      <p className="text-xs font-bold text-slate-700 mt-0.5">Perolehan Mingguan</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-base font-black text-[#2AB0B2] leading-none">
-                      {papan_apresiasi.total_points}
-                      <span className="text-[10px] font-bold text-slate-400 ml-0.5">/ 25</span>
-                    </p>
-                  </div>
-                </div>
-
-                {/* Aspect Points */}
-                {papan_apresiasi.aspects && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5">
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Rincian Poin Aspek</p>
-                    {data.aspect_settings && data.aspect_settings.length > 0 ? (
-                      data.aspect_settings
-                        .filter(a => a.is_active === 1)
-                        .map((aspect) => {
-                          const pointsEarned = (papan_apresiasi.aspects as any)[aspect.aspect_key] || 0;
-                          let IconComp = Star;
-                          if (aspect.icon_name === "Clock") IconComp = Clock;
-                          else if (aspect.icon_name === "Smile") IconComp = Smile;
-                          else if (aspect.icon_name === "CheckSquare") IconComp = CheckSquare;
-                          else if (aspect.icon_name === "User") IconComp = User;
-                          else if (aspect.icon_name === "Sparkles") IconComp = Sparkles;
-
-                          return (
-                            <DiscretePointsRow
-                              key={aspect.aspect_key}
-                              aspectLabel={aspect.label}
-                              pointsEarned={pointsEarned}
-                              icon={IconComp}
-                            />
-                          );
-                        })
-                    ) : (
-                      <>
-                        <DiscretePointsRow aspectLabel="Ketepatan Waktu (WKT)" pointsEarned={papan_apresiasi.aspects.wkt_point} icon={Clock} />
-                        <DiscretePointsRow aspectLabel="Sikap & Perilaku (SKP)" pointsEarned={papan_apresiasi.aspects.skp_point} icon={Smile} />
-                        <DiscretePointsRow aspectLabel="Hasil Kerja (HAS)" pointsEarned={papan_apresiasi.aspects.has_point} icon={CheckSquare} />
-                        <DiscretePointsRow aspectLabel="Kerapian Kerja (KER)" pointsEarned={papan_apresiasi.aspects.ker_point} icon={User} />
-                        <DiscretePointsRow aspectLabel="Inisiatif Kerja (INI)" pointsEarned={papan_apresiasi.aspects.ini_point} icon={Sparkles} />
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* Tags */}
-                {papan_apresiasi.feedback && papan_apresiasi.feedback.tags && papan_apresiasi.feedback.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {papan_apresiasi.feedback.tags.map((tag: string, idx: number) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 bg-slate-50 text-slate-650 border border-slate-200 rounded"
-                      >
-                        <Award size={9} className="text-slate-400" />
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Mentor Comments */}
-                {papan_apresiasi.feedback?.comments && (
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <BookOpen size={11} className="text-slate-400" />
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Catatan Pembimbing</p>
-                    </div>
-                    <p className="text-xs text-slate-600 font-medium italic leading-relaxed">
-                      &ldquo;{papan_apresiasi.feedback.comments}&rdquo;
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center p-6 bg-slate-50 border border-slate-200 rounded-lg text-center">
-                <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center mb-3 text-slate-450">
-                  <Lock size={15} className="stroke-[2.5px]" />
-                </div>
-                <p className="text-xs font-bold text-slate-600 mb-0.5">Poin Sedang Diproses</p>
-                <p className="text-[10px] text-slate-400 max-w-[200px] leading-relaxed mt-1">
-                  {papan_apresiasi?.message || "Papan apresiasi mingguan Anda dirilis secara rutin oleh pembimbing magang Anda pada hari Jumat sore."}
-                </p>
-              </div>
-            )}
-          </div>
+          <ApresiasiTabContent
+            papan_apresiasi={papan_apresiasi}
+            aspect_settings={data.aspect_settings}
+            userId={userId}
+            deviceId={deviceId}
+            cohort_active_week={data.cohort_active_week}
+            active_week={data.progress?.active_week}
+          />
         )}
 
         {activeSubTab === "scoreboard" && (
-          <div className="flex flex-col gap-3 flex-1 min-h-0">
+          <div className="flex flex-col gap-3 flex-shrink-0">
             {/* A. Header & Week Filter */}
             <div className="bg-white rounded-xl p-4 border border-slate-200 flex flex-col gap-3 flex-shrink-0">
               <div className="flex justify-between items-center">
@@ -547,57 +779,45 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
               </div>
 
               {/* Horizontal Week Selector Badges */}
-              {program_kerja?.weeks && program_kerja.weeks.length > 0 ? (
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
-                  {program_kerja.weeks.map((wk) => {
-                    const isSelected = scoreboardWeek === wk.week_number;
-                    const isActiveWeek = program_kerja.active_week === wk.week_number;
+              {(() => {
+                const activeCohortWeek = data.cohort_active_week || progress?.active_week || 1;
+                const scoreboardWeeksList = Array.from({ length: activeCohortWeek }, (_, i) => i + 1);
 
-                    return (
-                      <button
-                        key={wk.id}
-                        type="button"
-                        onClick={() => setScoreboardWeek(wk.week_number)}
-                        className={`flex-shrink-0 flex flex-col items-center justify-center py-2 px-3 rounded-lg border transition-colors min-w-[65px] text-center cursor-pointer select-none active:scale-[0.97] ${
-                          isSelected
-                            ? "bg-[#2AB0B2] border-[#209092] text-white"
-                            : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
-                        }`}
-                      >
-                        <span className={`text-[10px] font-bold tracking-tight ${isSelected ? "text-white" : "text-slate-800"}`}>
-                          M{wk.week_number}
-                        </span>
-                        {isActiveWeek && (
-                          <span className={`inline-block w-1 h-1 rounded-full mt-1 ${
-                            isSelected ? "bg-white" : "bg-[#2AB0B2]"
-                          }`} />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                  {[1, 2, 3, 4].map((wk) => (
-                    <button
-                      key={wk}
-                      type="button"
-                      onClick={() => setScoreboardWeek(wk)}
-                      className={`flex-shrink-0 py-1.5 px-3 rounded-lg border text-[10px] font-bold ${
-                        scoreboardWeek === wk
-                          ? "bg-[#2AB0B2] border-[#209092] text-white"
-                          : "bg-white border-slate-200 hover:border-slate-350 hover:bg-slate-50 text-slate-700"
-                      }`}
-                    >
-                      M{wk}
-                    </button>
-                  ))}
-                </div>
-              )}
+                return scoreboardWeeksList.length > 0 ? (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+                    {scoreboardWeeksList.map((wkNum) => {
+                      const isSelected = scoreboardWeek === wkNum;
+                      const isActiveWeek = activeCohortWeek === wkNum;
+
+                      return (
+                        <button
+                          key={wkNum}
+                          type="button"
+                          onClick={() => setScoreboardWeek(wkNum)}
+                          className={`flex-shrink-0 flex flex-col items-center justify-center py-2 px-3 rounded-lg border transition-colors min-w-[65px] text-center cursor-pointer select-none active:scale-[0.97] ${
+                            isSelected
+                              ? "bg-[#2AB0B2] border-[#209092] text-white"
+                              : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
+                          }`}
+                        >
+                          <span className={`text-[10px] font-bold tracking-tight ${isSelected ? "text-white" : "text-slate-800"}`}>
+                            M{wkNum}
+                          </span>
+                          {isActiveWeek && (
+                            <span className={`inline-block w-1 h-1 rounded-full mt-1 ${
+                              isSelected ? "bg-white" : "bg-[#2AB0B2]"
+                            }`} />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null;
+              })()}
             </div>
 
-            {/* B. Loading or Scoreboard Content - Scrollable list */}
-            <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 pb-2 pr-0.5">
+            {/* B. Loading or Scoreboard Content */}
+            <div className="flex flex-col gap-3 pb-2">
               {loadingScoreboard ? (
                 <div className="bg-white rounded-xl p-8 border border-slate-200 flex flex-col items-center justify-center text-center">
                   <div className="animate-spin rounded-full h-7 w-7 border-2 border-[#2AB0B2] border-t-transparent mb-2" />
@@ -786,12 +1006,6 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
                                     <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-amber-600 bg-amber-50 px-1 py-0.2 rounded border border-amber-100">
                                       <Sparkles size={8} className="fill-amber-500 text-amber-500" />
                                       {item.appreciation_badges}
-                                    </span>
-                                  )}
-                                  {item.perfect_days > 0 && (
-                                    <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-100">
-                                      <CheckSquare size={8} className="text-emerald-500" />
-                                      {item.perfect_days}
                                     </span>
                                   )}
                                 </div>

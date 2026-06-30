@@ -18,6 +18,7 @@ export interface BaseResponse<T> {
 
 // Student Dashboard Types
 export interface StudentDashboardData {
+  start_date?: string | Date;
   today: {
     date: string;
     clothes: string;
@@ -53,6 +54,7 @@ export interface StudentDashboardData {
   papan_apresiasi: {
     is_published: boolean;
     week_number?: number;
+    cohort_week_number?: number;
     total_points?: number;
     aspects?: {
       wkt_point: number;
@@ -73,6 +75,7 @@ export interface StudentDashboardData {
     icon_name: string;
     is_active: number;
   }>;
+  cohort_active_week?: number;
 }
 
 // Student History Types

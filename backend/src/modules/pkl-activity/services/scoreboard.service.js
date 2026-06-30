@@ -57,9 +57,10 @@ function maskStudentName(fullName) {
 /**
  * Menentukan badge gamifikasi otomatis berdasarkan evaluasi mingguan harian siswa
  * @param {Array<object>} weekEvals - Evaluasi harian dalam minggu tersebut
+ * @param {Array<string>} activeAspects - Daftar key aspek yang aktif
  * @returns {Array<string>} Daftar nama badge
  */
-function determineAutoBadges(weekEvals) {
+function determineAutoBadges(weekEvals, activeAspects = ['wkt_point', 'skp_point', 'has_point', 'ker_point', 'ini_point']) {
   const badges = [];
   if (weekEvals.length === 0) return badges;
 
@@ -70,9 +71,9 @@ function determineAutoBadges(weekEvals) {
   let kerMaxDays = 0;
 
   for (const ev of weekEvals) {
-    const totalDayPoints = (ev.wkt_point || 0) + (ev.skp_point || 0) + (ev.has_point || 0) + (ev.ker_point || 0) + (ev.ini_point || 0);
-    // Hari sempurna jika poin hari itu >= 5
-    if (totalDayPoints >= 5) perfectDays++;
+    // Hari sempurna jika poin di setiap aspek aktif >= 1
+    const isPerfect = activeAspects.length > 0 && activeAspects.every(aspect => (ev[aspect] || 0) >= 1);
+    if (isPerfect) perfectDays++;
 
     if (ev.wkt_point >= 1) wktMaxDays++;
     if (ev.ini_point >= 1) iniMaxDays++;
@@ -104,6 +105,12 @@ function determineAutoBadges(weekEvals) {
 
 async function computeRankingsForWeek(dbClient, students, cohortWeekNumber) {
   if (students.length === 0) return [];
+
+  // Dapatkan daftar aspek aktif
+  const [aspectRows] = await dbClient.query(
+    "SELECT aspect_key FROM pkl_aspect_settings WHERE is_active = 1"
+  );
+  const activeAspectKeys = aspectRows.map(r => r.aspect_key);
 
   // 1. Dapatkan baseline start_date dinamis (paling awal) dari siswa aktif
   const [minStartRes] = await dbClient.query(
@@ -144,12 +151,9 @@ async function computeRankingsForWeek(dbClient, students, cohortWeekNumber) {
 
   const results = [];
   for (const student of students) {
-    // Cek apakah siswa sudah mulai PKL pada pekan ini
-    const studentStart = new Date(student.start_date);
-    const cohortEnd = new Date(cohortRange.endDate);
-    
-    // Jika start date siswa di masa depan relatif terhadap akhir pekan cohort ini, mereka belum mulai
-    if (studentStart > cohortEnd) {
+    // Cek apakah siswa sudah mulai PKL pada pekan ini (bandingkan string tanggal YYYY-MM-DD)
+    const studentStartStr = new Date(student.start_date).toISOString().split('T')[0];
+    if (studentStartStr > cohortRange.endDate) {
       continue; // Skip student, belum mulai PKL
     }
 
@@ -165,9 +169,9 @@ async function computeRankingsForWeek(dbClient, students, cohortWeekNumber) {
     let perfectDays = 0;
     let calculatedPoints = 0;
     for (const ev of evals) {
-      const dayTotal = (ev.wkt_point || 0) + (ev.skp_point || 0) + (ev.has_point || 0) + (ev.ker_point || 0) + (ev.ini_point || 0);
-      if (dayTotal >= 5) perfectDays++;
-      calculatedPoints += dayTotal;
+      const isPerfect = activeAspectKeys.length > 0 && activeAspectKeys.every(aspect => (ev[aspect] || 0) >= 1);
+      if (isPerfect) perfectDays++;
+      calculatedPoints += (ev.wkt_point || 0) + (ev.skp_point || 0) + (ev.has_point || 0) + (ev.ker_point || 0) + (ev.ini_point || 0);
     }
 
     const savedSummary = summaryMap.get(`${student.student_id}_${relativeWeek}`);
@@ -182,7 +186,7 @@ async function computeRankingsForWeek(dbClient, students, cohortWeekNumber) {
       }
     }
 
-    const autoBadges = determineAutoBadges(evals);
+    const autoBadges = determineAutoBadges(evals, activeAspectKeys);
     const allBadges = [...new Set([...manualTags, ...autoBadges])];
 
     results.push({
@@ -193,7 +197,6 @@ async function computeRankingsForWeek(dbClient, students, cohortWeekNumber) {
       school_name: student.school_name,
       program_template_id: student.program_template_id,
       total_points: finalPoints,
-      perfect_days: perfectDays,
       badges: allBadges,
       badges_count: allBadges.length,
       submission_time: savedSummary ? new Date(savedSummary.created_at).getTime() : Date.now()
@@ -202,12 +205,10 @@ async function computeRankingsForWeek(dbClient, students, cohortWeekNumber) {
 
   // Urutkan berdasarkan Ranking Rules:
   // 1. total_points DESC
-  // 2. perfect_days DESC
-  // 3. badges_count DESC
-  // 4. submission_time ASC
+  // 2. badges_count DESC
+  // 3. submission_time ASC
   results.sort((a, b) => {
     if (b.total_points !== a.total_points) return b.total_points - a.total_points;
-    if (b.perfect_days !== a.perfect_days) return b.perfect_days - a.perfect_days;
     if (b.badges_count !== a.badges_count) return b.badges_count - a.badges_count;
     return a.submission_time - b.submission_time;
   });
@@ -219,7 +220,6 @@ async function computeRankingsForWeek(dbClient, students, cohortWeekNumber) {
       const prev = results[i - 1];
       const curr = results[i];
       const isEqual = curr.total_points === prev.total_points &&
-                      curr.perfect_days === prev.perfect_days &&
                       curr.badges_count === prev.badges_count &&
                       curr.submission_time === prev.submission_time;
       if (!isEqual) {
@@ -300,7 +300,6 @@ async function getScoreboard(dbClient, user, weekNumber) {
       school_name: curr.school_name,
       program_template_id: curr.program_template_id,
       total_points: curr.total_points,
-      perfect_days: curr.perfect_days,
       badges: curr.badges,
       rank: curr.rank,
       rank_movement: movement,
@@ -347,8 +346,7 @@ async function getStudentScoreboardHistory(dbClient, studentId) {
       history.push({
         week_number: w.week_number,
         rank: selfRank.rank,
-        total_points: selfRank.total_points,
-        perfect_days: selfRank.perfect_days
+        total_points: selfRank.total_points
       });
     }
   }

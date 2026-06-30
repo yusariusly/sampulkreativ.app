@@ -3,6 +3,11 @@ const { z } = require('zod');
 // Regex untuk YYYY-MM-DD
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
+// Schema aspek poin evaluasi harian (0 - 25)
+const aspectPointSchema = z.number({
+  invalid_type_error: 'Poin harus berupa angka.'
+}).int('Poin harus berupa bilangan bulat.').min(0, 'Poin tidak boleh negatif.').max(25, 'Poin tidak boleh lebih dari 25.');
+
 // Schema untuk GET /api/v1/mentor/siswa
 const getSiswaBimbinganSchema = z.object({
   query: z.object({
@@ -23,21 +28,11 @@ const dailyEvaluationSchema = z.object({
       required_error: 'Field student_id wajib diisi'
     }).min(1, 'student_id tidak boleh kosong'),
 
-    wkt_point: z.union([z.literal(0), z.literal(1)], {
-      errorMap: () => ({ message: 'Poin aspek wkt_point harus bernilai 0 atau 1.' })
-    }),
-    skp_point: z.union([z.literal(0), z.literal(1)], {
-      errorMap: () => ({ message: 'Poin aspek skp_point harus bernilai 0 atau 1.' })
-    }),
-    has_point: z.union([z.literal(0), z.literal(1)], {
-      errorMap: () => ({ message: 'Poin aspek has_point harus bernilai 0 atau 1.' })
-    }),
-    ker_point: z.union([z.literal(0), z.literal(1)], {
-      errorMap: () => ({ message: 'Poin aspek ker_point harus bernilai 0 atau 1.' })
-    }),
-    ini_point: z.union([z.literal(0), z.literal(1)], {
-      errorMap: () => ({ message: 'Poin aspek ini_point harus bernilai 0 atau 1.' })
-    })
+    wkt_point: aspectPointSchema,
+    skp_point: aspectPointSchema,
+    has_point: aspectPointSchema,
+    ker_point: aspectPointSchema,
+    ini_point: aspectPointSchema
   })
 });
 

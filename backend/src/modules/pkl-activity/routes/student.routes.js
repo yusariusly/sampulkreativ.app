@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const studentController = require('../controllers/student.controller');
+const noticeController = require('../controllers/notice.controller');
 const validator = require('../validators/student.validator');
 const { validateDeviceSession, requireRole } = require('./middlewares');
 
@@ -10,6 +11,9 @@ router.use(requireRole(['student']));
 
 // GET /api/v1/siswa/aktivitas
 router.get('/aktivitas', studentController.getAktivitasSiswa);
+
+// GET /api/v1/siswa/notice
+router.get('/notice', noticeController.getStudentNotice);
 
 // GET /api/v1/siswa/riwayat
 router.get('/riwayat', studentController.getRiwayatSiswa);

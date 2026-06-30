@@ -197,6 +197,7 @@ export default function PklManagementPage() {
   const [editingAspectLabel, setEditingAspectLabel] = useState("");
   const [editingAspectIcon, setEditingAspectIcon] = useState("");
   const [editingAspectActive, setEditingAspectActive] = useState(1);
+  
 
 
   // ─── API Calls ─────────────────────────────────────────────────────────────

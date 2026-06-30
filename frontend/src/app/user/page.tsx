@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Camera, Clock, AlertTriangle, X, Lock, ArrowLeft, Calendar, ClipboardList, CreditCard, ChevronRight, FileText, HeartPulse, Laptop, Check, LogOut } from "lucide-react";
 import { getDeviceId } from "../utils/session";
 import { compressImage, IMAGE_PRESETS } from "../utils/image";
@@ -13,7 +13,7 @@ const REPORT_UPLOAD_CONFIG = {
   ALLOWED_MIME_TYPES: ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]
 };
 
-export default function UserHomePage() {
+function UserDashboardContent() {
   const router = useRouter();
   const [fullname, setFullname] = useState("Karyawan");
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
@@ -44,7 +44,8 @@ export default function UserHomePage() {
     }
     return "student";
   });
-  const [activeTab, setActiveTab] = useState<"menu" | "absen" | "pkl" | "payroll">("menu");
+  const searchParams = useSearchParams();
+  const activeTab = (searchParams.get("view") || "menu") as "menu" | "absen" | "pkl" | "payroll";
   const [wobblingCard, setWobblingCard] = useState<string | null>(null);
   const [notification, setNotification] = useState("");
 
@@ -362,19 +363,6 @@ export default function UserHomePage() {
     return () => clearInterval(clockInterval);
   }, [router]);
 
-  // Synchronize activeTab state with URL search query parameter "?view=..."
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const view = params.get("view");
-      if (view === "absen" || view === "pkl" || view === "payroll") {
-        setActiveTab(view as any);
-      } else {
-        setActiveTab("menu");
-      }
-    }
-  }, [router]);
-
   // Sync payroll slips fetching with activeTab changes
   useEffect(() => {
     if (activeTab === "payroll") {
@@ -394,7 +382,6 @@ export default function UserHomePage() {
     } else {
       router.push(`/user?view=${tabName}`);
     }
-    setActiveTab(tabName);
   };
 
   const handleLogout = () => {
@@ -594,7 +581,9 @@ export default function UserHomePage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFC] px-5 pt-6 pb-6 select-none relative overflow-hidden">
+    <div className={`flex flex-col h-full bg-[#F8FAFC] px-5 select-none relative overflow-hidden ${
+      activeTab === "menu" ? "pt-6 pb-6" : "pt-1 pb-0"
+    }`}>
       {activeTab === "menu" && (
         <div className="flex-1 flex flex-col gap-5 py-2">
           {/* Greeting Section */}
@@ -827,17 +816,7 @@ export default function UserHomePage() {
       )}
 
       {activeTab === "absen" && (
-        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-          {/* Header */}
-          <div className="flex items-center gap-2 mb-4 flex-shrink-0">
-            <button 
-              onClick={() => navigateToTab("menu")}
-              className="p-2 -ml-2 rounded-xl hover:bg-slate-200/50 text-slate-600 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
-            >
-              <ArrowLeft size={16} /> Kembali
-            </button>
-            <h2 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Presensi & Kehadiran</h2>
-          </div>
+        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto pt-0">
 
           {/* Greeting */}
           <div className="flex items-center justify-between mb-4 flex-shrink-0">
@@ -1077,21 +1056,11 @@ export default function UserHomePage() {
       )}
 
       {activeTab === "pkl" && (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center gap-2 mb-4 flex-shrink-0">
-            <button 
-              onClick={() => navigateToTab("menu")}
-              className="p-2 -ml-2 rounded-xl hover:bg-slate-200/50 text-slate-600 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
-            >
-              <ArrowLeft size={16} /> Kembali
-            </button>
-            <h2 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Aktivitas & Kurikulum PKL</h2>
-          </div>
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden pt-0">
 
           {/* PKL Student Dashboard Section */}
           {isStudent && (
-            <div className="mt-2 flex-1 flex flex-col min-h-0">
+            <div className="flex-1 flex flex-col min-h-0">
               {studentDashboard.isLoading ? (
                 <div className="space-y-4 flex-grow">
                   <SkeletonCard />
@@ -1119,17 +1088,7 @@ export default function UserHomePage() {
       )}
 
       {activeTab === "payroll" && (
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Header */}
-          <div className="flex items-center gap-2 mb-4 flex-shrink-0">
-            <button 
-              onClick={() => navigateToTab("menu")}
-              className="p-2 -ml-2 rounded-xl hover:bg-slate-200/50 text-slate-600 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
-            >
-              <ArrowLeft size={16} /> Kembali
-            </button>
-            <h2 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Sistem Payroll & Gaji</h2>
-          </div>
+        <div className="flex-1 flex flex-col min-h-0 pt-0">
 
           {/* Content */}
           {loadingPayroll ? (
@@ -1571,5 +1530,17 @@ export default function UserHomePage() {
       )}
 
     </div>
+  );
+}
+
+export default function UserHomePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center font-sans">
+        <p className="text-gray-400 font-semibold text-sm">Memuat Dashboard...</p>
+      </div>
+    }>
+      <UserDashboardContent />
+    </Suspense>
   );
 }
