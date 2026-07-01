@@ -13,6 +13,7 @@ export * from "./constants";
 // Export Services
 export { studentService } from "./services/student.service";
 export { mentorService } from "./services/mentor.service";
+export { savingsService } from "./services/savings.service";
 
 // Export Hooks
 export { useStudentDashboard } from "./hooks/useStudentDashboard";
@@ -32,3 +33,4 @@ export { WeeklyAccordionItem } from "./components/WeeklyAccordionItem";
 export { SkeletonCard } from "./components/SkeletonCard";
 export { EmptyState } from "./components/EmptyState";
 export { ErrorState } from "./components/ErrorState";
+export { SavingsProgressBar } from "./components/SavingsProgressBar";

@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from "react";
+import { SavingsProgressBar } from "./SavingsProgressBar";
 import {
   Calendar,
   Clock,
@@ -474,6 +475,9 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Savings Progress Bar (di bawah Notice Reward & Punishment) */}
+      <SavingsProgressBar />
 
       {/* Tab Switcher */}
       <div className={`grid ${showPklScoreboard ? "grid-cols-4" : "grid-cols-3"} bg-slate-100 p-1 rounded-lg gap-1 select-none border border-slate-200 flex-shrink-0`}>

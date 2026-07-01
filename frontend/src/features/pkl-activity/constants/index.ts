@@ -6,6 +6,7 @@
 export const QUERY_KEYS = {
   STUDENT_DASHBOARD: 'student-dashboard',
   STUDENT_HISTORY: 'student-history',
+  STUDENT_SAVINGS: 'student-savings',
   MENTOR_STUDENTS: 'mentor-students',
   WEEKLY_REKAP: 'weekly-rekap',
 } as const;
@@ -23,4 +24,9 @@ export const API_ENDPOINTS = {
   MENTOR_WEEKLY_REKAP: '/api/v1/mentor/rekap-mingguan',
   MENTOR_SAVE_FEEDBACK: (studentId: string) => `/api/v1/mentor/rekap-mingguan/${studentId}`,
   MENTOR_PUBLISH_SUMMARY: '/api/v1/mentor/rekap-mingguan/publikasikan',
+
+  // Savings Endpoints
+  STUDENT_SAVINGS: '/api/v1/siswa/savings',
+  ADMIN_SAVINGS: '/api/v1/pkl/savings',
+  ADMIN_UPDATE_SAVINGS: (studentId: string) => `/api/v1/pkl/savings/${studentId}`,
 } as const;

@@ -139,3 +139,13 @@ export interface WeeklyFeedbackPayload {
 export interface PublishSummaryPayload {
   week_number: number;
 }
+
+// Student Savings Types
+export interface StudentSavingsData {
+  student_id: string;
+  student_name?: string;
+  school_name?: string;
+  saved_amount: number;
+  target_amount: number;
+  updated_at?: string | null;
+}

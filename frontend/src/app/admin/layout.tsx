@@ -15,6 +15,7 @@ import {
   Laptop,
   ClipboardList,
   Award,
+  PiggyBank,
 } from "lucide-react";
 
 function AppLogo({ size = 80 }: { size?: number }) {
@@ -94,6 +95,7 @@ export default function AdminLayout({
     { href: "/admin/remote", label: "Remote Working", Icon: Laptop },
     { href: "/admin/pkl", label: "Aktivitas PKL", Icon: ClipboardList },
     { href: "/admin/pkl/score", label: "Poin PKL", Icon: Award },
+    { href: "/admin/pkl/savings", label: "Tabungan Buku", Icon: PiggyBank },
     { href: "/admin/qr", label: "Generate QR", Icon: QrCode },
     { href: "/admin/users", label: "Pengguna", Icon: Users },
   ];

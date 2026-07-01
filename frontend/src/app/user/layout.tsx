@@ -4,6 +4,7 @@ import React, { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Home, History, User, LogOut, Settings, ArrowLeft } from "lucide-react";
+import { SavingsProgressBar } from "@/features/pkl-activity/components/SavingsProgressBar";
 
 function AppLogo({ size = 80 }: { size?: number }) {
   return (
@@ -67,6 +68,28 @@ function TopNavbar({
         </button>
       </div>
     </header>
+  );
+}
+
+/**
+ * Komponen wrapper untuk menampilkan SavingsProgressBar secara global.
+ * Menyembunyikan diri di view=pkl (karena di-render inline di StudentDashboardView).
+ */
+function GlobalSavingsNotice({ isStudent }: { isStudent: boolean }) {
+  const searchParams = useSearchParams();
+  const currentView = searchParams.get("view");
+  const pathname = usePathname();
+
+  // Hanya tampilkan untuk siswa
+  if (!isStudent) return null;
+
+  // Di view PKL, SavingsProgressBar sudah di-render inline di bawah notice reward/punishment
+  if (pathname === "/user" && currentView === "pkl") return null;
+
+  return (
+    <div className="px-5 pt-2 flex-shrink-0">
+      <SavingsProgressBar />
+    </div>
   );
 }
 
@@ -249,6 +272,10 @@ export default function UserLayout({
 
         {/* Screen Content Viewport */}
         <div className="flex-1 flex flex-col overflow-y-auto relative">
+          {/* Global Savings Notice (semua halaman kecuali view=pkl karena di-render inline di sana) */}
+          <Suspense fallback={null}>
+            <GlobalSavingsNotice isStudent={currentUser?.role === 'student'} />
+          </Suspense>
           {children}
         </div>
 
