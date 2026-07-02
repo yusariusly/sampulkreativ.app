@@ -40,11 +40,9 @@ async function verifyStationToken(pool, token) {
   }
 
   // 3. Tarik jam masuk kantor (deadline_time) & jam pulang (checkout_time)
-  const [deadlineSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'deadline_time'");
-  const [checkoutSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'checkout_time'");
-
-  const deadlineVal = deadlineSetting[0]?.key_value || '08:30';
-  const checkoutVal = checkoutSetting[0]?.key_value || '17:00';
+  const [settings] = await pool.query("SELECT key_name, key_value FROM settings WHERE key_name IN ('deadline_time', 'checkout_time')");
+  const deadlineVal = settings.find(s => s.key_name === 'deadline_time')?.key_value || '08:30';
+  const checkoutVal = settings.find(s => s.key_name === 'checkout_time')?.key_value || '17:00';
 
   // 4. Tarik log absensi hari berjalan berdasarkan timezone Jakarta
   const todayJakarta = remoteService.getJakartaDate(new Date());
@@ -142,7 +140,7 @@ async function checkinStation(pool, user, status, foto_base64, hasTelegram) {
           fotoUrl = 'telegram';
         } else {
           const filepath = path.join(uploadDir, filename);
-          fs.writeFileSync(filepath, fileBuffer);
+          await fs.promises.writeFile(filepath, fileBuffer);
           fotoUrl = `/uploads/${filename}`;
         }
       }

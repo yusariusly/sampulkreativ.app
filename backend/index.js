@@ -1002,6 +1002,7 @@ async function initDb() {
     // Create indexes for users and absensi tables to optimize matching device & loading attendance logs
     try {
       await pool.query("CREATE INDEX IF NOT EXISTS idx_users_device_id ON users(device_id)");
+      await pool.query("CREATE INDEX IF NOT EXISTS idx_users_username_lower ON users(LOWER(username))");
       await pool.query("CREATE INDEX IF NOT EXISTS idx_absensi_user_id ON absensi(user_id)");
       await pool.query("CREATE INDEX IF NOT EXISTS idx_absensi_waktu_absen ON absensi(waktu_absen DESC)");
     } catch (indexErr) {
@@ -1850,7 +1851,7 @@ app.post('/api/attendance', async (req, res) => {
           } else {
             // Fallback to local storage
             const filepath = path.join(uploadDir, filename);
-            fs.writeFileSync(filepath, fileBuffer);
+            await fs.promises.writeFile(filepath, fileBuffer);
             fotoUrl = `/uploads/${filename}`;
           }
         }
