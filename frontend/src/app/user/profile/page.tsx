@@ -721,67 +721,65 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* QR Absensi Modal */}
+      {/* QR Absensi Modal - Full Screen */}
       {showQrModal && (
-        <div id="qr-modal-overlay-custom" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in print:hidden">
-          <div className="bg-white rounded-3xl w-full max-w-[320px] overflow-hidden shadow-2xl border border-gray-100 flex flex-col items-center p-6 relative">
-            
-            {/* Close Button */}
-            <button
-              onClick={() => setShowQrModal(false)}
-              className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all cursor-pointer"
-            >
-              <X size={18} />
-            </button>
+        <div id="qr-modal-overlay-custom" className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-white p-6 md:p-12 animate-fade-in print:hidden">
+          
+          {/* Close Button */}
+          <button
+            onClick={() => setShowQrModal(false)}
+            className="absolute top-6 right-6 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-all cursor-pointer"
+          >
+            <X size={24} />
+          </button>
 
-            {/* Header info */}
-            <div className="text-center mb-5">
-              <span className="text-[10px] font-black tracking-widest text-[#2AB0B2] uppercase block">
-                ABSENSI
-              </span>
-              <h4 className="font-extrabold text-[#1C3D3F] text-sm tracking-wide uppercase mt-0.5">
-                QR CODE SAYA
-              </h4>
-              <div className="h-[2px] w-6 bg-[#2AB0B2]/30 mx-auto mt-1.5 rounded-full" />
-            </div>
+          {/* Header info */}
+          <div className="text-center mt-6">
+            <span className="text-[11px] font-black tracking-widest text-[#2AB0B2] uppercase block">
+              PINDAI ABSENSI
+            </span>
+            <h4 className="font-extrabold text-[#1C3D3F] text-lg tracking-wide uppercase mt-1">
+              QR CODE SAYA
+            </h4>
+            <div className="h-[2.5px] w-8 bg-[#2AB0B2]/30 mx-auto mt-2 rounded-full" />
+          </div>
 
-            {/* QR Code Container */}
-            <div className="relative w-48 h-48 bg-white p-2.5 rounded-2xl flex items-center justify-center shadow-lg border border-gray-100">
+          {/* QR Code Container - Huge and centered */}
+          <div className="relative w-[280px] h-[280px] md:w-[360px] md:h-[360px] bg-white p-4 rounded-3xl flex items-center justify-center shadow-xl border border-gray-100/80 my-auto">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=1c3d3f&ecc=H&data=${encodeURIComponent(
+                cardToken && baseUrl ? `${baseUrl}/station?token=${encodeURIComponent(cardToken)}` : username || ""
+              )}`}
+              alt="QR Absen"
+              className="w-full h-full object-contain"
+            />
+            {/* Center Logo overlay */}
+            <div className="absolute w-14 h-14 bg-white rounded-xl flex items-center justify-center p-0.5 shadow-md border border-gray-100">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&color=1c3d3f&ecc=H&data=${encodeURIComponent(
-                  cardToken && baseUrl ? `${baseUrl}/station?token=${encodeURIComponent(cardToken)}` : username || ""
-                )}`}
-                alt="QR Absen"
+                src="/logo.png"
+                alt="SK Logo"
                 className="w-full h-full object-contain"
               />
-              {/* Center Logo overlay */}
-              <div className="absolute w-9 h-9 bg-white rounded-lg flex items-center justify-center p-0.5 shadow-sm border border-gray-100">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/logo.png"
-                  alt="SK Logo"
-                  className="w-full h-full object-contain"
-                />
-              </div>
             </div>
+          </div>
 
-            <div className="text-center mt-5 px-2">
-              <p className="text-[#1C3D3F] font-bold text-xs uppercase tracking-wider leading-none">
-                {fullname}
-              </p>
-              <p className="text-gray-400 text-[10px] font-medium mt-1">
-                {userRole === 'student' ? 'Siswa PKL' : jabatan}
-              </p>
-              <p className="text-gray-400 text-[9px] mt-3 leading-normal border-t border-gray-100 pt-3">
-                Dekatkan QR Code ini ke kamera mesin absensi SampulKreativ untuk memindai kehadiran.
-              </p>
-            </div>
-
+          <div className="text-center mb-4 max-w-xs w-full flex flex-col items-center">
+            <p className="text-[#1C3D3F] font-black text-base uppercase tracking-wider leading-none">
+              {fullname}
+            </p>
+            <p className="text-[#2AB0B2] text-xs font-bold mt-1 uppercase">
+              {userRole === 'student' ? 'Siswa PKL' : jabatan}
+            </p>
+            <p className="text-gray-400 text-[10px] mt-4 leading-relaxed border-t border-gray-150 pt-4 w-full">
+              Dekatkan QR Code ini ke kamera mesin absensi SampulKreativ untuk memindai kehadiran.
+            </p>
+            
             {/* Close Button at bottom */}
             <button
               onClick={() => setShowQrModal(false)}
-              className="w-full mt-5 py-3.5 rounded-xl text-white bg-[#2AB0B2] hover:bg-[#209092] font-bold text-xs transition-all cursor-pointer shadow-md text-center"
+              className="w-full mt-6 py-3.5 rounded-xl text-white bg-[#2AB0B2] hover:bg-[#209092] font-bold text-xs transition-all cursor-pointer shadow-md text-center uppercase tracking-wider"
             >
               Tutup
             </button>
