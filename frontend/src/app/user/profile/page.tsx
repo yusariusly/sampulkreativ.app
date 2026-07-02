@@ -721,41 +721,30 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* QR Absensi Modal - Full Screen */}
+      {/* QR Absensi Modal - Massive Screen Size */}
       {showQrModal && (
-        <div id="qr-modal-overlay-custom" className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-white p-6 md:p-12 animate-fade-in print:hidden">
+        <div id="qr-modal-overlay-custom" className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white p-4 animate-fade-in print:hidden">
           
           {/* Close Button */}
           <button
             onClick={() => setShowQrModal(false)}
-            className="absolute top-6 right-6 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-all cursor-pointer"
+            className="absolute top-4 right-4 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-all cursor-pointer z-20"
           >
-            <X size={24} />
+            <X size={28} />
           </button>
 
-          {/* Header info */}
-          <div className="text-center mt-6">
-            <span className="text-[11px] font-black tracking-widest text-[#2AB0B2] uppercase block">
-              PINDAI ABSENSI
-            </span>
-            <h4 className="font-extrabold text-[#1C3D3F] text-lg tracking-wide uppercase mt-1">
-              QR CODE SAYA
-            </h4>
-            <div className="h-[2.5px] w-8 bg-[#2AB0B2]/30 mx-auto mt-2 rounded-full" />
-          </div>
-
-          {/* QR Code Container - Huge and centered */}
-          <div className="relative w-[280px] h-[280px] md:w-[360px] md:h-[360px] bg-white p-4 rounded-3xl flex items-center justify-center shadow-xl border border-gray-100/80 my-auto">
+          {/* Massive QR Code Container */}
+          <div className="relative w-[92vw] h-[92vw] max-w-[80vh] max-h-[80vh] bg-white p-3 rounded-[32px] flex items-center justify-center shadow-2xl border border-gray-100/90 my-auto">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=1c3d3f&ecc=H&data=${encodeURIComponent(
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=450x450&color=1c3d3f&ecc=H&data=${encodeURIComponent(
                 cardToken && baseUrl ? `${baseUrl}/station?token=${encodeURIComponent(cardToken)}` : username || ""
               )}`}
               alt="QR Absen"
               className="w-full h-full object-contain"
             />
             {/* Center Logo overlay */}
-            <div className="absolute w-14 h-14 bg-white rounded-xl flex items-center justify-center p-0.5 shadow-md border border-gray-100">
+            <div className="absolute w-[16%] h-[16%] max-w-[64px] max-h-[64px] bg-white rounded-2xl flex items-center justify-center p-0.5 shadow-md border border-gray-100">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/logo.png"
@@ -765,21 +754,21 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="text-center mb-4 max-w-xs w-full flex flex-col items-center">
-            <p className="text-[#1C3D3F] font-black text-base uppercase tracking-wider leading-none">
+          <div className="text-center mt-2 mb-4 w-full max-w-xs flex flex-col items-center">
+            <h4 className="text-[#1C3D3F] font-black text-base uppercase tracking-widest leading-none">
               {fullname}
-            </p>
-            <p className="text-[#2AB0B2] text-xs font-bold mt-1 uppercase">
+            </h4>
+            <p className="text-[#2AB0B2] text-[11px] font-bold mt-1.5 uppercase tracking-wider">
               {userRole === 'student' ? 'Siswa PKL' : jabatan}
             </p>
-            <p className="text-gray-400 text-[10px] mt-4 leading-relaxed border-t border-gray-150 pt-4 w-full">
-              Dekatkan QR Code ini ke kamera mesin absensi SampulKreativ untuk memindai kehadiran.
+            <p className="text-gray-400 text-[9px] mt-3 leading-relaxed border-t border-gray-150 pt-3 w-full">
+              Posisikan QR Code ini di depan kamera absensi SampulKreativ.
             </p>
             
             {/* Close Button at bottom */}
             <button
               onClick={() => setShowQrModal(false)}
-              className="w-full mt-6 py-3.5 rounded-xl text-white bg-[#2AB0B2] hover:bg-[#209092] font-bold text-xs transition-all cursor-pointer shadow-md text-center uppercase tracking-wider"
+              className="w-full mt-4 py-3 rounded-xl text-white bg-[#2AB0B2] hover:bg-[#209092] font-bold text-xs transition-all cursor-pointer shadow-md text-center uppercase tracking-wider"
             >
               Tutup
             </button>
