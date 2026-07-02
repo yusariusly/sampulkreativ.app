@@ -73,7 +73,7 @@ async function upsert(dbClient, summaryData) {
   if (rows.length > 0) {
     const updateQuery = `
       UPDATE pkl_weekly_summaries 
-      SET total_points = ?, comments = ?, tags = ?, extended_days = ?, updated_at = NOW() 
+      SET total_points = ?, comments = ?, tags = ?, extended_days = ?, progress_override = ?, updated_at = NOW() 
       WHERE id = ?
     `;
     const [result] = await dbClient.query(updateQuery, [
@@ -81,13 +81,14 @@ async function upsert(dbClient, summaryData) {
       summaryData.comments,
       summaryData.tags,
       summaryData.extended_days || 0,
+      summaryData.progress_override !== undefined ? summaryData.progress_override : null,
       rows[0].id
     ]);
     return result.affectedRows > 0;
   } else {
     const insertQuery = `
-      INSERT INTO pkl_weekly_summaries (id, student_id, week_number, total_points, comments, tags, extended_days, is_published, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      INSERT INTO pkl_weekly_summaries (id, student_id, week_number, total_points, comments, tags, extended_days, progress_override, is_published, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `;
     const newId = `sum-${summaryData.student_id}-w${summaryData.week_number}`;
     const [result] = await dbClient.query(insertQuery, [
@@ -98,6 +99,7 @@ async function upsert(dbClient, summaryData) {
       summaryData.comments,
       summaryData.tags,
       summaryData.extended_days || 0,
+      summaryData.progress_override !== undefined ? summaryData.progress_override : null,
       summaryData.is_published
     ]);
     return result.affectedRows > 0;

@@ -48,6 +48,7 @@ interface StudentRekap {
   comments: string;
   tags: string[];
   extended_days?: number;
+  progress_override?: number | null;
   is_published: boolean;
   days_status?: number[];
 }
@@ -152,6 +153,8 @@ export default function PklScoreboardPage() {
   const [commentInput, setCommentInput] = useState("");
   const [extendedDaysInput, setExtendedDaysInput] = useState<number>(0);
   const [savingExtendedDays, setSavingExtendedDays] = useState<boolean>(false);
+  const [progressOverrideInput, setProgressOverrideInput] = useState<number | null>(null);
+  const [savingProgressOverride, setSavingProgressOverride] = useState<boolean>(false);
 
   // Tag Presets
   const tagPresets = [
@@ -552,6 +555,7 @@ export default function PklScoreboardPage() {
     setSelectedTags(currentStudent.tags || []);
     setCommentInput(currentStudent.comments || "");
     setExtendedDaysInput(currentStudent.extended_days || 0);
+    setProgressOverrideInput(currentStudent.progress_override ?? null);
 
     return () => {
       controller.abort();
@@ -746,6 +750,59 @@ export default function PklScoreboardPage() {
       }
     } finally {
       setSavingExtendedDays(false);
+    }
+  };
+
+  const handleSaveProgressOverride = async (newOverride: number | null) => {
+    if (!mentor || !selectedStudentId) return;
+
+    const studentObj = students.find((s) => s.student_id === selectedStudentId);
+    setProgressOverrideInput(newOverride);
+    setSavingProgressOverride(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      const res = await fetch(`/api/v1/mentor/rekap-mingguan/${selectedStudentId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": mentor.id,
+          "x-device-id": mentor.device_id || "",
+        },
+        body: JSON.stringify({
+          week_number: selectedWeek,
+          tags: studentObj?.tags || [],
+          comments: studentObj?.comments || "",
+          extended_days: extendedDaysInput,
+          progress_override: newOverride,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Gagal menyimpan progres override");
+      }
+
+      setStudents((prev) =>
+        prev.map((s) => {
+          if (s.student_id === selectedStudentId) {
+            return {
+              ...s,
+              progress_override: newOverride,
+            };
+          }
+          return s;
+        })
+      );
+      setSuccessMsg("Progres belajar berhasil diperbarui!");
+    } catch (err: any) {
+      setErrorMsg(err.message || "Gagal menyimpan progres override");
+      if (studentObj) {
+        setProgressOverrideInput(studentObj.progress_override ?? null);
+      }
+    } finally {
+      setSavingProgressOverride(false);
     }
   };
 
@@ -1358,7 +1415,7 @@ export default function PklScoreboardPage() {
                         </table>
                       </div>
 
-                      {/* Progress Bar & Target Extension Section */}
+                      {/* Progress Bar & Manual Override Section */}
                       <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col md:flex-row gap-5 items-stretch">
                         {/* Left: Progress Bar */}
                         <div className="flex-1 bg-slate-50/55 border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
@@ -1367,21 +1424,22 @@ export default function PklScoreboardPage() {
                               <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Progres Belajar Siswa</span>
                               <span className="text-xs font-black text-slate-800">Minggu {selectedWeek} (Relatif)</span>
                             </div>
-                            <span className="text-sm font-black text-[#2AB0B2]">
-                              {(() => {
-                                const studentStartDateStr = currentStudent.start_date
-                                  ? new Date(currentStudent.start_date).toISOString().split('T')[0]
-                                  : todayStr;
-                                const activeWeek = currentStudent.relative_week_number || 1;
-                                const prog = calculateWeekProgress(
-                                  studentStartDateStr,
-                                  selectedWeek,
-                                  activeWeek,
-                                  extendedDaysInput
-                                );
-                                return `${prog}%`;
-                              })()}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {progressOverrideInput !== null && (
+                                <span className="text-[7px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded uppercase tracking-wide">Manual</span>
+                              )}
+                              <span className="text-sm font-black text-[#2AB0B2]">
+                                {progressOverrideInput !== null
+                                  ? `${progressOverrideInput}%`
+                                  : (() => {
+                                      const studentStartDateStr = currentStudent.start_date
+                                        ? new Date(currentStudent.start_date).toISOString().split('T')[0]
+                                        : todayStr;
+                                      const activeWeek = currentStudent.relative_week_number || 1;
+                                      return `${calculateWeekProgress(studentStartDateStr, selectedWeek, activeWeek, extendedDaysInput)}%`;
+                                    })()}
+                              </span>
+                            </div>
                           </div>
 
                           {/* Progress Bar Visual */}
@@ -1389,56 +1447,65 @@ export default function PklScoreboardPage() {
                             <div
                               className="bg-[#2AB0B2] h-full rounded-full transition-all duration-500 ease-out"
                               style={{
-                                width: `${(() => {
-                                  const studentStartDateStr = currentStudent.start_date
-                                    ? new Date(currentStudent.start_date).toISOString().split('T')[0]
-                                    : todayStr;
-                                  const activeWeek = currentStudent.relative_week_number || 1;
-                                  return calculateWeekProgress(
-                                    studentStartDateStr,
-                                    selectedWeek,
-                                    activeWeek,
-                                    extendedDaysInput
-                                  );
-                                })()}%`
+                                width: `${progressOverrideInput !== null
+                                  ? progressOverrideInput
+                                  : (() => {
+                                      const studentStartDateStr = currentStudent.start_date
+                                        ? new Date(currentStudent.start_date).toISOString().split('T')[0]
+                                        : todayStr;
+                                      const activeWeek = currentStudent.relative_week_number || 1;
+                                      return calculateWeekProgress(studentStartDateStr, selectedWeek, activeWeek, extendedDaysInput);
+                                    })()}%`
                               }}
                             />
                           </div>
                           <span className="text-[8px] font-bold text-slate-400">
-                            * Dihitung otomatis berdasarkan hari kerja yang telah dilalui dari total target ({5 + extendedDaysInput} hari).
+                            {progressOverrideInput !== null
+                              ? "* Nilai progres diatur manual oleh pembimbing."
+                              : `* Dihitung otomatis berdasarkan hari kerja yang telah dilalui.`}
                           </span>
                         </div>
 
-                        {/* Right: Target Extension Dropdown */}
-                        <div className="w-full md:w-[280px] flex flex-col gap-2">
+                        {/* Right: Progress Override Input */}
+                        <div className="w-full md:w-[200px] flex flex-col gap-2">
                           <label className="block text-[9px] font-extrabold text-slate-450 uppercase tracking-wider">
-                            Perpanjangan Target (Tambahan Hari Kerja)
+                            Atur Progres (%)
                           </label>
-                          <div className="relative">
-                            <select
-                              value={extendedDaysInput}
-                              onChange={(e) => handleSaveExtendedDays(parseInt(e.target.value, 10))}
-                              disabled={savingExtendedDays}
-                              className="w-full text-xs font-semibold pl-3 pr-8 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-all bg-white shadow-3xs cursor-pointer text-slate-800 disabled:bg-slate-50 disabled:text-slate-400"
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={progressOverrideInput ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === "") {
+                                  setProgressOverrideInput(null);
+                                } else {
+                                  setProgressOverrideInput(Math.min(100, Math.max(0, parseInt(val, 10) || 0)));
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleSaveProgressOverride(progressOverrideInput);
+                                }
+                              }}
+                              className="w-16 text-center text-xs font-black py-2 px-2 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-all bg-white text-slate-800"
+                              placeholder="Auto"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveProgressOverride(progressOverrideInput)}
+                              disabled={savingProgressOverride}
+                              className="px-3 py-2 bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-350 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all active:scale-[0.98] cursor-pointer shrink-0"
                             >
-                              <option value={0}>Tidak ada perpanjangan (+0 Hari)</option>
-                              <option value={1}>Perpanjang +1 Hari Kerja (Sampai Senin)</option>
-                              <option value={2}>Perpanjang +2 Hari Kerja (Sampai Selasa)</option>
-                              <option value={3}>Perpanjang +3 Hari Kerja (Sampai Rabu)</option>
-                              <option value={4}>Perpanjang +4 Hari Kerja (Sampai Kamis)</option>
-                              <option value={5}>Perpanjang +5 Hari Kerja (Sampai Jumat Depan)</option>
-                            </select>
+                              {savingProgressOverride ? "..." : "Simpan"}
+                            </button>
                           </div>
-                          {savingExtendedDays ? (
-                            <p className="text-[9px] text-[#2AB0B2] font-black flex items-center gap-1 mt-1">
-                              <Loader2 className="animate-spin" size={10} />
-                              Menyimpan perubahan...
-                            </p>
-                          ) : (
-                            <p className="text-[9px] text-slate-400 font-bold leading-snug">
-                              * Memperpanjang batas pengerjaan tugas siswa. Progres bar di kiri akan terupdate otomatis.
-                            </p>
-                          )}
+                          <p className="text-[9px] text-slate-400 font-bold leading-snug">
+                            * Kosongkan untuk kembali ke hitungan otomatis.
+                          </p>
                         </div>
                       </div>
                     </>

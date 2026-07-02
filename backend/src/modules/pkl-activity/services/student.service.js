@@ -235,9 +235,9 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
   const allTasks = await taskRepo.findTasksByStudentId(dbClient, student.student_id);
   const activeWeekTasks = allTasks.filter(t => t.week_number === progress.active_week);
   
-  // Dapatkan seluruh summary mingguan siswa untuk mencari extended_days
+  // Dapatkan seluruh summary mingguan siswa untuk mencari extended_days dan progress_override
   const [summariesRows] = await dbClient.query(
-    'SELECT week_number, extended_days FROM pkl_weekly_summaries WHERE student_id = ?',
+    'SELECT week_number, extended_days, progress_override FROM pkl_weekly_summaries WHERE student_id = ?',
     [student.student_id]
   );
   const summariesMap = new Map(summariesRows.map(s => [s.week_number, s]));
@@ -250,14 +250,17 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
     const weekTasks = allTasks.filter(t => t.week_id === w.id);
     const summary = summariesMap.get(w.week_number);
     const extendedDays = summary ? (summary.extended_days || 0) : 0;
+    const progressOverride = summary ? (summary.progress_override ?? null) : null;
 
-    const progressPercent = calculateWeekProgress(
+    // Gunakan progress_override jika di-set oleh admin, jika tidak gunakan kalkulasi otomatis
+    const calculatedProgress = calculateWeekProgress(
       student.start_date,
       w.week_number,
       progress.active_week,
       extendedDays,
       todayDateStr
     );
+    const progressPercent = progressOverride !== null ? progressOverride : calculatedProgress;
 
     return {
       id: w.id,
@@ -265,6 +268,7 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
       month_number: w.month_number,
       milestone_title: w.milestone_title,
       progress_percent: progressPercent,
+      progress_override: progressOverride,
       extended_days: extendedDays,
       tasks: weekTasks.map(t => ({
         task_id: t.task_id,

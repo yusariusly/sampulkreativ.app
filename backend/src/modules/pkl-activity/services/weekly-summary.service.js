@@ -7,6 +7,7 @@ const studentRepo = require('../repositories/student.repository');
 const dailyEvalRepo = require('../repositories/daily-evaluation.repository');
 const weeklySumRepo = require('../repositories/weekly-summary.repository');
 const studentService = require('./student.service');
+const scoreboardService = require('./scoreboard.service');
 
 /**
  * Mendapatkan daftar rekapitulasi mingguan seluruh siswa bimbingan mentor (Mencegah N+1)
@@ -30,16 +31,20 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
   // 3. Ambil seluruh data summary mingguan yang sudah disimpan untuk seluruh siswa bimbingan sekaligus
   const studentIds = students.map(s => s.student_id);
   const [summaryRows] = await dbClient.query(
-    'SELECT id, student_id, week_number, total_points, comments, tags, extended_days, is_published FROM pkl_weekly_summaries WHERE student_id IN (?)',
+    'SELECT id, student_id, week_number, total_points, comments, tags, extended_days, progress_override, is_published FROM pkl_weekly_summaries WHERE student_id IN (?)',
     [studentIds]
   );
   const summaryMap = new Map(summaryRows.map(s => [`${s.student_id}_${s.week_number}`, s]));
 
-  // 4. Ambil seluruh daily evaluations untuk semua siswa (Mencegah N+1)
+  // 4. Hitung range tanggal untuk minggu ini agar query data harian ter-index dengan baik
+  const range = studentService.getWeekDateRange(baselineStartStr, weekNumber);
+
+  // Ambil daily evaluations yang hanya berada pada range minggu ini dan milik siswa bimbingan mentor ini
   const [evalRows] = await dbClient.query(`
     SELECT student_id, evaluation_date, wkt_point, skp_point, has_point, ker_point, ini_point
     FROM pkl_daily_evaluations
-  `);
+    WHERE evaluation_date BETWEEN ? AND ? AND student_id IN (?)
+  `, [range.startDate, range.endDate, studentIds]);
 
   // Kelompokkan data evaluasi berdasarkan student_id
   const evalMap = new Map();
@@ -53,7 +58,6 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
   // 5. Proses kompilasi data untuk masing-masing siswa
   const result = [];
   for (const student of students) {
-    const range = studentService.getWeekDateRange(baselineStartStr, weekNumber);
     const studentEvals = evalMap.get(student.student_id) || [];
     
     // Filter evaluasi yang jatuh dalam rentang minggu terkait
@@ -123,6 +127,7 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
       comments: savedSummary ? (savedSummary.comments || '') : '',
       tags: tags,
       extended_days: savedSummary ? (savedSummary.extended_days || 0) : 0,
+      progress_override: savedSummary ? (savedSummary.progress_override ?? null) : null,
       is_published: savedSummary ? (savedSummary.is_published === 1) : false,
       days_status: daysStatus
     });
@@ -181,10 +186,15 @@ async function saveWeeklyFeedback(dbClient, mentorId, studentId, feedbackData) {
     comments: feedbackData.comments || null,
     tags: JSON.stringify(tagsToSave),
     extended_days: feedbackData.extended_days || 0,
-    is_published: 0 // Default draf saat disimpan
+    progress_override: feedbackData.progress_override !== undefined ? feedbackData.progress_override : null,
   };
 
   const success = await weeklySumRepo.upsert(dbClient, summaryPayload);
+  if (success) {
+    // Hitung ulang peringkat minggu berjalan setelah menyimpan draf
+    await scoreboardService.recalculateAndSaveRanksForWeek(dbClient, relativeWeek);
+  }
+
   return {
     success,
     warning: warningMessage
@@ -218,9 +228,10 @@ async function publishWeeklySummary(dbClient, mentorId, weekNumber) {
     throw err;
   }
 
-  // 3. Update status is_published = 1 untuk masing-masing siswa berdasarkan pekan relatif mereka
+  // 3. Update status is_published = 1 untuk masing-masing siswa dan kalkulasi ulang peringkat
   for (const item of list) {
     await weeklySumRepo.publish(dbClient, item.student_id, item.relative_week_number);
+    await scoreboardService.recalculateAndSaveRanksForWeek(dbClient, item.relative_week_number);
   }
   return true;
 }
@@ -236,9 +247,10 @@ async function unpublishWeeklySummary(dbClient, mentorId, weekNumber) {
   const list = await getWeeklyRekapList(dbClient, mentorId, weekNumber);
   for (const item of list) {
     await dbClient.query(
-      'UPDATE pkl_weekly_summaries SET is_published = 0, updated_at = NOW() WHERE student_id = ? AND week_number = ?',
+      'UPDATE pkl_weekly_summaries SET is_published = 0, rank = NULL, updated_at = NOW() WHERE student_id = ? AND week_number = ?',
       [item.student_id, item.relative_week_number]
     );
+    await scoreboardService.recalculateAndSaveRanksForWeek(dbClient, item.relative_week_number);
   }
   return true;
 }

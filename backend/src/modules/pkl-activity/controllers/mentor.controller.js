@@ -114,7 +114,8 @@ async function saveWeeklyFeedback(req, res, next) {
       week_number: body.week_number,
       tags: body.tags,
       comments: body.comments,
-      extended_days: body.extended_days !== undefined ? parseInt(body.extended_days, 10) : 0
+      extended_days: body.extended_days !== undefined ? parseInt(body.extended_days, 10) : 0,
+      progress_override: body.progress_override === null ? null : (body.progress_override !== undefined ? parseInt(body.progress_override, 10) : undefined)
     });
 
     res.status(200).json({

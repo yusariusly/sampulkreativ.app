@@ -330,33 +330,72 @@ async function getStudentScoreboardHistory(dbClient, studentId) {
     throw err;
   }
 
-  // Ambil semua siswa PKL (global)
-  const students = await studentRepo.findByMentorId(dbClient, null);
-
-  // Cari semua minggu aktif yang sudah dirilis summary-nya
-  const [weekRows] = await dbClient.query(
-    "SELECT DISTINCT week_number FROM pkl_weekly_summaries WHERE is_published = 1 AND student_id IN (SELECT id FROM pkl_students WHERE status = 'ACTIVE') ORDER BY week_number ASC"
+  // Ambil history rank langsung dari database
+  const [historyRows] = await dbClient.query(
+    "SELECT week_number, rank, total_points FROM pkl_weekly_summaries WHERE student_id = ? AND is_published = 1 ORDER BY week_number ASC",
+    [studentId]
   );
 
+  // Jika rank masih NULL (data lama sebelum optimasi/re-kalkulasi), lakukan dynamic fallback
   const history = [];
-  for (const w of weekRows) {
-    const rankings = await computeRankingsForWeek(dbClient, students, w.week_number);
-    const selfRank = rankings.find(r => r.student_id === studentId);
-    if (selfRank) {
+  let students = null;
+  for (const row of historyRows) {
+    if (row.rank !== null && row.rank !== undefined) {
       history.push({
-        week_number: w.week_number,
-        rank: selfRank.rank,
-        total_points: selfRank.total_points
+        week_number: row.week_number,
+        rank: row.rank,
+        total_points: row.total_points
       });
+    } else {
+      // Lazy-load students hanya jika dibutuhkan kalkulasi dinamis untuk data lama
+      if (!students) {
+        students = await studentRepo.findByMentorId(dbClient, null);
+      }
+      const rankings = await computeRankingsForWeek(dbClient, students, row.week_number);
+      const selfRank = rankings.find(r => r.student_id === studentId);
+      if (selfRank) {
+        history.push({
+          week_number: row.week_number,
+          rank: selfRank.rank,
+          total_points: selfRank.total_points
+        });
+        // Cache hasil kalkulasi rank ke database untuk pemanggilan berikutnya
+        await dbClient.query(
+          "UPDATE pkl_weekly_summaries SET rank = ? WHERE student_id = ? AND week_number = ?",
+          [selfRank.rank, studentId, row.week_number]
+        );
+      }
     }
   }
 
   return history;
 }
 
+/**
+ * Menghitung ulang seluruh peringkat mingguan secara global untuk minggu tertentu dan menyimpannya di database
+ * @param {object} dbClient 
+ * @param {number} weekNumber 
+ */
+async function recalculateAndSaveRanksForWeek(dbClient, weekNumber) {
+  try {
+    const students = await studentRepo.findAll(dbClient);
+    const rankings = await computeRankingsForWeek(dbClient, students, weekNumber);
+
+    for (const rankInfo of rankings) {
+      await dbClient.query(
+        "UPDATE pkl_weekly_summaries SET rank = ? WHERE student_id = ? AND week_number = ?",
+        [rankInfo.rank, rankInfo.student_id, weekNumber]
+      );
+    }
+  } catch (error) {
+    console.error(`Gagal menghitung ulang & menyimpan peringkat untuk minggu ${weekNumber}:`, error);
+  }
+}
+
 module.exports = {
   getScoreboardVisibility,
   toggleScoreboardVisibility,
   getScoreboard,
-  getStudentScoreboardHistory
+  getStudentScoreboardHistory,
+  recalculateAndSaveRanksForWeek
 };

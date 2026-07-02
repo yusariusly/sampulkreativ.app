@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Camera, Clock, AlertTriangle, X, Lock, ArrowLeft, Calendar, ClipboardList, CreditCard, ChevronRight, FileText, HeartPulse, Laptop, Check, LogOut, Key } from "lucide-react";
 import { getDeviceId } from "../utils/session";
 import { compressImage, IMAGE_PRESETS } from "../utils/image";
-import { useStudentDashboard, StudentDashboardView, SkeletonCard, ErrorState } from "@/features/pkl-activity";
+import { useStudentDashboard, StudentDashboardView, SkeletonCard, ErrorState, savingsService, QUERY_KEYS, StudentSavingsData, BaseResponse } from "@/features/pkl-activity";
+import { useQuery } from "@tanstack/react-query";
 import KieSubmissionView from "./components/KieSubmissionView";
 
 
@@ -100,6 +101,48 @@ function UserDashboardContent() {
   const [payrollError, setPayrollError] = useState("");
 
   const studentDashboard = useStudentDashboard(undefined, { enabled: isStudent });
+  
+  // KIE progress states
+  const [kieCount, setKieCount] = useState(0);
+  const [kieDebt, setKieDebt] = useState(0);
+
+  const fetchKieCount = useCallback(async () => {
+    try {
+      const storedUser = localStorage.getItem("v2_user");
+      if (!storedUser) return;
+      const userObj = JSON.parse(storedUser);
+      const deviceId = localStorage.getItem("v2_device_id") || "";
+
+      const res = await fetch(`/api/kie/today-count?user_id=${userObj.id}&device_id=${deviceId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setKieCount(data.count_today || 0);
+        setKieDebt(data.kie_debt || 0);
+      }
+    } catch (err) {
+      console.error("Gagal memuat KIE progress:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    Promise.resolve().then(() => fetchKieCount());
+    const handleUpdate = () => {
+      Promise.resolve().then(() => fetchKieCount());
+    };
+    window.addEventListener("kie-submitted", handleUpdate);
+    return () => window.removeEventListener("kie-submitted", handleUpdate);
+  }, [fetchKieCount]);
+
+  // Savings progress query
+  const { data: savings } = useQuery<BaseResponse<StudentSavingsData>>({
+    queryKey: [QUERY_KEYS.STUDENT_SAVINGS],
+    queryFn: () => savingsService.getStudentSavings(),
+    staleTime: 30000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+    enabled: isStudent
+  });
   
   // Clock state
   const [now, setNow] = useState(new Date());
@@ -672,19 +715,37 @@ function UserDashboardContent() {
     return `${dayName}, ${dateNum} ${monthName} ${year}`;
   };
 
+  // Savings calculations
+  const savedAmount = savings?.data?.saved_amount || 0;
+  const targetAmount = savings?.data?.target_amount || 70000;
+  const savingsPercent = targetAmount > 0 ? Math.round((savedAmount / targetAmount) * 100) : 0;
+
+  // KIE calculations
+  const baseTarget = 10 + kieDebt;
+  const totalBoxes = Math.max(baseTarget, kieCount);
+  const progressPercent = kieCount > 0 ? (kieCount / totalBoxes) * 100 : 0;
+  const bgSizePercent = kieCount > 0 ? (totalBoxes / kieCount) * 100 : 100;
+
+  const stop1 = ((4 + kieDebt - 0.5) / totalBoxes) * 100;
+  const stop2 = ((4 + kieDebt + 0.5) / totalBoxes) * 100;
+  const stop3 = ((8 + kieDebt - 0.5) / totalBoxes) * 100;
+  const stop4 = ((8 + kieDebt + 0.5) / totalBoxes) * 100;
+
+  const gradient = `linear-gradient(to right, #EF4444 0%, #EF4444 ${stop1}%, #F59E0B ${stop2}%, #F59E0B ${stop3}%, #10B981 ${stop4}%, #10B981 100%)`;
+
   return (
     <div className={`flex flex-col min-h-full bg-[#F8FAFC] px-5 select-none relative ${
       activeTab === "menu" ? "pt-6 pb-12" : "pt-1 pb-0"
     }`}>
       {activeTab === "menu" && (
-        <div className="flex flex-col gap-5 py-2">
+        <div className="flex flex-col gap-3.5 py-2">
           {/* Greeting Section */}
-          <div className="flex items-center justify-between pb-4 border-b border-gray-150/50 flex-shrink-0">
+          <div className="flex items-center justify-between pb-4 border-b border-gray-150/40 flex-shrink-0">
             <div>
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">
                 Selamat {getGreeting()}
               </p>
-              <h2 className="text-xl font-black tracking-tight text-[#1C3D3F] leading-tight">
+              <h2 className="text-2xl font-black tracking-tight text-[#1C3D3F] leading-tight">
                 Halo, {fullname.split(" ")[0]} 👋
               </h2>
               <p className="text-[10px] font-bold text-[#2AB0B2] uppercase tracking-wider mt-1.5 flex items-center gap-1.5">
@@ -695,254 +756,317 @@ function UserDashboardContent() {
             </div>
             
             {/* Avatar */}
-            <div className="w-12 h-12 rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-2xs flex-shrink-0 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-2xs flex-shrink-0 flex items-center justify-center">
               {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
                 <img src={profilePhoto} alt={fullname} className="w-full h-full object-cover" />
               ) : (
-                <span className="text-lg font-black text-[#1C3D3F] uppercase">
+                <span className="text-xl font-black text-[#1C3D3F] uppercase">
                   {fullname.charAt(0)}
                 </span>
               )}
             </div>
           </div>
 
-          {/* Spacing / Layout Container */}
-          <div className="flex flex-col gap-6 mt-1">
-            {/* Setor API KIE Inline Card */}
-            <div className="w-full bg-white border border-gray-200/80 rounded-3xl p-5 shadow-xs flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <Key size={14} className="text-[#2AB0B2]" />
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                  API KIE
-                </span>
-              </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={kieInput}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\s/g, "");
-                    if (val.length <= 32) {
-                      setKieInput(val);
-                      setKieError("");
-                      setKieSuccess("");
-                    }
-                  }}
-                  disabled={submittingKie}
-                  placeholder="Masukkan 32 karakter kunci API KIE"
-                  className="w-full pl-4 pr-16 py-3 rounded-2xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-mono font-semibold bg-gray-50 focus:bg-white transition-all text-xs tracking-wider"
-                />
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 bg-gray-200/50 px-2 py-0.5 rounded-md select-none">
-                  {kieInput.length}/32
+          {/* Combined priority notice (Tabungan & KIE) */}
+          {isStudent && (
+            <div className="grid grid-cols-2 gap-3 mt-0.5">
+              {/* Left Column: Tabungan Buku */}
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-3.5 shadow-3xs flex flex-col justify-between min-h-[64px]">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                    <span>TABUNGAN</span>
+                    <span className="text-[#1C3D3F]">{savingsPercent}%</span>
+                  </div>
+                  
+                  {/* Savings Progress Bar */}
+                  <div className="w-full h-1.5 bg-gray-100 rounded-full border border-gray-200/50 overflow-hidden mt-0.5">
+                    <div
+                      style={{ width: `${savingsPercent}%` }}
+                      className="h-full bg-[#2AB0B2] rounded-full transition-all duration-500 ease-out"
+                    />
+                  </div>
+                </div>
+                
+                {/* Subtext info */}
+                <div className="flex items-center justify-between mt-2 text-[8px] font-bold text-slate-400">
+                  <span>{formatRupiah(savedAmount)}</span>
+                  <span className="text-slate-300">/</span>
+                  <span>{formatRupiah(targetAmount)}</span>
                 </div>
               </div>
 
+              {/* Right Column: KIE Progress */}
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-3.5 shadow-3xs flex flex-col justify-between min-h-[64px]">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                    <span>KIE PROGRESS</span>
+                    <span className="text-[#1C3D3F]">{kieCount}/{baseTarget}</span>
+                  </div>
+                  
+                  {/* KIE Progress Bar with soft gradient */}
+                  <div className="w-full h-1.5 bg-gray-100 rounded-full border border-gray-200/50 overflow-hidden flex relative mt-0.5">
+                    {kieCount > baseTarget && (
+                      <div
+                        style={{ left: `${(baseTarget / totalBoxes) * 100}%` }}
+                        className="absolute top-0 bottom-0 w-0.5 border-l border-dashed border-gray-400/80 z-10"
+                      />
+                    )}
+                    <div
+                      style={{
+                        width: `${progressPercent}%`,
+                        backgroundImage: gradient,
+                        backgroundSize: `${bgSizePercent}% 100%`,
+                        backgroundRepeat: "no-repeat"
+                      }}
+                      className="h-full transition-all duration-500 ease-out"
+                    />
+                  </div>
+                </div>
+
+                {/* Subtext info */}
+                <div className="flex items-center justify-between mt-2 text-[8px] font-bold text-slate-400">
+                  {kieDebt > 0 ? (
+                    <span className="text-red-500 font-extrabold">Hutang: {kieDebt}</span>
+                  ) : (
+                    <span className="text-[#2AB0B2] font-extrabold">Bebas Hutang</span>
+                  )}
+                  <span>Target: {baseTarget}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Debt Alert Banner if any */}
+          {isStudent && kieDebt > 0 && (
+            <div className="px-2.5 py-1.5 bg-red-50/60 border border-red-100/50 rounded-xl flex items-start gap-1.5 text-[9px] -mt-1">
+              <span className="shrink-0 px-1 py-0.5 bg-red-100 text-red-600 font-bold rounded-[3px] uppercase tracking-wider text-[7px] mt-0.5">
+                HUTANG: {kieDebt}
+              </span>
+              <span className="text-red-500 font-semibold leading-relaxed">
+                Anda memiliki hutang setoran KIE. Silakan menyetor lebih dari 4 KIE hari ini untuk melunasinya.
+              </span>
+            </div>
+          )}
+
+          {/* Spacing / Layout Container */}
+          <div className="flex flex-col gap-3.5">
+            {/* Setor API KIE Inline Card */}
+            <div className="w-full bg-white border border-gray-200/80 rounded-2xl p-3.5 shadow-3xs flex flex-col gap-2">
+              <div className="flex items-center gap-1.5">
+                <Key size={12} className="text-[#2AB0B2]" />
+                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                  API KIE
+                </span>
+              </div>
+              <div className="flex gap-2 relative">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={kieInput}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\s/g, "");
+                      if (val.length <= 32) {
+                        setKieInput(val);
+                        setKieError("");
+                        setKieSuccess("");
+                      }
+                    }}
+                    disabled={submittingKie}
+                    placeholder="Masukkan 32 karakter kunci API KIE"
+                    className="w-full pl-3 pr-12 py-2.5 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-mono font-semibold bg-gray-50 focus:bg-white transition-all text-[11px] tracking-wider"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-bold text-gray-400 bg-gray-200/30 px-1.5 py-0.5 rounded select-none">
+                    {kieInput.length}/32
+                  </div>
+                </div>
+                <button
+                  onClick={handleKieSubmit}
+                  disabled={kieInput.length !== 32 || submittingKie}
+                  className="px-4 py-2.5 bg-[#1C3D3F] hover:bg-[#285557] disabled:bg-gray-100 disabled:text-gray-400 text-white font-black text-[10px] uppercase tracking-widest rounded-xl cursor-pointer transition-all active:scale-[0.98] flex items-center justify-center shrink-0"
+                >
+                  {submittingKie ? "..." : "Setor"}
+                </button>
+              </div>
+
               {kieError && (
-                <div className="text-[11px] font-semibold text-red-500 bg-red-50 border border-red-100 rounded-xl p-2.5 flex items-center gap-1.5 animate-fadeIn">
+                <div className="text-[10px] font-semibold text-red-500 bg-red-50 border border-red-100 rounded-lg p-2 flex items-center gap-1.5 animate-fadeIn">
                   <span>{kieError}</span>
                 </div>
               )}
               {kieSuccess && (
-                <div className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 flex items-center gap-1.5 animate-fadeIn">
+                <div className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg p-2 flex items-center gap-1.5 animate-fadeIn">
                   <span>{kieSuccess}</span>
                 </div>
               )}
-
-              <button
-                onClick={handleKieSubmit}
-                disabled={kieInput.length !== 32 || submittingKie}
-                className="w-full py-3 bg-[#1C3D3F] hover:bg-[#285557] disabled:bg-gray-100 disabled:text-gray-400 text-white font-black text-xs uppercase tracking-widest rounded-xl cursor-pointer transition-all active:scale-[0.98] shadow-xs flex items-center justify-center gap-1.5"
-              >
-                {submittingKie ? "Mengirim..." : "Setor"}
-              </button>
             </div>
 
-            {/* Primary Action Card: Attendance Hero Card */}
-            <div className="w-full bg-white border border-gray-200/80 rounded-3xl p-5 shadow-xs flex flex-col justify-between min-h-[190px]">
-              <div>
+            {/* Unified Layanan & Absensi Card */}
+            <div className="w-full bg-white border border-gray-200/80 rounded-2xl overflow-hidden shadow-3xs flex flex-col">
+              {/* Top Row: Grid of Aktivitas PKL and Payroll */}
+              <div className="grid grid-cols-2 border-b border-gray-150/60">
+                {/* Left Column: Aktivitas PKL */}
+                {(() => {
+                  const isPklAllowed = userRole === "student" || userRole === "admin";
+                  const activeWeekNo = isStudent && studentDashboard.data ? studentDashboard.data.program_kerja?.active_week || 1 : 1;
+                  
+                  return (
+                    <button
+                      onClick={() => isPklAllowed ? navigateToTab("pkl") : handleLockedClick("pkl")}
+                      className={`text-left p-4 transition-all duration-300 flex flex-col justify-between min-h-[105px] border-r border-gray-150/60 ${
+                        !isPklAllowed 
+                          ? "bg-slate-50/45 cursor-not-allowed opacity-60" 
+                          : "hover:bg-slate-50/40 active:scale-[0.99] cursor-pointer"
+                      } ${wobblingCard === "pkl" ? "animate-wobble" : ""}`}
+                    >
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between w-full">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
+                            !isPklAllowed 
+                              ? "bg-slate-100/40 border-slate-200/50 text-slate-400" 
+                              : "bg-[#2AB0B2]/10 border-[#2AB0B2]/20 text-[#2AB0B2]"
+                          }`}>
+                            <ClipboardList size={14} />
+                          </div>
+                          
+                          {isPklAllowed ? (
+                            <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black bg-[#2AB0B2] text-white uppercase tracking-wider">
+                              Minggu {activeWeekNo}
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-0.5 bg-slate-100 rounded-md px-1 py-0.5 text-[7px] font-bold text-slate-400 uppercase tracking-wider">
+                              <Lock size={7} />
+                              <span>Locked</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <h3 className={`font-black text-[10px] uppercase tracking-wider leading-none ${
+                            isPklAllowed ? "text-[#1C3D3F]" : "text-slate-450"
+                          }`}>
+                            Aktivitas PKL
+                          </h3>
+                          <p className={`text-[8.5px] font-semibold mt-1 leading-tight ${
+                            isPklAllowed ? "text-gray-400" : "text-slate-350"
+                          }`}>
+                            Jurnal mingguan, absensi & tugas.
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })()}
+
+                {/* Right Column: Payroll */}
+                {(() => {
+                  const isPayrollAllowed = userRole === "employee" || userRole === "admin";
+                  const activePeriod = payrollSlips.length > 0 ? payrollSlips[0].periode : "Aktif";
+                  
+                  return (
+                    <button
+                      onClick={() => isPayrollAllowed ? navigateToTab("payroll") : handleLockedClick("payroll")}
+                      className={`text-left p-4 transition-all duration-300 flex flex-col justify-between min-h-[105px] ${
+                        !isPayrollAllowed 
+                          ? "bg-slate-50/45 cursor-not-allowed opacity-60" 
+                          : "hover:bg-slate-50/40 active:scale-[0.99] cursor-pointer"
+                      } ${wobblingCard === "payroll" ? "animate-wobble" : ""}`}
+                    >
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between w-full">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
+                            !isPayrollAllowed 
+                              ? "bg-slate-100/40 border-slate-200/50 text-slate-400" 
+                              : "bg-[#2AB0B2]/10 border-[#2AB0B2]/20 text-[#2AB0B2]"
+                          }`}>
+                            <CreditCard size={14} />
+                          </div>
+                          
+                          {isPayrollAllowed ? (
+                            <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black bg-indigo-600 text-white uppercase tracking-wider">
+                              {activePeriod}
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-0.5 bg-slate-100 rounded-md px-1 py-0.5 text-[7px] font-bold text-slate-400 uppercase tracking-wider">
+                              <Lock size={7} />
+                              <span>Locked</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <h3 className={`font-black text-[10px] uppercase tracking-wider leading-none ${
+                            isPayrollAllowed ? "text-[#1C3D3F]" : "text-slate-455"
+                          }`}>
+                            Payroll & Gaji
+                          </h3>
+                          <p className={`text-[8.5px] font-semibold mt-1 leading-tight ${
+                            isPayrollAllowed ? "text-gray-400" : "text-slate-350"
+                          }`}>
+                            Slip gaji bulanan & kompensasi.
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })()}
+              </div>
+
+              {/* Bottom Row: Full-width Absensi */}
+              <div className="p-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <Clock size={12} className="text-[#2AB0B2]" />
+                    <Clock size={11} className="text-[#2AB0B2]" />
                     Absensi Kehadiran
                   </span>
-                  <span className="text-[8px] font-black text-[#1C3D3F] uppercase bg-gray-100 px-2 py-0.5 rounded-md select-none">
+                  <span className="text-[8px] font-black text-[#1C3D3F] uppercase bg-gray-100 px-1.5 py-0.5 rounded select-none">
                     Utama
                   </span>
                 </div>
                 
-                <div className="mt-4">
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider leading-none">Status Saat Ini</p>
-                  <h3 className="text-2xl font-black text-[#1C3D3F] mt-1.5 tracking-tight">
-                    {clockOutTime ? "Sudah Absen Pulang" :
-                     isSakit ? "Izin Sakit" :
-                     isIzin ? "Izin Absen" :
-                     clockInTime ? "Sudah Absen Masuk" :
-                     "Belum Absen"}
-                  </h3>
-                  <p className="text-xs font-semibold text-gray-400 mt-1 leading-normal">
-                    {clockOutTime ? `Anda telah menyelesaikan absensi hari ini (Pulang: ${clockOutTime.slice(0, 5)} WIB).` :
-                     isSakit ? "Status kehadiran hari ini terhitung sakit." :
-                     isIzin ? "Status kehadiran hari ini terhitung izin." :
-                     clockInTime ? `Anda sedang aktif bekerja (Masuk: ${clockInTime.slice(0, 5)} WIB). Jangan lupa absen pulang!` :
-                     "Anda belum melakukan absensi masuk hari ini."}
-                  </p>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-sm font-black text-[#1C3D3F] tracking-tight">
+                      {clockOutTime ? "Sudah Absen Pulang" :
+                       isSakit ? "Izin Sakit" :
+                       isIzin ? "Izin Absen" :
+                       clockInTime ? "Sudah Absen Masuk" :
+                       "Belum Absen"}
+                    </h3>
+                    <p className="text-[10px] font-semibold text-gray-400 mt-0.5 leading-normal">
+                      {clockOutTime ? `Selesai (Pulang: ${clockOutTime.slice(0, 5)} WIB).` :
+                       isSakit ? "Terhitung sakit." :
+                       isIzin ? "Terhitung izin." :
+                       clockInTime ? `Aktif bekerja (Masuk: ${clockInTime.slice(0, 5)} WIB).` :
+                       "Anda belum absen masuk hari ini."}
+                    </p>
+                  </div>
+
+                  {(() => {
+                    let btnText = "Masuk";
+                    let btnColor = "bg-[#2AB0B2] hover:bg-[#209092]";
+                    
+                    if (clockOutTime) {
+                      btnText = "Riwayat";
+                      btnColor = "bg-[#1C3D3F] hover:bg-[#285557]";
+                    } else if (isSakit || isIzin) {
+                      btnText = "Detail";
+                      btnColor = "bg-[#1C3D3F] hover:bg-[#285557]";
+                    } else if (clockInTime) {
+                      btnText = "Pulang";
+                      btnColor = "bg-rose-500 hover:bg-rose-600";
+                    }
+
+                    return (
+                      <button
+                        onClick={() => navigateToTab("absen")}
+                        className={`px-4 py-2 ${btnColor} active:scale-[0.98] transition-all text-white font-black text-[10px] uppercase tracking-widest rounded-xl cursor-pointer flex items-center justify-center gap-1 shadow-3xs shrink-0`}
+                      >
+                        <span>{btnText}</span>
+                        <ChevronRight size={10} />
+                      </button>
+                    );
+                  })()}
                 </div>
-              </div>
-              
-              {(() => {
-                let btnText = "Mulai Absensi Masuk";
-                let btnColor = "bg-[#2AB0B2] hover:bg-[#209092]";
-                
-                if (clockOutTime) {
-                  btnText = "Lihat Riwayat Absensi";
-                  btnColor = "bg-[#1C3D3F] hover:bg-[#285557]";
-                } else if (isSakit || isIzin) {
-                  btnText = "Lihat Detail";
-                  btnColor = "bg-[#1C3D3F] hover:bg-[#285557]";
-                } else if (clockInTime) {
-                  btnText = "Absen Pulang";
-                  btnColor = "bg-rose-500 hover:bg-rose-600";
-                }
-
-                return (
-                  <button
-                    onClick={() => navigateToTab("absen")}
-                    className={`w-full mt-5 py-3.5 ${btnColor} active:scale-[0.98] transition-all text-white font-black text-xs uppercase tracking-widest rounded-xl cursor-pointer flex items-center justify-center gap-2 shadow-xs`}
-                  >
-                    <span>{btnText}</span>
-                    <ChevronRight size={14} />
-                  </button>
-                );
-              })()}
-            </div>
-
-            {/* Services Section */}
-            <div className="flex flex-col min-h-0">
-              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 select-none">
-                Layanan
-              </h4>
-              
-              <div className="flex flex-col gap-3">
-                {/* 1. Aktivitas PKL */}
-                {(() => {
-                  const isPklAllowed = userRole === "student" || userRole === "admin";
-                  return (
-                    <button
-                      onClick={() => isPklAllowed ? navigateToTab("pkl") : handleLockedClick("pkl")}
-                      className={`w-full text-left rounded-2xl p-4.5 transition-all duration-305 flex items-center justify-between border ${
-                        !isPklAllowed 
-                          ? "bg-slate-50/40 border-slate-200/50 cursor-not-allowed opacity-60" 
-                          : "bg-white border-gray-200/60 hover:bg-slate-50/30 active:scale-[0.99] cursor-pointer shadow-3xs"
-                      } ${wobblingCard === "pkl" ? "animate-wobble" : ""}`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-9.5 h-9.5 rounded-xl flex items-center justify-center border flex-shrink-0 ${
-                          !isPklAllowed 
-                            ? "bg-slate-100/40 border-slate-200/50 text-slate-400" 
-                            : "bg-slate-50 border-slate-150 text-[#1C3D3F]"
-                        }`}>
-                          <ClipboardList size={16} className={isPklAllowed ? "text-[#2AB0B2]" : ""} />
-                        </div>
-                        <div>
-                          <h3 className={`font-black text-[11px] uppercase tracking-wider leading-none transition-colors ${
-                            isPklAllowed ? "text-[#1C3D3F]" : "text-slate-400"
-                          }`}>
-                            Aktivitas PKL
-                          </h3>
-                          <p className={`text-[9px] font-semibold mt-1 leading-normal ${
-                            isPklAllowed ? "text-gray-400" : "text-slate-350"
-                          }`}>
-                            Kurikulum, jurnal mingguan, & tugas harian.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 flex-shrink-0 pl-2">
-                        {isPklAllowed ? (
-                          <>
-                            {isStudent && studentDashboard.data ? (() => {
-                              const activeWeekNo = studentDashboard.data.program_kerja?.active_week || 1;
-                              return (
-                                <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black bg-[#2AB0B2] text-white uppercase tracking-wider">
-                                  Minggu {activeWeekNo}
-                                </span>
-                              );
-                            })() : (
-                              <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black bg-gray-100 text-gray-500 uppercase tracking-wider">
-                                Aktif
-                              </span>
-                            )}
-                            <ChevronRight size={12} className="text-gray-300" />
-                          </>
-                        ) : (
-                          <div className="flex items-center gap-1 bg-slate-100 rounded-md px-1.5 py-0.5 text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                            <Lock size={9} className="text-slate-400" />
-                            <span>Terkunci</span>
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })()}
-
-                {/* 2. Payroll */}
-                {(() => {
-                  const isPayrollAllowed = userRole === "employee" || userRole === "admin";
-                  return (
-                    <button
-                      onClick={() => isPayrollAllowed ? navigateToTab("payroll") : handleLockedClick("payroll")}
-                      className={`w-full text-left rounded-2xl p-4.5 transition-all duration-305 flex items-center justify-between border ${
-                        !isPayrollAllowed 
-                          ? "bg-slate-50/40 border-slate-200/50 cursor-not-allowed opacity-60" 
-                          : "bg-white border-gray-200/60 hover:bg-slate-50/30 active:scale-[0.99] cursor-pointer shadow-3xs"
-                      } ${wobblingCard === "payroll" ? "animate-wobble" : ""}`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-9.5 h-9.5 rounded-xl flex items-center justify-center border flex-shrink-0 ${
-                          !isPayrollAllowed 
-                            ? "bg-slate-100/40 border-slate-200/50 text-slate-400" 
-                            : "bg-slate-50 border-slate-150 text-[#1C3D3F]"
-                        }`}>
-                          <CreditCard size={16} className={isPayrollAllowed ? "text-[#2AB0B2]" : ""} />
-                        </div>
-                        <div>
-                          <h3 className={`font-black text-[11px] uppercase tracking-wider leading-none transition-colors ${
-                            isPayrollAllowed ? "text-[#1C3D3F]" : "text-slate-400"
-                          }`}>
-                            Payroll & Gaji
-                          </h3>
-                          <p className={`text-[9px] font-semibold mt-1 leading-normal ${
-                            isPayrollAllowed ? "text-gray-400" : "text-slate-355"
-                          }`}>
-                            Akses riwayat slip gaji bulanan & slip kompensasi resmi.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 flex-shrink-0 pl-2">
-                        {isPayrollAllowed ? (
-                          <>
-                            {payrollSlips.length > 0 ? (
-                              <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black bg-indigo-600 text-white uppercase tracking-wider">
-                                {payrollSlips[0].periode}
-                              </span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black bg-gray-100 text-gray-500 uppercase tracking-wider">
-                                Aktif
-                              </span>
-                            )}
-                            <ChevronRight size={12} className="text-gray-300" />
-                          </>
-                        ) : (
-                          <div className="flex items-center gap-1 bg-slate-100 rounded-md px-1.5 py-0.5 text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                            <Lock size={9} className="text-slate-400" />
-                            <span>Terkunci</span>
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })()}
               </div>
             </div>
           </div>

@@ -68,7 +68,8 @@ const weeklyFeedbackSchema = z.object({
     }).int(),
     tags: z.array(z.string()).optional(),
     comments: z.string().optional().nullable(),
-    extended_days: z.number().int().min(0).max(5).optional()
+    extended_days: z.number().int().min(0).max(5).optional(),
+    progress_override: z.number().int().min(0).max(100).nullable().optional()
   })
 });
 
