@@ -794,12 +794,12 @@ export default function ProfilePage() {
             height: 44px !important;
           }
           .printable-card-side .avatar-container {
-            width: 185px !important;
-            height: 185px !important;
+            width: 215px !important;
+            height: 215px !important;
           }
           .printable-card-side .avatar-placeholder {
-            width: 90px !important;
-            height: 90px !important;
+            width: 110px !important;
+            height: 110px !important;
           }
           .printable-card-side h5.fullname-text {
             font-size: 16px !important;
