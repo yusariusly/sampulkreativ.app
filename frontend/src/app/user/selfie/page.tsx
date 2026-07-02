@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, MapPin, User, Camera, SwitchCamera } from "lucide-react";
+import { ChevronLeft, MapPin, User, Camera, SwitchCamera, AlertCircle } from "lucide-react";
 
 // Konfigurasi standar untuk resolusi kompresi selfie
 const CAMERA_PRESET = {
@@ -338,8 +338,9 @@ export default function SelfiePage() {
               {cameraError || "Silakan pastikan izin kamera diaktifkan atau gunakan browser modern dengan protokol HTTPS."}
             </p>
             {cameraError && cameraError.includes("HTTP") && (
-              <div className="bg-amber-500/20 text-[#F6C13B] border border-amber-500/30 rounded-xl p-3 text-xs text-left">
-                ⚠️ <b>Peringatan Keamanan:</b> Browser memblokir akses kamera pada situs non-HTTPS demi alasan privasi. Hubungi Admin untuk mengaktifkan SSL/HTTPS.
+              <div className="bg-amber-500/20 text-[#F6C13B] border border-amber-500/30 rounded-xl p-3 text-xs text-left flex items-start gap-2">
+                <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                <span><b>Peringatan Keamanan:</b> Browser memblokir akses kamera pada situs non-HTTPS demi alasan privasi. Hubungi Admin untuk mengaktifkan SSL/HTTPS.</span>
               </div>
             )}
           </div>
@@ -369,8 +370,9 @@ export default function SelfiePage() {
 
       {/* Error Toast */}
       {errorMsg && (
-        <div className="absolute top-22 left-5 right-5 z-30 bg-red-600/95 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-xl text-center border border-red-500/30 animate-bounce">
-          {errorMsg}
+        <div className="absolute top-22 left-5 right-5 z-30 bg-red-600/95 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-xl flex items-center justify-center gap-2 border border-red-500/30 animate-bounce">
+          <AlertCircle size={14} className="flex-shrink-0" />
+          <span>{errorMsg.replace(/^⚠️\s*/, "")}</span>
         </div>
       )}
 

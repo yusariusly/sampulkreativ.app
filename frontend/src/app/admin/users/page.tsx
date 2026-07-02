@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info, Bell, Unlock, Key } from "lucide-react";
 
 const ROLE_STYLE: Record<string, string> = {
   pengguna: "bg-gray-100 text-gray-600",
@@ -63,6 +63,33 @@ export default function AdminUsersPage() {
 
   // Notifications
   const [notification, setNotification] = useState("");
+
+  const getNotificationDetails = (msg: string) => {
+    let icon = <CheckCircle2 size={16} className="text-[#2AB0B2]" />;
+    let cleaned = msg;
+
+    if (msg.startsWith("⚠️")) {
+      icon = <AlertTriangle size={16} className="text-amber-500" />;
+      cleaned = msg.replace(/^⚠️\s*/, "");
+    } else if (msg.startsWith("✅")) {
+      icon = <CheckCircle2 size={16} className="text-emerald-500" />;
+      cleaned = msg.replace(/^✅\s*/, "");
+    } else if (msg.startsWith("🗑️")) {
+      icon = <Trash2 size={16} className="text-rose-500" />;
+      cleaned = msg.replace(/^🗑️\s*/, "");
+    } else if (msg.startsWith("🔓")) {
+      icon = <Unlock size={16} className="text-blue-500" />;
+      cleaned = msg.replace(/^🔓\s*/, "");
+    } else if (msg.startsWith("✏️")) {
+      icon = <Edit2 size={16} className="text-[#2AB0B2]" />;
+      cleaned = msg.replace(/^✏️\s*/, "");
+    } else if (msg.startsWith("🔔")) {
+      icon = <Bell size={16} className="text-[#2AB0B2]" />;
+      cleaned = msg.replace(/^🔔\s*/, "");
+    }
+
+    return { icon, cleaned };
+  };
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -365,12 +392,15 @@ export default function AdminUsersPage() {
       </datalist>
 
       {/* Toast Alert Notification */}
-      {notification && (
-        <div className="fixed top-4 right-4 z-50 p-4 bg-[#1C3D3F] text-white rounded-xl shadow-lg border border-[#2AB0B2]/30 flex items-center gap-2 font-medium text-sm transition-all animate-bounce">
-          <CheckCircle2 size={16} className="text-[#2AB0B2]" />
-          <span>{notification}</span>
-        </div>
-      )}
+      {notification && (() => {
+        const { icon, cleaned } = getNotificationDetails(notification);
+        return (
+          <div className="fixed top-4 right-4 z-50 p-4 bg-[#1C3D3F] text-white rounded-xl shadow-lg border border-[#2AB0B2]/30 flex items-center gap-2 font-medium text-sm transition-all animate-bounce">
+            {icon}
+            <span>{cleaned}</span>
+          </div>
+        );
+      })()}
 
       {/* Header section */}
       <div className="flex items-center justify-between mb-6 md:mb-8">
@@ -415,7 +445,7 @@ export default function AdminUsersPage() {
                         {u.kie_submissions_count !== undefined && u.kie_submissions_count > 0 && (
                           <div className="mt-1">
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-600 border border-teal-100">
-                              🔑 KIE API: {u.kie_submissions_count}x Setor
+                              <Key size={10} className="mr-1 text-teal-600" /> KIE API: {u.kie_submissions_count}x Setor
                             </span>
                           </div>
                         )}
@@ -432,8 +462,8 @@ export default function AdminUsersPage() {
                       </td>
                       <td className="px-5 py-4 text-sm max-w-[160px] truncate">
                         {u.device_info ? (
-                          <span className="font-semibold px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs" title={u.device_info}>
-                            📱 {u.device_info}
+                          <span className="font-semibold px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs inline-flex items-center gap-1" title={u.device_info}>
+                            <Smartphone size={10} className="text-slate-500" /> {u.device_info}
                           </span>
                         ) : (
                           <span className="font-semibold px-2 py-1 bg-gray-50 text-gray-400 rounded text-xs">

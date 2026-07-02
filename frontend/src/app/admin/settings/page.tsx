@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Settings, Clock, CheckCircle2, Save, MapPin, Send, Mail, Trophy } from "lucide-react";
+import { Settings, Clock, CheckCircle2, Save, MapPin, Send, Mail, Trophy, AlertTriangle } from "lucide-react";
 
 export default function AdminSettingsPage() {
   const [deadlineTime, setDeadlineTime] = useState("08:30");
@@ -88,6 +88,21 @@ export default function AdminSettingsPage() {
     fetchSettings();
   }, []);
 
+  const getNotificationDetails = (msg: string) => {
+    let icon = <CheckCircle2 size={16} className="text-[#2AB0B2]" />;
+    let cleaned = msg;
+
+    if (msg.startsWith("⚠️")) {
+      icon = <AlertTriangle size={16} className="text-amber-500" />;
+      cleaned = msg.replace(/^⚠️\s*/, "");
+    } else if (msg.startsWith("✅")) {
+      icon = <CheckCircle2 size={16} className="text-emerald-500" />;
+      cleaned = msg.replace(/^✅\s*/, "");
+    }
+
+    return { icon, cleaned };
+  };
+
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => {
@@ -144,12 +159,15 @@ export default function AdminSettingsPage() {
   return (
     <div className="flex-1 bg-[#F0F2F5] p-4 md:p-8 select-none relative">
       {/* Toast Alert Notification */}
-      {notification && (
-        <div className="fixed top-4 right-4 z-50 p-4 bg-[#1C3D3F] text-white rounded-xl shadow-lg border border-[#2AB0B2]/30 flex items-center gap-2 font-medium text-sm transition-all animate-bounce">
-          <CheckCircle2 size={16} className="text-[#2AB0B2]" />
-          <span>{notification}</span>
-        </div>
-      )}
+      {notification && (() => {
+        const { icon, cleaned } = getNotificationDetails(notification);
+        return (
+          <div className="fixed top-4 right-4 z-50 p-4 bg-[#1C3D3F] text-white rounded-xl shadow-lg border border-[#2AB0B2]/30 flex items-center gap-2 font-medium text-sm transition-all animate-bounce">
+            {icon}
+            <span>{cleaned}</span>
+          </div>
+        );
+      })()}
 
       {/* Header bar */}
       <div className="flex items-center justify-between mb-6 md:mb-8">

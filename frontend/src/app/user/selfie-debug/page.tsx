@@ -340,8 +340,9 @@ export default function SelfieDebugPage() {
 
         {/* Error Alert */}
         {errorMsg && (
-          <div className="bg-red-950/40 border border-red-800/50 text-red-200 text-xs rounded-2xl p-4 mb-5">
-            ⚠️ <strong>GPS Error:</strong> {errorMsg}
+          <div className="bg-red-950/40 border border-red-800/50 text-red-200 text-xs rounded-2xl p-4 mb-5 flex items-center gap-2">
+            <AlertCircle size={14} className="text-red-400 flex-shrink-0" />
+            <span><strong>GPS Error:</strong> {errorMsg}</span>
           </div>
         )}
 

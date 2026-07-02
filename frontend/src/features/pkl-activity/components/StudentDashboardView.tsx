@@ -32,7 +32,8 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Pin
 } from "lucide-react";
 
 import { StudentDashboardData } from "../types";
@@ -323,7 +324,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
           {/* Card Header & Controls */}
           <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 bg-slate-50/50">
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px]">📌</span>
+              <Pin size={11} className="text-[#2AB0B2] transform rotate-45 flex-shrink-0" />
               <span className="text-[10px] font-black text-slate-800 uppercase tracking-wide">
                 Notice Minggu {notice.week_number}
               </span>

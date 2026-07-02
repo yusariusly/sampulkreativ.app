@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Camera, Clock, AlertTriangle, X, Lock, ArrowLeft, Calendar, ClipboardList, CreditCard, ChevronRight, FileText, HeartPulse, Laptop, Check, LogOut, Key } from "lucide-react";
+import { Camera, Clock, AlertTriangle, X, Lock, ArrowLeft, Calendar, ClipboardList, CreditCard, ChevronRight, FileText, HeartPulse, Laptop, Check, LogOut, Key, CheckCircle2, AlertCircle, Smile } from "lucide-react";
 import { getDeviceId } from "../utils/session";
 import { compressImage, IMAGE_PRESETS } from "../utils/image";
 import { useStudentDashboard, StudentDashboardView, SkeletonCard, ErrorState, savingsService, QUERY_KEYS, StudentSavingsData, BaseResponse } from "@/features/pkl-activity";
@@ -547,6 +547,21 @@ function UserDashboardContent() {
     }
   };
 
+  const getNotificationDetails = (msg: string) => {
+    let icon = <CheckCircle2 size={16} className="text-[#2AB0B2]" />;
+    let cleaned = msg;
+
+    if (msg.startsWith("⚠️")) {
+      icon = <AlertTriangle size={16} className="text-amber-500" />;
+      cleaned = msg.replace(/^⚠️\s*/, "");
+    } else if (msg.startsWith("✅") || msg.startsWith("✓")) {
+      icon = <CheckCircle2 size={16} className="text-emerald-500" />;
+      cleaned = msg.replace(/^[✅✓]\s*/, "");
+    }
+
+    return { icon, cleaned };
+  };
+
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => {
@@ -745,8 +760,9 @@ function UserDashboardContent() {
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">
                 Selamat {getGreeting()}
               </p>
-              <h2 className="text-2xl font-black tracking-tight text-[#1C3D3F] leading-tight">
-                Halo, {fullname.split(" ")[0]} 👋
+              <h2 className="text-2xl font-black tracking-tight text-[#1C3D3F] leading-tight flex items-center gap-1.5">
+                <span>Halo, {fullname.split(" ")[0]}</span>
+                <Smile size={20} className="text-[#2AB0B2] inline-block animate-pulse" />
               </h2>
               <p className="text-[10px] font-bold text-[#2AB0B2] uppercase tracking-wider mt-1.5 flex items-center gap-1.5">
                 <span>{getIndonesianDate()}</span>
@@ -890,12 +906,14 @@ function UserDashboardContent() {
 
               {kieError && (
                 <div className="text-[10px] font-semibold text-red-500 bg-red-50 border border-red-100 rounded-lg p-2 flex items-center gap-1.5 animate-fadeIn">
-                  <span>{kieError}</span>
+                  <AlertCircle size={12} className="flex-shrink-0" />
+                  <span>{kieError.replace(/^⚠️\s*/, "")}</span>
                 </div>
               )}
               {kieSuccess && (
                 <div className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg p-2 flex items-center gap-1.5 animate-fadeIn">
-                  <span>{kieSuccess}</span>
+                  <CheckCircle2 size={12} className="flex-shrink-0" />
+                  <span>{kieSuccess.replace(/^[✅✓]\s*/, "")}</span>
                 </div>
               )}
             </div>
@@ -1415,8 +1433,9 @@ function UserDashboardContent() {
             </p>
 
             {errorMsg && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold text-center">
-                {errorMsg}
+              <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5">
+                <AlertCircle size={14} className="flex-shrink-0" />
+                <span>{errorMsg.replace(/^⚠️\s*/, "")}</span>
               </div>
             )}
 
@@ -1500,8 +1519,9 @@ function UserDashboardContent() {
             </p>
 
             {wfhErrorMsg && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold text-center">
-                {wfhErrorMsg}
+              <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5">
+                <AlertCircle size={14} className="flex-shrink-0" />
+                <span>{wfhErrorMsg.replace(/^⚠️\s*/, "")}</span>
               </div>
             )}
 
@@ -1553,8 +1573,9 @@ function UserDashboardContent() {
             </p>
 
             {reportErrorMsg && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold text-center">
-                {reportErrorMsg}
+              <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5">
+                <AlertCircle size={14} className="flex-shrink-0" />
+                <span>{reportErrorMsg.replace(/^⚠️\s*/, "")}</span>
               </div>
             )}
 
@@ -1794,11 +1815,15 @@ function UserDashboardContent() {
       )}
 
       {/* Toast Alert Notification */}
-      {notification && (
-        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 bg-[#1C3D3F] text-white px-5 py-3 rounded-2xl shadow-lg text-xs font-bold whitespace-nowrap flex items-center gap-2 border border-[#2AB0B2]/30 animate-fadeIn">
-          <span>{notification}</span>
-        </div>
-      )}
+      {notification && (() => {
+        const { icon, cleaned } = getNotificationDetails(notification);
+        return (
+          <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 bg-[#1C3D3F] text-white px-5 py-3 rounded-2xl shadow-lg text-xs font-bold whitespace-nowrap flex items-center gap-2 border border-[#2AB0B2]/30 animate-fadeIn">
+            {icon}
+            <span>{cleaned}</span>
+          </div>
+        );
+      })()}
 
     </div>
   );

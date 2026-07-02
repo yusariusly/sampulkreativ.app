@@ -345,7 +345,7 @@ export default function QRScanPage() {
               <div className="border-l-2 border-primary/50 pl-3">
                 <span className="font-semibold text-primary block mb-0.5 text-sm">Chrome (Android / PC)</span>
                 <span className="text-gray-300 leading-normal">
-                  Ketuk ikon <b>gembok 🔒</b> di kiri kolom alamat browser, lalu ubah izin <b>Kamera</b> menjadi <b>Izinkan / Allow</b>.
+                  Ketuk ikon <b>gembok (lock icon)</b> di kiri kolom alamat browser, lalu ubah izin <b>Kamera</b> menjadi <b>Izinkan / Allow</b>.
                 </span>
               </div>
 

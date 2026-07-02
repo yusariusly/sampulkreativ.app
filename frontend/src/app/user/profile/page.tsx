@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { User, Camera, X, CreditCard, Download, LogOut, Mail, Phone, QrCode } from "lucide-react";
+import { User, Camera, X, CreditCard, Download, LogOut, Mail, Phone, QrCode, AlertCircle, CheckCircle2, Info } from "lucide-react";
 import { getDeviceId, clearSession } from "../../utils/session";
 import { compressImage, IMAGE_PRESETS } from "../../utils/image";
 
@@ -344,13 +344,15 @@ export default function ProfilePage() {
           <h3 className="font-bold text-gray-800 mb-5 text-base">Ubah Password</h3>
           
           {submitted && successMsg && (
-            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl text-xs font-semibold text-center animate-pulse">
-              {successMsg}
+            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 animate-pulse">
+              <CheckCircle2 size={14} className="flex-shrink-0" />
+              <span>{successMsg}</span>
             </div>
           )}
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold text-center">
-              {error}
+            <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5">
+              <AlertCircle size={14} className="flex-shrink-0" />
+              <span>{error.replace(/^⚠️\s*/, "")}</span>
             </div>
           )}
 
@@ -433,7 +435,7 @@ export default function ProfilePage() {
                 {/* Top Header */}
                 <div className="relative z-10 flex flex-col items-center pt-3.5 pb-1">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/logo.png" alt="Logo" className="logo-img w-8 h-8 object-contain" />
+                  <img src="/logo.svg" alt="Logo" className="logo-img w-8 h-8 object-contain" />
                   <div className="leading-none text-center mt-1">
                     <div className="text-[8.5px] font-black text-[#1C3D3F] tracking-widest">SAMPULKREATIV</div>
                     <div className="text-[5.5px] text-[#2AB0B2] tracking-widest font-black mt-0.5">TECHNOLOGY</div>
@@ -533,7 +535,7 @@ export default function ProfilePage() {
                       <div className="qr-logo-overlay absolute w-7 h-7 bg-white rounded-md flex items-center justify-center p-0.5 shadow-sm border border-gray-100">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src="/logo.png"
+                          src="/logo.svg"
                           alt="SK Logo"
                           className="w-full h-full object-contain"
                         />
@@ -594,7 +596,7 @@ export default function ProfilePage() {
                       <div className="qr-logo-overlay absolute w-7 h-7 bg-white rounded-md flex items-center justify-center p-0.5 shadow-sm border border-gray-100">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src="/logo.png"
+                          src="/logo.svg"
                           alt="SK Logo"
                           className="w-full h-full object-contain"
                         />
@@ -670,9 +672,9 @@ export default function ProfilePage() {
                 </button>
                 <button
                   onClick={async () => {
-                    // Save dynamically then print
+                    // Save dynamically
                     if (!email || email.trim() === "" || !noTelp || noTelp.trim() === "") {
-                      alert("⚠️ Email dan No. Telepon wajib diisi untuk kartu!");
+                      alert("Email dan No. Telepon wajib diisi untuk kartu!");
                       return;
                     }
                     try {
@@ -682,6 +684,9 @@ export default function ProfilePage() {
                         body: JSON.stringify({
                           user_id: userId,
                           device_id: getDeviceId(),
+                          tanggal_lahir: tanggalLahir,
+                          gender: gender,
+                          alamat: alamat,
                           email: email,
                           no_telp: noTelp
                         })
@@ -697,12 +702,13 @@ export default function ProfilePage() {
                             localStorage.setItem("v2_user", JSON.stringify(userObj));
                           }
                         }
+                        window.print();
+                      } else {
+                        alert("Gagal memperbarui biodata sebelum mencetak kartu.");
                       }
-                    } catch (err) {
-                      console.error("Gagal memperbarui biodata saat cetak:", err);
-                    }
-                    if (typeof window !== "undefined") {
-                      window.print();
+                    } catch (e) {
+                      console.error("Gagal cetak:", e);
+                      alert("Gagal mencetak kartu.");
                     }
                   }}
                   className="flex-2 py-3 text-xs font-bold text-white bg-[#2AB0B2] hover:bg-[#209092] rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
@@ -713,8 +719,9 @@ export default function ProfilePage() {
               </div>
               
               {/* Help/Tip under print button */}
-              <p className="text-[9px] text-gray-400 text-center mt-3 leading-normal">
-                💡 <b>Tips:</b> Pilih opsi <b>&quot;Simpan sebagai PDF&quot;</b> atau <b>&quot;Save as PDF&quot;</b> pada dialog cetak browser Anda untuk mengunduh file kartu karyawan.
+              <p className="text-[9px] text-gray-400 text-center mt-3 leading-normal flex items-center justify-center gap-1">
+                <Info size={10} className="text-[#2AB0B2] flex-shrink-0" />
+                <span><b>Tips:</b> Pilih opsi <b>&quot;Simpan sebagai PDF&quot;</b> atau <b>&quot;Save as PDF&quot;</b> pada dialog cetak browser Anda untuk mengunduh file kartu karyawan.</span>
               </p>
             </div>
           </div>
@@ -747,7 +754,7 @@ export default function ProfilePage() {
             <div className="absolute w-[16%] h-[16%] max-w-[64px] max-h-[64px] bg-white rounded-2xl flex items-center justify-center p-0.5 shadow-md border border-gray-100">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/logo.png"
+                src="/logo.svg"
                 alt="SK Logo"
                 className="w-full h-full object-contain"
               />

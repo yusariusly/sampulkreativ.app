@@ -8,7 +8,7 @@ function AppLogo({ size = 80 }: { size?: number }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/logo.png"
+      src="/logo.svg"
       alt="Logo"
       width={size}
       height={size}

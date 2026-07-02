@@ -8,7 +8,7 @@
 
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Sparkles, TrendingUp } from "lucide-react";
 import { savingsService } from "../services/savings.service";
 import { QUERY_KEYS } from "../constants";
 import type { BaseResponse, StudentSavingsData } from "../types";
@@ -72,12 +72,20 @@ export function SavingsProgressBar() {
 
       {/* Footer: percentage + motivational hint */}
       <div className="flex items-center justify-between mt-1.5">
-        <span className="text-[9px] font-semibold text-slate-400">
-          {percentage >= 80
-            ? "Hampir selesai, semangat! 🎉"
-            : percentage >= 50
-              ? "Sudah lewat setengah jalan! 💪"
-              : "Yuk nabung tiap hari biar cepat lunas!"}
+        <span className="text-[9px] font-semibold text-slate-400 flex items-center gap-1">
+          {percentage >= 80 ? (
+            <>
+              <span>Hampir selesai, semangat!</span>
+              <Sparkles size={10} className="text-[#F6C13B] flex-shrink-0" />
+            </>
+          ) : percentage >= 50 ? (
+            <>
+              <span>Sudah lewat setengah jalan!</span>
+              <TrendingUp size={10} className="text-[#2AB0B2] flex-shrink-0" />
+            </>
+          ) : (
+            <span>Yuk nabung tiap hari biar cepat lunas!</span>
+          )}
         </span>
         <span className="text-[9px] font-black text-[#2AB0B2]">
           {percentage}%
