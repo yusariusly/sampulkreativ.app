@@ -999,6 +999,15 @@ async function initDb() {
       console.warn("Gagal membuat index remote_requests:", indexErr);
     }
 
+    // Create indexes for users and absensi tables to optimize matching device & loading attendance logs
+    try {
+      await pool.query("CREATE INDEX IF NOT EXISTS idx_users_device_id ON users(device_id)");
+      await pool.query("CREATE INDEX IF NOT EXISTS idx_absensi_user_id ON absensi(user_id)");
+      await pool.query("CREATE INDEX IF NOT EXISTS idx_absensi_waktu_absen ON absensi(waktu_absen DESC)");
+    } catch (indexErr) {
+      console.warn("Gagal membuat index users/absensi:", indexErr);
+    }
+
     // 6. Run database migrations dynamically
     try {
       const { runMigrations } = require('./services/migration-runner');
@@ -1367,6 +1376,7 @@ const fillAlpaForUser = async (userId) => {
       })
     );
 
+    const missingRecords = [];
     let current = new Date(signupDate);
     while (current.getTime() <= yesterday.getTime()) {
       const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
@@ -1376,25 +1386,38 @@ const fillAlpaForUser = async (userId) => {
         const waktuAbsen = new Date(current);
         waktuAbsen.setHours(9, 0, 0, 0);
 
-        await pool.query(
-          `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT (id) DO NOTHING`,
-          [
-            recordId,
-            userId,
-            user.username,
-            user.nama_lengkap,
-            waktuAbsen,
-            'placeholder',
-            null,
-            null,
-            'Alpa',
-            0
-          ]
-        );
+        missingRecords.push({
+          id: recordId,
+          user_id: userId,
+          username: user.username,
+          nama_lengkap: user.nama_lengkap,
+          waktu_absen: waktuAbsen,
+          foto_url: 'placeholder',
+          latitude: null,
+          longitude: null,
+          status: 'Alpa',
+          diubah_oleh_admin: 0
+        });
       }
       current.setDate(current.getDate() + 1);
+    }
+
+    if (missingRecords.length > 0) {
+      const values = [];
+      const placeholders = [];
+      let paramIndex = 1;
+      for (const rec of missingRecords) {
+        placeholders.push(`($${paramIndex}, $${paramIndex+1}, $${paramIndex+2}, $${paramIndex+3}, $${paramIndex+4}, $${paramIndex+5}, $${paramIndex+6}, $${paramIndex+7}, $${paramIndex+8}, $${paramIndex+9})`);
+        values.push(rec.id, rec.user_id, rec.username, rec.nama_lengkap, rec.waktu_absen, rec.foto_url, rec.latitude, rec.longitude, rec.status, rec.diubah_oleh_admin);
+        paramIndex += 10;
+      }
+
+      await pool.query(
+        `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
+         VALUES ${placeholders.join(', ')}
+         ON CONFLICT (id) DO NOTHING`,
+        values
+      );
     }
   } catch (err) {
     console.error(`Gagal mengisi Alpa untuk user ${userId}:`, err);
@@ -1407,12 +1430,16 @@ app.get('/api/attendance', async (req, res) => {
     const { user_id } = req.query;
 
     if (user_id) {
-      await fillAlpaForUser(user_id);
+      // Jalankan fillAlpaForUser di background agar tidak memblokir respon HTTP
+      fillAlpaForUser(user_id).catch(err => console.error("Error fillAlpaForUser background:", err));
     } else {
-      const [users] = await pool.query("SELECT id FROM users WHERE role IN ('employee', 'student', 'mentor') AND is_active = 1");
-      for (const u of users) {
-        await fillAlpaForUser(u.id);
-      }
+      // Jalankan fillAlpa untuk seluruh user di background agar admin list loading cepat
+      (async () => {
+        const [users] = await pool.query("SELECT id FROM users WHERE role IN ('employee', 'student', 'mentor') AND is_active = 1");
+        for (const u of users) {
+          await fillAlpaForUser(u.id);
+        }
+      })().catch(err => console.error("Error fillAlpaForUsers list background:", err));
     }
 
     let query = 'SELECT * FROM absensi';
