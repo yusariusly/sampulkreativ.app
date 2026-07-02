@@ -2848,6 +2848,27 @@ app.post('/api/kie/submit', validateDeviceSession, async (req, res) => {
       );
     }
 
+    // 7. Send Telegram Notification in background if configured (do not await to keep API response instant)
+    try {
+      const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
+      const [chatIdKieSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_kie'");
+      const [chatIdDefaultSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
+
+      const botToken = botTokenSetting[0]?.key_value;
+      const chatId = (chatIdKieSetting[0]?.key_value && chatIdKieSetting[0].key_value.trim() !== '')
+        ? chatIdKieSetting[0].key_value.trim()
+        : chatIdDefaultSetting[0]?.key_value;
+
+      if (botToken && chatId && botToken.trim() !== '' && chatId.trim() !== '') {
+        const text = `KIE API disetor oleh: ${user.nama_lengkap} (@${user.username || ''})\n\n${keyVal}`;
+        sendTelegramMessage(botToken, chatId, text).catch(tgError => {
+          console.error('Gagal mengirim notifikasi KIE ke Telegram (background):', tgError);
+        });
+      }
+    } catch (dbSettingsError) {
+      console.error('Gagal membaca setting Telegram untuk KIE:', dbSettingsError);
+    }
+
     res.json({ 
       success: true, 
       message: 'KIE API key berhasil disetor', 
