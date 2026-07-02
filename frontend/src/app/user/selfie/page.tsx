@@ -4,6 +4,13 @@ import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, MapPin, User, Camera, SwitchCamera } from "lucide-react";
 
+// Konfigurasi standar untuk resolusi kompresi selfie
+const CAMERA_PRESET = {
+  targetWidth: 768,
+  targetHeight: 1024,
+  quality: 0.8
+};
+
 export default function SelfiePage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -170,9 +177,8 @@ export default function SelfiePage() {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext("2d");
         if (ctx) {
-          // Downscale captured image to 480x640 for fast encoding and low-bandwidth upload
-          const targetWidth = 480;
-          const targetHeight = 640;
+          // Downscale captured image to preset target dimensions for sharp Telegram preview and low-bandwidth upload
+          const { targetWidth, targetHeight, quality } = CAMERA_PRESET;
           
           canvas.width = targetWidth;
           canvas.height = targetHeight;
@@ -211,7 +217,8 @@ export default function SelfiePage() {
           // Reset transformation
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           
-          base64Image = canvas.toDataURL("image/jpeg", 0.75);
+          // JPEG compression with preset quality (crisp details on Telegram)
+          base64Image = canvas.toDataURL("image/jpeg", quality);
         }
       } else {
         // Fallback mockup base64

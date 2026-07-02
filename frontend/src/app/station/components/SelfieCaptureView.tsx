@@ -3,6 +3,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Camera, ArrowLeft } from "lucide-react";
 
+// Konfigurasi standar untuk resolusi dan kompresi selfie
+const CAMERA_PRESET = {
+  maxDimension: 1024,
+  quality: 0.8
+};
+
 interface UserInfo {
   id: string;
   username: string;
@@ -38,7 +44,6 @@ export default function SelfieCaptureView({
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute("playsinline", "true");
         await videoRef.current.play();
       }
     } catch (err) {
@@ -70,26 +75,32 @@ export default function SelfieCaptureView({
       setSubmitting(true);
       const ctx = canvas.getContext("2d");
       if (ctx) {
-        // Gunakan resolusi asli kamera untuk HD & menghindari stretch (distorsi)
+        // Resolusi asli kamera
         const width = video.videoWidth || video.width || 1280;
         const height = video.videoHeight || video.height || 720;
 
-        canvas.width = width;
-        canvas.height = height;
+        // Downscale secara proporsional ke maks dimensi CAMERA_PRESET.maxDimension agar file super ringan di jaringan
+        const scale = Math.min(1, CAMERA_PRESET.maxDimension / Math.max(width, height));
+        const targetWidth = Math.round(width * scale);
+        const targetHeight = Math.round(height * scale);
+
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
 
         // Bersihkan canvas
-        ctx.clearRect(0, 0, width, height);
+        ctx.clearRect(0, 0, targetWidth, targetHeight);
 
-        // Lakukan pencerminan balik (horizontal flip) agar hasil foto normal (tidak mirror / terbaca)
-        ctx.translate(width, 0);
+        // Lakukan pencerminan balik (horizontal flip) agar hasil foto normal (tidak terbalik)
+        ctx.translate(targetWidth, 0);
         ctx.scale(-1, 1);
 
-        ctx.drawImage(video, 0, 0, width, height);
+        ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
 
         // Reset transformasi canvas ke default
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-        const base64Image = canvas.toDataURL("image/jpeg", 0.85);
+        // Kompresi kualitas JPEG preset (sangat jernih di Telegram, payload kecil)
+        const base64Image = canvas.toDataURL("image/jpeg", CAMERA_PRESET.quality);
         onCapture(base64Image);
       } else {
         setSubmitting(false);
