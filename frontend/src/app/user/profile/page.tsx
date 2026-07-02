@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { User, Camera, X, CreditCard, Download, LogOut, Mail, Phone } from "lucide-react";
+import { User, Camera, X, CreditCard, Download, LogOut, Mail, Phone, QrCode } from "lucide-react";
 import { getDeviceId, clearSession } from "../../utils/session";
 import { compressImage, IMAGE_PRESETS } from "../../utils/image";
 
@@ -28,6 +28,7 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
 
   const [showCardModal, setShowCardModal] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const [jabatan, setJabatan] = useState("Karyawan");
@@ -290,35 +291,49 @@ export default function ProfilePage() {
             <p className="text-[#2AB0B2] text-xs font-mono font-bold mt-1 select-all">{noKaryawan}</p>
           )}
           
-          {userRole === 'student' ? (
+          <div className="flex flex-col gap-2 mt-4 w-full max-w-[280px]">
+            {userRole === 'student' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setShowCardModal(true);
+                }}
+                className="w-full px-4 py-2.5 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <CreditCard size={13} />
+                Download Kartu Siswa PKL
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!jabatan || jabatan.trim() === "" || jabatan.trim().toLowerCase() === "karyawan") {
+                    setError("⚠️ Jabatan Anda belum ditentukan oleh Administrator. Silakan hubungi Administrator.");
+                  } else {
+                    setError("");
+                    setShowCardModal(true);
+                  }
+                }}
+                className="w-full px-4 py-2.5 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <CreditCard size={13} />
+                Download Kartu Karyawan
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {
                 setError("");
-                setShowCardModal(true);
+                setShowQrModal(true);
               }}
-              className="mt-4 px-4 py-2.5 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
+              className="w-full px-4 py-2.5 bg-white border border-gray-200 text-[#1C3D3F] hover:bg-gray-50 font-bold text-xs rounded-xl shadow-xs hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
             >
-              <CreditCard size={13} />
-              Download Kartu Siswa PKL
+              <QrCode size={13} className="text-[#2AB0B2]" />
+              Tampilkan QR Absensi
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                if (!jabatan || jabatan.trim() === "" || jabatan.trim().toLowerCase() === "karyawan") {
-                  setError("⚠️ Jabatan Anda belum ditentukan oleh Administrator. Silakan hubungi Administrator.");
-                } else {
-                  setError("");
-                  setShowCardModal(true);
-                }
-              }}
-              className="mt-4 px-4 py-2.5 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              <CreditCard size={13} />
-              Download Kartu Karyawan
-            </button>
-          )}
+          </div>
         </div>
 
         {/* Category Selector Component */}
@@ -702,6 +717,74 @@ export default function ProfilePage() {
                 💡 <b>Tips:</b> Pilih opsi <b>&quot;Simpan sebagai PDF&quot;</b> atau <b>&quot;Save as PDF&quot;</b> pada dialog cetak browser Anda untuk mengunduh file kartu karyawan.
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Absensi Modal */}
+      {showQrModal && (
+        <div id="qr-modal-overlay-custom" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in print:hidden">
+          <div className="bg-white rounded-3xl w-full max-w-[320px] overflow-hidden shadow-2xl border border-gray-100 flex flex-col items-center p-6 relative">
+            
+            {/* Close Button */}
+            <button
+              onClick={() => setShowQrModal(false)}
+              className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Header info */}
+            <div className="text-center mb-5">
+              <span className="text-[10px] font-black tracking-widest text-[#2AB0B2] uppercase block">
+                ABSENSI
+              </span>
+              <h4 className="font-extrabold text-[#1C3D3F] text-sm tracking-wide uppercase mt-0.5">
+                QR CODE SAYA
+              </h4>
+              <div className="h-[2px] w-6 bg-[#2AB0B2]/30 mx-auto mt-1.5 rounded-full" />
+            </div>
+
+            {/* QR Code Container */}
+            <div className="relative w-48 h-48 bg-white p-2.5 rounded-2xl flex items-center justify-center shadow-lg border border-gray-100">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&color=1c3d3f&ecc=H&data=${encodeURIComponent(
+                  cardToken && baseUrl ? `${baseUrl}/station?token=${encodeURIComponent(cardToken)}` : username || ""
+                )}`}
+                alt="QR Absen"
+                className="w-full h-full object-contain"
+              />
+              {/* Center Logo overlay */}
+              <div className="absolute w-9 h-9 bg-white rounded-lg flex items-center justify-center p-0.5 shadow-sm border border-gray-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/logo.png"
+                  alt="SK Logo"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            </div>
+
+            <div className="text-center mt-5 px-2">
+              <p className="text-[#1C3D3F] font-bold text-xs uppercase tracking-wider leading-none">
+                {fullname}
+              </p>
+              <p className="text-gray-400 text-[10px] font-medium mt-1">
+                {userRole === 'student' ? 'Siswa PKL' : jabatan}
+              </p>
+              <p className="text-gray-400 text-[9px] mt-3 leading-normal border-t border-gray-100 pt-3">
+                Dekatkan QR Code ini ke kamera mesin absensi SampulKreativ untuk memindai kehadiran.
+              </p>
+            </div>
+
+            {/* Close Button at bottom */}
+            <button
+              onClick={() => setShowQrModal(false)}
+              className="w-full mt-5 py-3.5 rounded-xl text-white bg-[#2AB0B2] hover:bg-[#209092] font-bold text-xs transition-all cursor-pointer shadow-md text-center"
+            >
+              Tutup
+            </button>
           </div>
         </div>
       )}
