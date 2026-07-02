@@ -428,13 +428,13 @@ export default function ProfilePage() {
                 {/* Photo block */}
                 <div className="relative z-10 flex flex-col items-center mt-1 px-4">
                   <div className="relative">
-                    <div className="avatar-container w-[125px] h-[125px] rounded-full overflow-hidden flex items-center justify-center shadow-lg"
+                    <div className="avatar-container w-[140px] h-[140px] rounded-full overflow-hidden flex items-center justify-center shadow-lg"
                       style={{border:"3px solid white", background:"#E5E7EB"}}>
                       {profilePhoto && profilePhoto !== "/uploads/placeholder.jpg" ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={profilePhoto} alt="Foto profil" className="w-full h-full object-cover" crossOrigin="anonymous" />
                       ) : (
-                        <User size={60} className="avatar-placeholder text-gray-400" />
+                        <User size={70} className="avatar-placeholder text-gray-400" />
                       )}
                     </div>
                   </div>
@@ -794,12 +794,12 @@ export default function ProfilePage() {
             height: 44px !important;
           }
           .printable-card-side .avatar-container {
-            width: 155px !important;
-            height: 155px !important;
+            width: 185px !important;
+            height: 185px !important;
           }
           .printable-card-side .avatar-placeholder {
-            width: 75px !important;
-            height: 75px !important;
+            width: 90px !important;
+            height: 90px !important;
           }
           .printable-card-side h5.fullname-text {
             font-size: 16px !important;
@@ -886,14 +886,14 @@ export default function ProfilePage() {
               width: 48px !important;
               height: 48px !important;
             }
-            .printable-card-side .avatar-container {
-              width: 160px !important;
-              height: 160px !important;
-            }
-            .printable-card-side .avatar-placeholder {
-              width: 80px !important;
-              height: 80px !important;
-            }
+             .printable-card-side .avatar-container {
+               width: 195px !important;
+               height: 195px !important;
+             }
+             .printable-card-side .avatar-placeholder {
+               width: 100px !important;
+               height: 100px !important;
+             }
             .printable-card-side h5.fullname-text {
               font-size: 17px !important;
               max-width: 260px !important;
@@ -1024,6 +1024,11 @@ export default function ProfilePage() {
             print-color-adjust: exact !important;
             page-break-after: avoid !important;
             break-after: avoid !important;
+          }
+
+          .printable-card-side .avatar-container {
+            width: 32mm !important;
+            height: 32mm !important;
           }
 
           /* Force backgrounds on print */
