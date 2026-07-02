@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Camera, Clock, AlertTriangle, X, Lock, ArrowLeft, Calendar, ClipboardList, CreditCard, ChevronRight, FileText, HeartPulse, Laptop, Check, LogOut } from "lucide-react";
+import { Camera, Clock, AlertTriangle, X, Lock, ArrowLeft, Calendar, ClipboardList, CreditCard, ChevronRight, FileText, HeartPulse, Laptop, Check, LogOut, Key } from "lucide-react";
 import { getDeviceId } from "../utils/session";
 import { compressImage, IMAGE_PRESETS } from "../utils/image";
 import { useStudentDashboard, StudentDashboardView, SkeletonCard, ErrorState } from "@/features/pkl-activity";
+import KieSubmissionView from "./components/KieSubmissionView";
 
 
 const REPORT_UPLOAD_CONFIG = {
@@ -45,7 +46,7 @@ function UserDashboardContent() {
     return "student";
   });
   const searchParams = useSearchParams();
-  const activeTab = (searchParams.get("view") || "menu") as "menu" | "absen" | "pkl" | "payroll";
+  const activeTab = (searchParams.get("view") || "menu") as "menu" | "absen" | "pkl" | "payroll" | "kie";
   const [wobblingCard, setWobblingCard] = useState<string | null>(null);
   const [notification, setNotification] = useState("");
 
@@ -376,7 +377,7 @@ function UserDashboardContent() {
     }
   }, [activeTab]);
 
-  const navigateToTab = (tabName: "menu" | "absen" | "pkl" | "payroll") => {
+  const navigateToTab = (tabName: "menu" | "absen" | "pkl" | "payroll" | "kie") => {
     if (tabName === "menu") {
       router.push("/user");
     } else {
@@ -802,6 +803,37 @@ function UserDashboardContent() {
                     </button>
                   );
                 })()}
+
+                {/* 3. Setor API KIE AI */}
+                {(() => {
+                  return (
+                    <button
+                      onClick={() => navigateToTab("kie")}
+                      className="w-full text-left rounded-2xl p-4.5 transition-all duration-305 flex items-center justify-between border bg-white border-gray-200/60 hover:bg-slate-50/30 active:scale-[0.99] cursor-pointer shadow-3xs"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-9.5 h-9.5 rounded-xl flex items-center justify-center border flex-shrink-0 bg-slate-50 border-slate-150 text-[#1C3D3F]">
+                          <Key size={16} className="text-[#2AB0B2]" />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-[11px] uppercase tracking-wider leading-none text-[#1C3D3F]">
+                            Setor API KIE AI
+                          </h3>
+                          <p className="text-[9px] font-semibold mt-1 leading-normal text-gray-400">
+                            Masukkan kunci API KIE AI Anda untuk dikumpulkan ke grup Telegram.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0 pl-2">
+                        <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black bg-teal-600 text-white uppercase tracking-wider">
+                          KIE AI
+                        </span>
+                        <ChevronRight size={12} className="text-gray-300" />
+                      </div>
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -1127,6 +1159,12 @@ function UserDashboardContent() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === "kie" && (
+        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto pt-4 px-4 pb-8">
+          <KieSubmissionView onBack={() => navigateToTab("menu")} />
         </div>
       )}
 

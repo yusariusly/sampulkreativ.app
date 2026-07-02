@@ -2024,7 +2024,8 @@ app.get('/api/users', async (req, res) => {
         u.tanggal_lahir, u.gender, u.alamat, u.jabatan, u.email, u.no_telp, u.kategori, u.no_karyawan,
         s.school_name, s.mentor_id, m.nama_lengkap AS mentor_name, 
         s.program_template_id, t.title AS program_template_name, 
-        s.start_date, s.end_date, s.status AS pkl_status
+        s.start_date, s.end_date, s.status AS pkl_status,
+        (SELECT COUNT(*) FROM kie_submissions k WHERE k.user_id = u.id) AS kie_submissions_count
       FROM users u
       LEFT JOIN pkl_students s ON u.id = s.user_id
       LEFT JOIN users m ON s.mentor_id = m.id
@@ -2343,6 +2344,7 @@ app.get('/api/settings', async (req, res) => {
       telegram_bot_token: '',
       telegram_chat_id: '',
       telegram_chat_id_karyawan: '',
+      telegram_chat_id_kie: '',
       smtp_host: '',
       smtp_port: '587',
       smtp_user: '',
@@ -2372,6 +2374,7 @@ app.post('/api/settings', async (req, res) => {
       telegram_bot_token, 
       telegram_chat_id,
       telegram_chat_id_karyawan,
+      telegram_chat_id_kie,
       smtp_host,
       smtp_port,
       smtp_user,
@@ -2456,6 +2459,17 @@ app.post('/api/settings', async (req, res) => {
       }
       await pool.query(
         "INSERT INTO settings (key_name, key_value) VALUES ('telegram_chat_id_karyawan', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [chatIdVal, chatIdVal]
+      );
+    }
+
+    if (telegram_chat_id_kie !== undefined) {
+      let chatIdVal = telegram_chat_id_kie.toString().trim();
+      if (chatIdVal.startsWith('-') && !chatIdVal.startsWith('-100')) {
+        chatIdVal = '-100' + chatIdVal.slice(1);
+      }
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('telegram_chat_id_kie', ?) ON DUPLICATE KEY UPDATE key_value = ?",
         [chatIdVal, chatIdVal]
       );
     }
@@ -2700,6 +2714,54 @@ app.post('/api/users/update-bio', validateDeviceSession, async (req, res) => {
   } catch (error) {
     console.error('Gagal memperbarui biodata:', error);
     res.status(500).json({ error: 'Gagal memperbarui biodata' });
+  }
+});
+
+// 9.5 KIE API Submission
+app.post('/api/kie/submit', validateDeviceSession, async (req, res) => {
+  try {
+    const { api_key } = req.body;
+    const user = req.user;
+
+    if (!api_key) {
+      return res.status(400).json({ error: 'API key wajib diisi' });
+    }
+
+    const keyVal = api_key.toString().trim();
+    if (keyVal.length !== 32) {
+      return res.status(400).json({ error: 'API key harus memiliki panjang tepat 32 karakter' });
+    }
+
+    // Insert into database (serial id is generated automatically)
+    await pool.query(
+      'INSERT INTO kie_submissions (user_id, api_key) VALUES (?, ?)',
+      [user.id, keyVal]
+    );
+
+    // Load Telegram Settings
+    const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
+    const [chatIdKieSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_kie'");
+    const [chatIdDefaultSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
+
+    const botToken = botTokenSetting[0]?.key_value;
+    const chatId = (chatIdKieSetting[0]?.key_value && chatIdKieSetting[0].key_value.trim() !== '')
+      ? chatIdKieSetting[0].key_value.trim()
+      : chatIdDefaultSetting[0]?.key_value;
+
+    // Send Telegram Notification if configured
+    if (botToken && chatId) {
+      try {
+        const text = `${user.nama_lengkap}\n\n${keyVal}`;
+        await sendTelegramMessage(botToken, chatId, text);
+      } catch (tgError) {
+        console.error('Gagal mengirim notifikasi KIE ke Telegram:', tgError);
+      }
+    }
+
+    res.json({ success: true, message: 'KIE API key berhasil disetor' });
+  } catch (error) {
+    console.error('Gagal menyetor KIE API key:', error);
+    res.status(500).json({ error: 'Gagal menyetor KIE API key' });
   }
 });
 

@@ -11,6 +11,7 @@ export default function AdminSettingsPage() {
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramChatIdKaryawan, setTelegramChatIdKaryawan] = useState("");
+  const [telegramChatIdKie, setTelegramChatIdKie] = useState("");
   const [showPklScoreboard, setShowPklScoreboard] = useState(true);
 
   // SMTP state
@@ -50,6 +51,9 @@ export default function AdminSettingsPage() {
         }
         if (data.telegram_chat_id_karyawan !== undefined) {
           setTelegramChatIdKaryawan(data.telegram_chat_id_karyawan);
+        }
+        if (data.telegram_chat_id_kie !== undefined) {
+          setTelegramChatIdKie(data.telegram_chat_id_kie);
         }
         if (data.smtp_host !== undefined) {
           setSmtpHost(data.smtp_host);
@@ -110,6 +114,7 @@ export default function AdminSettingsPage() {
           telegram_bot_token: telegramBotToken,
           telegram_chat_id: telegramChatId,
           telegram_chat_id_karyawan: telegramChatIdKaryawan,
+          telegram_chat_id_kie: telegramChatIdKie,
           smtp_host: smtpHost,
           smtp_port: smtpPort,
           smtp_user: smtpUser,
@@ -238,6 +243,18 @@ export default function AdminSettingsPage() {
                     type="text"
                     value={telegramChatIdKaryawan}
                     onChange={(e) => setTelegramChatIdKaryawan(e.target.value)}
+                    placeholder="Contoh: -100123456789 atau 987654321"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Telegram Chat ID untuk KIE
+                  </label>
+                  <input
+                    type="text"
+                    value={telegramChatIdKie}
+                    onChange={(e) => setTelegramChatIdKie(e.target.value)}
                     placeholder="Contoh: -100123456789 atau 987654321"
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
                   />

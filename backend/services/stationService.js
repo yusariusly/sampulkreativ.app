@@ -103,19 +103,7 @@ async function verifyStationToken(pool, token) {
   }).format(new Date());
 
   if (hasClockedIn) {
-    // Karyawan ingin absen pulang. Periksa apakah sudah mencapai jam checkout_time
-    if (currentJakartaTimeStr < checkoutVal) {
-      const checkInLog = logs.find(l => l.status === 'Hadir' || l.status === 'Terlambat');
-      const checkInTime = checkInLog 
-        ? new Date(checkInLog.waktu_absen).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) 
-        : '';
-      return {
-        success: false,
-        error: `Halo ${user.nama_lengkap}, Anda sudah absen masuk pukul ${checkInTime} WIB. Absen pulang baru bisa dilakukan setelah pukul ${checkoutVal} WIB.`,
-        user: { id: user.id, username: user.username, nama_lengkap: user.nama_lengkap, role: user.role }
-      };
-    }
-
+    // Karyawan ingin absen pulang. Diperbolehkan kapan saja setelah absen masuk
     return {
       success: true,
       user: { id: user.id, username: user.username, nama_lengkap: user.nama_lengkap, role: user.role },
@@ -123,9 +111,8 @@ async function verifyStationToken(pool, token) {
     };
   }
 
-  // Belum absen masuk. Tentukan Hadir vs Terlambat
-  const isLate = currentJakartaTimeStr > deadlineVal;
-  const next_status = isLate ? 'Terlambat' : 'Hadir';
+  // Belum absen masuk. Selalu tandai 'Hadir' (tidak ada status Terlambat)
+  const next_status = 'Hadir';
 
   return {
     success: true,

@@ -31,6 +31,7 @@ interface UserAccount {
   program_template_id?: string;
   start_date?: string;
   end_date?: string;
+  kie_submissions_count?: number;
 }
 
 export default function AdminUsersPage() {
@@ -410,6 +411,13 @@ export default function AdminUsersPage() {
                         )}
                         {u.jabatan && (
                           <div className="text-xs text-gray-400 font-normal mt-0.5">{u.jabatan}</div>
+                        )}
+                        {u.kie_submissions_count !== undefined && u.kie_submissions_count > 0 && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-600 border border-teal-100">
+                              🔑 KIE API: {u.kie_submissions_count}x Setor
+                            </span>
+                          </div>
                         )}
                         {!u.is_active && (
                           <span className="mt-1 inline-block px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded animate-pulse">
