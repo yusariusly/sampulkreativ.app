@@ -131,7 +131,10 @@ export default function StationPage() {
         speak(`Terima kasih, ${currentUser.nama_lengkap}. Absensi Anda berhasil!`);
       }
 
-      setCurrentState("SUCCESS");
+      // Kembali ke mode scanning secara instan agar antrean cepat
+      setCurrentState("SCANNING");
+      setCurrentUser(null);
+      setScannedToken("");
     } catch (err) {
       console.error("Gagal submit absensi stasiun:", err);
       setErrorMessage("Terjadi kesalahan jaringan saat mengirim absensi.");
