@@ -179,6 +179,8 @@ async function saveWeeklyFeedback(dbClient, mentorId, studentId, feedbackData) {
   }
 
   // 6. Lakukan upsert ke database menggunakan relative_week
+  const existingSummary = await weeklySumRepo.findByStudentAndWeek(dbClient, studentId, relativeWeek);
+
   const summaryPayload = {
     student_id: studentId,
     week_number: relativeWeek,
@@ -187,6 +189,7 @@ async function saveWeeklyFeedback(dbClient, mentorId, studentId, feedbackData) {
     tags: JSON.stringify(tagsToSave),
     extended_days: feedbackData.extended_days || 0,
     progress_override: feedbackData.progress_override !== undefined ? feedbackData.progress_override : null,
+    is_published: existingSummary ? existingSummary.is_published : 0
   };
 
   const success = await weeklySumRepo.upsert(dbClient, summaryPayload);
