@@ -132,7 +132,7 @@ export default function KieSubmissionView({ onBack }: KieSubmissionViewProps) {
             </div>
           </div>
           <p className="text-gray-400 text-[11px] mt-2.5 leading-relaxed">
-            API key harus pas 32 karakter, tanpa spasi. Kunci API yang berhasil disetor akan otomatis dikirimkan ke Telegram group perusahaan.
+            API key harus pas 32 karakter, tanpa spasi. Kunci API yang berhasil disetor akan otomatis dicatat dalam sistem absensi.
           </p>
         </div>
 
@@ -161,7 +161,7 @@ export default function KieSubmissionView({ onBack }: KieSubmissionViewProps) {
             </div>
             <h3 className="text-lg font-bold text-[#1C3D3F]">Sudah Terkirim!</h3>
             <p className="text-sm text-gray-400 mt-2">
-              Kunci API KIE AI Anda telah berhasil dicatat dan dikirim ke grup Telegram.
+              Kunci API KIE AI Anda telah berhasil dicatat dalam sistem absensi.
             </p>
             <div className="mt-6 w-full space-y-3">
               <button

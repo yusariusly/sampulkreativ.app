@@ -39,6 +39,8 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="sampulkreativ.app" />
+      </head>
+      <body className="min-h-full flex flex-col font-sans">
         <Script id="session-isolation" strategy="beforeInteractive">
           {`
             (function() {
@@ -75,8 +77,6 @@ export default function RootLayout({
             })();
           `}
         </Script>
-      </head>
-      <body className="min-h-full flex flex-col font-sans">
         <QueryProvider>
           {children}
         </QueryProvider>

@@ -765,6 +765,18 @@ async function initDb() {
     }
 
     try {
+      await pool.query("ALTER TABLE users ADD COLUMN kie_debt INT DEFAULT 0");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN last_kie_debt_date DATE DEFAULT CURRENT_DATE");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
+    try {
       await pool.query("ALTER TABLE users ADD COLUMN email VARCHAR(150) NULL");
     } catch (err) {
       // Column already exists, safe to ignore
@@ -2717,6 +2729,73 @@ app.post('/api/users/update-bio', validateDeviceSession, async (req, res) => {
   }
 });
 
+// Helper to calculate and synchronize student KIE API submission debt
+async function syncUserKieDebt(userId) {
+  try {
+    const [userRows] = await pool.query(
+      "SELECT id, role, kie_debt, last_kie_debt_date FROM users WHERE id = ?",
+      [userId]
+    );
+    if (userRows.length === 0) return;
+    
+    const user = userRows[0];
+    if (user.role !== 'student') return;
+
+    const todayStr = new Date().toLocaleDateString('en-CA');
+
+    if (!user.last_kie_debt_date) {
+      await pool.query(
+        "UPDATE users SET last_kie_debt_date = ? WHERE id = ?",
+        [todayStr, userId]
+      );
+      return;
+    }
+
+    const lastDateStr = user.last_kie_debt_date instanceof Date
+      ? user.last_kie_debt_date.toLocaleDateString('en-CA')
+      : new Date(user.last_kie_debt_date).toLocaleDateString('en-CA');
+
+    if (lastDateStr === todayStr) {
+      return; // Already processed up to today
+    }
+
+    const lastDate = new Date(lastDateStr);
+    const today = new Date(todayStr);
+    
+    let currentDate = new Date(lastDate);
+    currentDate.setDate(currentDate.getDate() + 1);
+
+    let newDebt = 0;
+    let daysCount = 0;
+
+    while (currentDate < today) {
+      const dateString = currentDate.toLocaleDateString('en-CA');
+      
+      const [rows] = await pool.query(
+        "SELECT COUNT(*) AS count_on_date FROM kie_submissions WHERE user_id = ? AND DATE(submitted_at) = ?",
+        [userId, dateString]
+      );
+      const countOnDate = rows[0].count_on_date || 0;
+      
+      if (countOnDate < 4) {
+        newDebt += (4 - countOnDate);
+      }
+      
+      daysCount++;
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    if (daysCount > 0) {
+      await pool.query(
+        "UPDATE users SET kie_debt = COALESCE(kie_debt, 0) + ?, last_kie_debt_date = ? WHERE id = ?",
+        [newDebt, todayStr, userId]
+      );
+    }
+  } catch (err) {
+    console.error("Gagal sinkronisasi hutang KIE untuk user:", userId, err);
+  }
+}
+
 // 9.5 KIE API Submission
 app.post('/api/kie/submit', validateDeviceSession, async (req, res) => {
   try {
@@ -2732,36 +2811,183 @@ app.post('/api/kie/submit', validateDeviceSession, async (req, res) => {
       return res.status(400).json({ error: 'API key harus memiliki panjang tepat 32 karakter' });
     }
 
-    // Insert into database (serial id is generated automatically)
+    // 1. Sync user's KIE debt first
+    await syncUserKieDebt(user.id);
+
+    // 2. Fetch user's current debt and role
+    const [userRowsBefore] = await pool.query(
+      "SELECT role, kie_debt FROM users WHERE id = ?",
+      [user.id]
+    );
+    const userBefore = userRowsBefore[0];
+    const currentDebt = userBefore?.kie_debt || 0;
+
+    // 3. Count today's submissions before inserting
+    const [countRowsBefore] = await pool.query(
+      "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND DATE(submitted_at) = CURRENT_DATE",
+      [user.id]
+    );
+    const countTodayBefore = countRowsBefore[0].count_today || 0;
+
+    // 4. Insert into database
     await pool.query(
       'INSERT INTO kie_submissions (user_id, api_key) VALUES (?, ?)',
       [user.id, keyVal]
     );
 
-    // Load Telegram Settings
-    const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
-    const [chatIdKieSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_kie'");
-    const [chatIdDefaultSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
+    // 5. Calculate new today's count
+    const countToday = countTodayBefore + 1;
 
-    const botToken = botTokenSetting[0]?.key_value;
-    const chatId = (chatIdKieSetting[0]?.key_value && chatIdKieSetting[0].key_value.trim() !== '')
-      ? chatIdKieSetting[0].key_value.trim()
-      : chatIdDefaultSetting[0]?.key_value;
-
-    // Send Telegram Notification if configured
-    if (botToken && chatId) {
-      try {
-        const text = `${user.nama_lengkap}\n\n${keyVal}`;
-        await sendTelegramMessage(botToken, chatId, text);
-      } catch (tgError) {
-        console.error('Gagal mengirim notifikasi KIE ke Telegram:', tgError);
-      }
+    // 6. If user is student, and today's count is > 4, and they have a debt: decrease their debt by 1
+    let newDebtVal = currentDebt;
+    if (userBefore.role === 'student' && countToday > 4 && currentDebt > 0) {
+      newDebtVal = currentDebt - 1;
+      await pool.query(
+        "UPDATE users SET kie_debt = ? WHERE id = ?",
+        [newDebtVal, user.id]
+      );
     }
 
-    res.json({ success: true, message: 'KIE API key berhasil disetor' });
+    res.json({ 
+      success: true, 
+      message: 'KIE API key berhasil disetor', 
+      count_today: countToday,
+      kie_debt: newDebtVal
+    });
   } catch (error) {
     console.error('Gagal menyetor KIE API key:', error);
     res.status(500).json({ error: 'Gagal menyetor KIE API key' });
+  }
+});
+
+// GET today count of KIE submissions for the user
+app.get('/api/kie/today-count', validateDeviceSession, async (req, res) => {
+  try {
+    const user = req.user;
+    
+    // Sync debt first to catch up
+    await syncUserKieDebt(user.id);
+
+    // Fetch updated debt and today's submissions count
+    const [userRows] = await pool.query("SELECT role, kie_debt FROM users WHERE id = ?", [user.id]);
+    const [countRows] = await pool.query(
+      "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND DATE(submitted_at) = CURRENT_DATE",
+      [user.id]
+    );
+
+    res.json({ 
+      success: true, 
+      count_today: countRows[0].count_today || 0,
+      kie_debt: userRows[0]?.role === 'student' ? (userRows[0]?.kie_debt || 0) : 0
+    });
+  } catch (error) {
+    console.error('Gagal mengambil jumlah KIE hari ini:', error);
+    res.status(500).json({ error: 'Gagal mengambil data' });
+  }
+});
+
+// GET users with KIE submissions for Admin page (paginated)
+app.get('/api/kie/admin/users-submissions', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 3;
+    const offset = (page - 1) * limit;
+    const filter = req.query.filter || 'all';
+
+    // 1. Catch-up sync KIE debt for all students first to ensure accurate debt values
+    const [students] = await pool.query("SELECT id FROM users WHERE role = 'student'");
+    for (const s of students) {
+      await syncUserKieDebt(s.id);
+    }
+
+    // 2. Build dynamic queries based on filter
+    let whereClause = "role IN ('student', 'employee', 'mentor')";
+    if (filter === 'debt') {
+      whereClause = "role = 'student' AND kie_debt > 0";
+    } else if (filter === 'nodebt') {
+      whereClause = "role = 'student' AND (kie_debt = 0 OR kie_debt IS NULL)";
+    }
+
+    // Count total matching users to support infinite scroll / pagination
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) AS total FROM users WHERE ${whereClause}`
+    );
+    const totalUsers = countRows[0].total;
+
+    // Fetch page of users
+    const [users] = await pool.query(
+      `SELECT id, username, nama_lengkap, role, foto_profile, email, kie_debt 
+       FROM users 
+       WHERE ${whereClause} 
+       ORDER BY nama_lengkap ASC 
+       LIMIT ? OFFSET ?`,
+      [limit, offset]
+    );
+
+    if (users.length === 0) {
+      return res.json({ users: [], hasMore: false, total: totalUsers });
+    }
+
+    // Get submissions for these users
+    const userIds = users.map(u => u.id);
+    const [submissions] = await pool.query(
+      `SELECT id, user_id, api_key, submitted_at 
+       FROM kie_submissions 
+       WHERE user_id IN (?) 
+       ORDER BY submitted_at DESC`,
+      [userIds]
+    );
+
+    // Group submissions by user_id
+    const submissionsMap = {};
+    userIds.forEach(id => {
+      submissionsMap[id] = [];
+    });
+    submissions.forEach(sub => {
+      submissionsMap[sub.user_id].push(sub);
+    });
+
+    const result = users.map(u => ({
+      ...u,
+      submissions: submissionsMap[u.id] || []
+    }));
+
+    res.json({
+      users: result,
+      hasMore: offset + users.length < totalUsers,
+      total: totalUsers
+    });
+  } catch (error) {
+    console.error('Gagal mengambil data submissions admin KIE:', error);
+    res.status(500).json({ error: 'Gagal mengambil data' });
+  }
+});
+
+// PUT update KIE submission for Admin
+app.put('/api/kie/admin/submissions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { api_key } = req.body;
+    if (!api_key || api_key.trim().length !== 32) {
+      return res.status(400).json({ error: 'Kunci API harus tepat 32 karakter' });
+    }
+    await pool.query('UPDATE kie_submissions SET api_key = ? WHERE id = ?', [api_key.trim(), id]);
+    res.json({ success: true, message: 'API KIE berhasil diperbarui' });
+  } catch (error) {
+    console.error('Gagal memperbarui KIE submission:', error);
+    res.status(500).json({ error: 'Gagal memperbarui data' });
+  }
+});
+
+// DELETE KIE submission for Admin
+app.delete('/api/kie/admin/submissions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM kie_submissions WHERE id = ?', [id]);
+    res.json({ success: true, message: 'API KIE berhasil dihapus' });
+  } catch (error) {
+    console.error('Gagal menghapus KIE submission:', error);
+    res.status(500).json({ error: 'Gagal menghapus data' });
   }
 });
 

@@ -17,6 +17,7 @@ import {
   Award,
   PiggyBank,
   Tablet,
+  Key,
 } from "lucide-react";
 
 function AppLogo({ size = 80 }: { size?: number }) {
@@ -56,7 +57,7 @@ export default function AdminLayout({
         if (userObj.role !== "admin") {
           router.push("/user");
         } else {
-          setAuthorized(true);
+          Promise.resolve().then(() => setAuthorized(true));
         }
       } catch (err) {
         router.push("/");
@@ -66,7 +67,7 @@ export default function AdminLayout({
 
   // Close mobile drawer when path changes
   useEffect(() => {
-    setIsMobileMenuOpen(false);
+    Promise.resolve().then(() => setIsMobileMenuOpen(false));
   }, [pathname]);
 
   const handleLogout = async () => {
@@ -100,6 +101,7 @@ export default function AdminLayout({
     { href: "/station", label: "Stasiun Absensi", Icon: Tablet },
     { href: "/admin/qr", label: "Generate QR", Icon: QrCode },
     { href: "/admin/users", label: "Pengguna", Icon: Users },
+    { href: "/admin/kie", label: "API KIE", Icon: Key },
   ];
 
   if (!authorized) {
@@ -110,7 +112,7 @@ export default function AdminLayout({
     );
   }
 
-  const SidebarContent = () => (
+  const renderSidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Brand Logo */}
       <div className="flex items-center justify-between px-2 mb-8 select-none">
@@ -216,18 +218,17 @@ export default function AdminLayout({
         />
       )}
 
-      {/* Mobile Slide-out Drawer Panel */}
       <aside 
         className={`md:hidden fixed top-0 bottom-0 right-0 z-50 w-[270px] bg-white p-6 shadow-2xl border-l border-gray-100 flex flex-col transition-transform duration-300 ease-in-out transform ${
           isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <SidebarContent />
+        {renderSidebarContent()}
       </aside>
 
       {/* Desktop Sidebar Panel */}
       <aside className="hidden md:flex w-[240px] bg-white border-r border-gray-100 flex-col py-7 px-4 flex-shrink-0 print:hidden sticky top-0 h-screen overflow-y-auto">
-        <SidebarContent />
+        {renderSidebarContent()}
       </aside>
 
       {/* Main Administrative Dashboard Screen Area */}

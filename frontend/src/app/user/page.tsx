@@ -12,7 +12,50 @@ import KieSubmissionView from "./components/KieSubmissionView";
 const REPORT_UPLOAD_CONFIG = {
   MAX_FILE_SIZE_BYTES: 5 * 1024 * 1024, // 5MB
   ALLOWED_MIME_TYPES: ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"]
-};
+};interface PermissionInfo {
+  allowed: boolean;
+  reason?: string;
+}
+
+interface RemotePermissions {
+  clockIn?: PermissionInfo;
+  clockOut?: PermissionInfo;
+  leave?: PermissionInfo;
+  sick?: PermissionInfo;
+  remote?: PermissionInfo;
+}
+
+interface WfhRequest {
+  id: number;
+  status: string;
+  alasan: string;
+  report_submitted_at?: string | null;
+}
+
+interface PayrollSlip {
+  id: number;
+  periode: string;
+  nama_lengkap: string;
+  jabatan: string;
+  slip_no: string;
+  tanggal_cetak?: string;
+  gaji_pokok: number;
+  tunjangan_makan: number;
+  tunjangan_transport: number;
+  bonus: number;
+  total_pendapatan: number;
+  potongan_sakit: number;
+  potongan_izin: number;
+  potongan_alpha: number;
+  total_potongan: number;
+  hari_kantor: number;
+  hari_remote: number;
+  hari_sakit: number;
+  hari_izin: number;
+  hari_alpha: number;
+  gaji_bersih: number;
+  status: string;
+}
 
 function UserDashboardContent() {
   const router = useRouter();
@@ -51,9 +94,9 @@ function UserDashboardContent() {
   const [notification, setNotification] = useState("");
 
   // Payroll States
-  const [payrollSlips, setPayrollSlips] = useState<any[]>([]);
+  const [payrollSlips, setPayrollSlips] = useState<PayrollSlip[]>([]);
   const [loadingPayroll, setLoadingPayroll] = useState(false);
-  const [selectedSlip, setSelectedSlip] = useState<any | null>(null);
+  const [selectedSlip, setSelectedSlip] = useState<PayrollSlip | null>(null);
   const [payrollError, setPayrollError] = useState("");
 
   const studentDashboard = useStudentDashboard(undefined, { enabled: isStudent });
@@ -75,9 +118,9 @@ function UserDashboardContent() {
 
   // WFH (Remote Working) states
   const [loadingWfh, setLoadingWfh] = useState(true);
-  const [wfhRequest, setWfhRequest] = useState<any>(null);
+  const [wfhRequest, setWfhRequest] = useState<WfhRequest | null>(null);
   const [isWfhActive, setIsWfhActive] = useState(false);
-  const [remotePermissions, setRemotePermissions] = useState<any>(null);
+  const [remotePermissions, setRemotePermissions] = useState<RemotePermissions | null>(null);
   const [wfhModalOpen, setWfhModalOpen] = useState(false);
   const [wfhAlasan, setWfhAlasan] = useState("");
   const [wfhSubmitting, setWfhSubmitting] = useState(false);
@@ -95,6 +138,53 @@ function UserDashboardContent() {
   const [reportAttachments, setReportAttachments] = useState<ReportAttachment[]>([]);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportErrorMsg, setReportErrorMsg] = useState("");
+
+  const [kieInput, setKieInput] = useState("");
+  const [submittingKie, setSubmittingKie] = useState(false);
+  const [kieError, setKieError] = useState("");
+  const [kieSuccess, setKieSuccess] = useState("");
+
+  const handleKieSubmit = async () => {
+    const keyVal = kieInput.trim();
+    setKieError("");
+    setKieSuccess("");
+
+    if (keyVal.length !== 32) {
+      setKieError("⚠️ Kunci API harus tepat 32 karakter");
+      return;
+    }
+
+    setSubmittingKie(true);
+
+    try {
+      const storedUser = localStorage.getItem("v2_user");
+      if (!storedUser) return;
+      const userObj = JSON.parse(storedUser);
+
+      const res = await fetch("/api/kie/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userObj.id,
+          device_id: getDeviceId(),
+          api_key: keyVal,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setKieInput("");
+        setKieSuccess("✓ API KIE Sudah Terkirim!");
+        window.dispatchEvent(new CustomEvent("kie-submitted"));
+      } else {
+        setKieError(`⚠️ ${data.error || "Gagal menyetor KIE API"}`);
+      }
+    } catch (err) {
+      setKieError("⚠️ Gagal menghubungi server");
+    } finally {
+      setSubmittingKie(false);
+    }
+  };
 
   const fetchWfhStatus = async (userId: string) => {
     try {
@@ -247,6 +337,7 @@ function UserDashboardContent() {
       setReportErrorMsg("⚠️ Harap isi rincian Laporan Kerja (Daily Report)");
       return;
     }
+    if (!wfhRequest) return;
 
     setReportSubmitting(true);
     setReportErrorMsg("");
@@ -282,6 +373,23 @@ function UserDashboardContent() {
       setReportSubmitting(false);
     }
   };
+  const fetchPayrollSlips = async (userId: string) => {
+    setLoadingPayroll(true);
+    setPayrollError("");
+    try {
+      const res = await fetch(`/api/payroll/slips?user_id=${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPayrollSlips(data);
+      } else {
+        setPayrollError("Gagal memuat data slip gaji");
+      }
+    } catch (err) {
+      setPayrollError("Terjadi kesalahan koneksi");
+    } finally {
+      setLoadingPayroll(false);
+    }
+  };
 
   const fetchAttendance = async () => {
     if (typeof window === "undefined") return;
@@ -311,23 +419,23 @@ function UserDashboardContent() {
         todayStart.setHours(0, 0, 0, 0);
 
         const todayLogs = logs.filter(
-          (log: any) => new Date(log.waktu_absen).getTime() >= todayStart.getTime()
+          (log: { waktu_absen: string; status: string }) => new Date(log.waktu_absen).getTime() >= todayStart.getTime()
         );
 
         const checkInLog = todayLogs.find(
-          (log: any) => log.status === 'Hadir' || log.status === 'Terlambat'
+          (log: { waktu_absen: string; status: string }) => log.status === 'Hadir' || log.status === 'Terlambat'
         );
 
         const checkOutLog = todayLogs.find(
-          (log: any) => log.status === 'Pulang'
+          (log: { waktu_absen: string; status: string }) => log.status === 'Pulang'
         );
 
         const sakitLog = todayLogs.find(
-          (log: any) => log.status === 'Sakit'
+          (log: { waktu_absen: string; status: string }) => log.status === 'Sakit'
         );
 
         const izinLog = todayLogs.find(
-          (log: any) => log.status === 'Izin'
+          (log: { waktu_absen: string; status: string }) => log.status === 'Izin'
         );
 
         if (checkInLog) {
@@ -359,7 +467,7 @@ function UserDashboardContent() {
   };
 
   useEffect(() => {
-    fetchAttendance();
+    Promise.resolve().then(() => fetchAttendance());
     const clockInterval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(clockInterval);
   }, [router]);
@@ -371,7 +479,7 @@ function UserDashboardContent() {
       if (storedUser) {
         try {
           const userObj = JSON.parse(storedUser);
-          fetchPayrollSlips(userObj.id);
+          Promise.resolve().then(() => fetchPayrollSlips(userObj.id));
         } catch (e) {}
       }
     }
@@ -420,23 +528,6 @@ function UserDashboardContent() {
     }).format(amount);
   };
 
-  const fetchPayrollSlips = async (userId: string) => {
-    setLoadingPayroll(true);
-    setPayrollError("");
-    try {
-      const res = await fetch(`/api/payroll/slips?user_id=${userId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPayrollSlips(data);
-      } else {
-        setPayrollError("Gagal memuat data slip gaji");
-      }
-    } catch (err) {
-      setPayrollError("Terjadi kesalahan koneksi");
-    } finally {
-      setLoadingPayroll(false);
-    }
-  };
 
   const pad = (n: number) => String(n).padStart(2, "0");
   const DAYS = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
@@ -582,11 +673,11 @@ function UserDashboardContent() {
   };
 
   return (
-    <div className={`flex flex-col h-full bg-[#F8FAFC] px-5 select-none relative overflow-hidden ${
-      activeTab === "menu" ? "pt-6 pb-6" : "pt-1 pb-0"
+    <div className={`flex flex-col min-h-full bg-[#F8FAFC] px-5 select-none relative ${
+      activeTab === "menu" ? "pt-6 pb-12" : "pt-1 pb-0"
     }`}>
       {activeTab === "menu" && (
-        <div className="flex-1 flex flex-col gap-5 py-2">
+        <div className="flex flex-col gap-5 py-2">
           {/* Greeting Section */}
           <div className="flex items-center justify-between pb-4 border-b border-gray-150/50 flex-shrink-0">
             <div>
@@ -616,7 +707,56 @@ function UserDashboardContent() {
           </div>
 
           {/* Spacing / Layout Container */}
-          <div className="flex-1 flex flex-col gap-6 mt-1 overflow-y-auto">
+          <div className="flex flex-col gap-6 mt-1">
+            {/* Setor API KIE Inline Card */}
+            <div className="w-full bg-white border border-gray-200/80 rounded-3xl p-5 shadow-xs flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <Key size={14} className="text-[#2AB0B2]" />
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  API KIE
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={kieInput}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\s/g, "");
+                    if (val.length <= 32) {
+                      setKieInput(val);
+                      setKieError("");
+                      setKieSuccess("");
+                    }
+                  }}
+                  disabled={submittingKie}
+                  placeholder="Masukkan 32 karakter kunci API KIE"
+                  className="w-full pl-4 pr-16 py-3 rounded-2xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-mono font-semibold bg-gray-50 focus:bg-white transition-all text-xs tracking-wider"
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 bg-gray-200/50 px-2 py-0.5 rounded-md select-none">
+                  {kieInput.length}/32
+                </div>
+              </div>
+
+              {kieError && (
+                <div className="text-[11px] font-semibold text-red-500 bg-red-50 border border-red-100 rounded-xl p-2.5 flex items-center gap-1.5 animate-fadeIn">
+                  <span>{kieError}</span>
+                </div>
+              )}
+              {kieSuccess && (
+                <div className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 flex items-center gap-1.5 animate-fadeIn">
+                  <span>{kieSuccess}</span>
+                </div>
+              )}
+
+              <button
+                onClick={handleKieSubmit}
+                disabled={kieInput.length !== 32 || submittingKie}
+                className="w-full py-3 bg-[#1C3D3F] hover:bg-[#285557] disabled:bg-gray-100 disabled:text-gray-400 text-white font-black text-xs uppercase tracking-widest rounded-xl cursor-pointer transition-all active:scale-[0.98] shadow-xs flex items-center justify-center gap-1.5"
+              >
+                {submittingKie ? "Mengirim..." : "Setor"}
+              </button>
+            </div>
+
             {/* Primary Action Card: Attendance Hero Card */}
             <div className="w-full bg-white border border-gray-200/80 rounded-3xl p-5 shadow-xs flex flex-col justify-between min-h-[190px]">
               <div>
@@ -799,37 +939,6 @@ function UserDashboardContent() {
                             <span>Terkunci</span>
                           </div>
                         )}
-                      </div>
-                    </button>
-                  );
-                })()}
-
-                {/* 3. Setor API KIE AI */}
-                {(() => {
-                  return (
-                    <button
-                      onClick={() => navigateToTab("kie")}
-                      className="w-full text-left rounded-2xl p-4.5 transition-all duration-305 flex items-center justify-between border bg-white border-gray-200/60 hover:bg-slate-50/30 active:scale-[0.99] cursor-pointer shadow-3xs"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-9.5 h-9.5 rounded-xl flex items-center justify-center border flex-shrink-0 bg-slate-50 border-slate-150 text-[#1C3D3F]">
-                          <Key size={16} className="text-[#2AB0B2]" />
-                        </div>
-                        <div>
-                          <h3 className="font-black text-[11px] uppercase tracking-wider leading-none text-[#1C3D3F]">
-                            Setor API KIE AI
-                          </h3>
-                          <p className="text-[9px] font-semibold mt-1 leading-normal text-gray-400">
-                            Masukkan kunci API KIE AI Anda untuk dikumpulkan ke grup Telegram.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 flex-shrink-0 pl-2">
-                        <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black bg-teal-600 text-white uppercase tracking-wider">
-                          KIE AI
-                        </span>
-                        <ChevronRight size={12} className="text-gray-300" />
                       </div>
                     </button>
                   );
@@ -1103,7 +1212,7 @@ function UserDashboardContent() {
                 <div className="bg-white rounded-[20px] p-6 border border-slate-150 shadow-3xs flex flex-col items-center justify-center text-center">
                   <ErrorState
                     onRetry={studentDashboard.refetch}
-                    message={(studentDashboard.error as any)?.error?.message || "Gagal memuat dashboard aktivitas siswa."}
+                    message={(studentDashboard.error as { error?: { message?: string } } | null)?.error?.message || "Gagal memuat dashboard aktivitas siswa."}
                   />
                 </div>
               ) : studentDashboard.data ? (

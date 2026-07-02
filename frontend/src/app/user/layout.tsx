@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState, Suspense, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Home, History, User, LogOut, Settings, ArrowLeft } from "lucide-react";
+import { Home, History, User, LogOut, Settings, ArrowLeft, Key } from "lucide-react";
 import { SavingsProgressBar } from "@/features/pkl-activity/components/SavingsProgressBar";
 
 function AppLogo({ size = 80 }: { size?: number }) {
@@ -91,6 +91,105 @@ function GlobalSavingsNotice({ isStudent }: { isStudent: boolean }) {
   );
 }
 
+function KieProgressNotice() {
+  const searchParams = useSearchParams();
+  const currentView = searchParams.get("view");
+  const pathname = usePathname();
+  const [count, setCount] = useState(0);
+  const [debt, setDebt] = useState(0);
+
+  const fetchCount = useCallback(async () => {
+    try {
+      const storedUser = localStorage.getItem("v2_user");
+      if (!storedUser) return;
+      const userObj = JSON.parse(storedUser);
+      const deviceId = localStorage.getItem("v2_device_id") || "";
+
+      const res = await fetch(`/api/kie/today-count?user_id=${userObj.id}&device_id=${deviceId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCount(data.count_today || 0);
+        setDebt(data.kie_debt || 0);
+      }
+    } catch (err) {
+      console.error("Gagal memuat KIE progress:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    Promise.resolve().then(() => fetchCount());
+    const handleUpdate = () => {
+      Promise.resolve().then(() => fetchCount());
+    };
+    window.addEventListener("kie-submitted", handleUpdate);
+    return () => window.removeEventListener("kie-submitted", handleUpdate);
+  }, [fetchCount]);
+
+  // Hanya tampilkan di halaman /user utama
+  if (pathname !== "/user" || (currentView && currentView !== "menu")) return null;
+
+  // Hitung target dinamis (default 10 + hutang)
+  const baseTarget = 10 + debt;
+  const totalBoxes = Math.max(baseTarget, count);
+
+  const progressPercent = count > 0 ? (count / totalBoxes) * 100 : 0;
+  const bgSizePercent = count > 0 ? (totalBoxes / count) * 100 : 100;
+
+  // Soft transition stops (0.5 units padding on each side of the transition point)
+  const stop1 = ((4 + debt - 0.5) / totalBoxes) * 100;
+  const stop2 = ((4 + debt + 0.5) / totalBoxes) * 100;
+  const stop3 = ((8 + debt - 0.5) / totalBoxes) * 100;
+  const stop4 = ((8 + debt + 0.5) / totalBoxes) * 100;
+
+  const gradient = `linear-gradient(to right, #EF4444 0%, #EF4444 ${stop1}%, #F59E0B ${stop2}%, #F59E0B ${stop3}%, #10B981 ${stop4}%, #10B981 100%)`;
+
+  return (
+    <div className="px-5 pt-2 flex-shrink-0 print:hidden select-none">
+      <div className="bg-white border border-gray-150 rounded-[16px] p-3 shadow-3xs flex flex-col gap-1.5">
+        <div className="flex items-center justify-between text-[9px] font-black text-gray-400 uppercase tracking-widest">
+          <span>KIE PROGRESS</span>
+          <span className="text-[#1C3D3F]">{count}/{baseTarget}</span>
+        </div>
+        
+        {/* Single continuous progress bar with 3 softly transitioned colored zones */}
+        <div className="w-full h-1.5 bg-gray-100 rounded-full border border-gray-200/50 overflow-hidden flex relative mt-0.5">
+          {/* Target Marker line if count exceeds baseTarget */}
+          {count > baseTarget && (
+            <div
+              style={{ left: `${(baseTarget / totalBoxes) * 100}%` }}
+              className="absolute top-0 bottom-0 w-0.5 border-l border-dashed border-gray-400/80 z-10"
+              title="Target Harian"
+            />
+          )}
+
+          {/* Filled portion with soft color transitions relative to parent container */}
+          <div
+            style={{
+              width: `${progressPercent}%`,
+              backgroundImage: gradient,
+              backgroundSize: `${bgSizePercent}% 100%`,
+              backgroundRepeat: "no-repeat"
+            }}
+            className="h-full transition-all duration-500 ease-out"
+          />
+        </div>
+
+        {debt > 0 && (
+          <div className="mt-0.5 px-2.5 py-1.5 bg-red-50/60 border border-red-100/50 rounded-lg flex items-start gap-1.5 text-[9px]">
+            <span className="shrink-0 px-1 py-0.5 bg-red-100 text-red-600 font-bold rounded-[3px] uppercase tracking-wider text-[7px] mt-0.5">
+              HUTANG: {debt}
+            </span>
+            <span className="text-red-500 font-semibold leading-relaxed">
+              Anda memiliki hutang setoran KIE. Silakan menyetor lebih dari 4 KIE hari ini untuk melunasinya.
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 export default function UserLayout({
   children,
 }: {
@@ -98,20 +197,8 @@ export default function UserLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [authorized, setAuthorized] = useState(() => {
-    if (typeof window !== "undefined") {
-      const storedUserStr = localStorage.getItem("v2_user");
-      if (storedUserStr) {
-        try {
-          const storedUser = JSON.parse(storedUserStr);
-          return storedUser && storedUser.role !== "admin";
-        } catch {
-          return false;
-        }
-      }
-    }
-    return false;
-  });
+  const [isMounted, setIsMounted] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
 
   // Admin login verification modal states
   const [showAdminModal, setShowAdminModal] = useState(false);
@@ -119,27 +206,20 @@ export default function UserLayout({
   const [adminPassword, setAdminPassword] = useState("");
   const [adminError, setAdminError] = useState("");
   const [adminLoading, setAdminLoading] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ role?: string; id?: string | number } | null>(() => {
-    if (typeof window !== "undefined") {
-      const storedUserStr = localStorage.getItem("v2_user");
-      if (storedUserStr) {
-        try {
-          return JSON.parse(storedUserStr);
-        } catch {
-          return null;
-        }
-      }
-    }
-    return null;
-  });
+  const [currentUser, setCurrentUser] = useState<{ role?: string; id?: string | number } | null>(null);
 
   useEffect(() => {
+    setIsMounted(true);
     if (typeof window !== "undefined") {
       const storedUserStr = localStorage.getItem("v2_user");
       let storedUser = null;
       if (storedUserStr) {
         try {
           storedUser = JSON.parse(storedUserStr);
+          if (storedUser && storedUser.role !== "admin") {
+            setCurrentUser(storedUser);
+            setAuthorized(true);
+          }
         } catch {
           // handled silently
         }
@@ -255,7 +335,7 @@ export default function UserLayout({
 
   const activeTab = getActiveTab();
 
-  if (!authorized) {
+  if (!isMounted || !authorized) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center font-sans">
         <p className="text-gray-400 font-semibold text-sm">Memeriksa Sesi...</p>
@@ -292,6 +372,10 @@ export default function UserLayout({
           {/* Global Savings Notice (semua halaman kecuali view=pkl karena di-render inline di sana) */}
           <Suspense fallback={null}>
             <GlobalSavingsNotice isStudent={currentUser?.role === 'student'} />
+          </Suspense>
+          {/* KIE Progress Notice */}
+          <Suspense fallback={null}>
+            <KieProgressNotice />
           </Suspense>
           {children}
         </div>
