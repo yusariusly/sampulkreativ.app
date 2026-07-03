@@ -2909,7 +2909,7 @@ function parseJakartaDate(dateInput) {
 async function syncUserKieDebt(userId) {
   try {
     const [userRows] = await pool.query(
-      "SELECT id, role, kie_debt, last_kie_debt_date FROM users WHERE id = ?",
+      "SELECT id, role, kie_debt, last_kie_debt_date, created_at FROM users WHERE id = ?",
       [userId]
     );
     if (userRows.length === 0) return;
@@ -2920,9 +2920,22 @@ async function syncUserKieDebt(userId) {
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 
     if (!user.last_kie_debt_date) {
+      // If user has no last_kie_debt_date, check their registration date.
+      // If they registered before KIE system start date (2026-07-02), start checking from 2026-07-02 (so last_kie_debt_date = '2026-07-01').
+      // Otherwise, start checking from the day after registration.
+      const regDate = parseJakartaDate(user.created_at || new Date());
+      const systemStartDate = parseJakartaDate('2026-07-02');
+      let initialDateStr = todayStr;
+      
+      if (regDate.getTime() < systemStartDate.getTime()) {
+        initialDateStr = '2026-07-01';
+      } else {
+        initialDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(regDate);
+      }
+
       await pool.query(
         "UPDATE users SET last_kie_debt_date = ? WHERE id = ?",
-        [todayStr, userId]
+        [initialDateStr, userId]
       );
       return;
     }
