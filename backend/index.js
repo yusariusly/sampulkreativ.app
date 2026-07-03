@@ -777,6 +777,18 @@ async function initDb() {
     }
 
     try {
+      await pool.query("ALTER TABLE users ADD COLUMN telegram_chat_id VARCHAR(100) NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN telegram_chat_name VARCHAR(255) NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
+    try {
       await pool.query("ALTER TABLE users ADD COLUMN email VARCHAR(150) NULL");
     } catch (err) {
       // Column already exists, safe to ignore
@@ -1586,6 +1598,98 @@ function sendTelegramMessage(botToken, chatId, text) {
   });
 }
 
+function registerTelegramWebhook(botToken, host) {
+  return new Promise((resolve, reject) => {
+    if (!botToken || botToken.trim() === '') {
+      return resolve({ success: false, message: 'Bot token kosong' });
+    }
+
+    const webhookUrl = `https://${host}/api/telegram/webhook`;
+    const data = JSON.stringify({
+      url: webhookUrl
+    });
+
+    const options = {
+      hostname: 'api.telegram.org',
+      port: 443,
+      path: `/bot${botToken}/setWebhook`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let responseBody = '';
+      res.on('data', (chunk) => responseBody += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(responseBody);
+          if (parsed.ok) {
+            console.log(`Telegram Webhook berhasil diset ke ${webhookUrl}`);
+            resolve({ success: true, message: parsed.description });
+          } else {
+            console.error('Gagal menyetel Telegram Webhook:', parsed);
+            resolve({ success: false, message: parsed.description });
+          }
+        } catch (err) {
+          console.error('Gagal mengurai respon setWebhook Telegram:', err);
+          reject(err);
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      console.error('Kesalahan jaringan saat mendaftarkan Telegram Webhook:', err);
+      reject(err);
+    });
+
+    req.write(data);
+    req.end();
+  });
+}
+
+function sendTelegramReply(botToken, chatId, text, replyToMessageId) {
+  return new Promise((resolve, reject) => {
+    const bodyObj = {
+      chat_id: chatId,
+      text: text
+    };
+    if (replyToMessageId) {
+      bodyObj.reply_to_message_id = replyToMessageId;
+    }
+    const data = JSON.stringify(bodyObj);
+
+    const options = {
+      hostname: 'api.telegram.org',
+      port: 443,
+      path: `/bot${botToken}/sendMessage`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let responseBody = '';
+      res.on('data', (chunk) => responseBody += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(JSON.parse(responseBody));
+        } else {
+          reject(new Error(`Telegram API returned status ${res.statusCode}: ${responseBody}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    req.write(data);
+    req.end();
+  });
+}
+
 function sendTelegramPhotoFromBuffer(botToken, chatId, fileBuffer, filename, caption) {
   return new Promise((resolve, reject) => {
     const boundary = '----TelegramBotBoundary' + Math.random().toString(36).substring(2);
@@ -2061,7 +2165,7 @@ app.get('/api/users', async (req, res) => {
     const [rows] = await pool.query(`
       SELECT 
         u.id, u.username, u.nama_lengkap, u.role, u.is_active, u.foto_profile, u.device_id, u.device_info, 
-        u.tanggal_lahir, u.gender, u.alamat, u.jabatan, u.email, u.no_telp, u.kategori, u.no_karyawan,
+        u.tanggal_lahir, u.gender, u.alamat, u.jabatan, u.email, u.no_telp, u.kategori, u.no_karyawan, u.telegram_chat_id, u.telegram_chat_name,
         s.school_name, s.mentor_id, m.nama_lengkap AS mentor_name, 
         s.program_template_id, t.title AS program_template_name, 
         s.start_date, s.end_date, s.status AS pkl_status,
@@ -2096,7 +2200,7 @@ app.get('/api/users', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   try {
-    const { nama_lengkap, username, password, role, jabatan, email, no_telp, school_name, mentor_id, program_template_id, start_date, end_date } = req.body;
+    const { nama_lengkap, username, password, role, jabatan, email, no_telp, school_name, mentor_id, program_template_id, start_date, end_date, telegram_chat_id } = req.body;
     if (!nama_lengkap || !username || !password || !role) {
       return res.status(400).json({ error: 'Data pengguna tidak lengkap' });
     }
@@ -2140,16 +2244,17 @@ app.post('/api/users', async (req, res) => {
       email: email ? email.trim() : '',
       no_telp: no_telp ? no_telp.trim() : '',
       no_karyawan: noKaryawan,
-      kategori: dbRole === 'student' ? 'PKL' : 'Karyawan'
+      kategori: dbRole === 'student' ? 'PKL' : 'Karyawan',
+      telegram_chat_id: telegram_chat_id ? telegram_chat_id.trim() : null
     };
 
     const client = await pgPool.connect();
     try {
       await client.query('BEGIN');
       await pool.queryWithClient(client,
-        `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, jabatan, email, no_telp, no_karyawan, kategori) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile, newUser.jabatan, newUser.email, newUser.no_telp, noKaryawan, newUser.kategori]
+        `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, jabatan, email, no_telp, no_karyawan, kategori, telegram_chat_id) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile, newUser.jabatan, newUser.email, newUser.no_telp, noKaryawan, newUser.kategori, newUser.telegram_chat_id]
       );
 
       if (dbRole === 'student') {
@@ -2179,7 +2284,7 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users', async (req, res) => {
   try {
-    const { id, nama_lengkap, username, password, is_active, role, jabatan, email, no_telp, school_name, mentor_id, program_template_id, start_date, end_date } = req.body;
+    const { id, nama_lengkap, username, password, is_active, role, jabatan, email, no_telp, school_name, mentor_id, program_template_id, start_date, end_date, telegram_chat_id } = req.body;
     if (!id || !nama_lengkap || !username) {
       return res.status(400).json({ error: 'Data update tidak lengkap' });
     }
@@ -2247,6 +2352,11 @@ app.put('/api/users', async (req, res) => {
     if (no_telp !== undefined) {
       updateFields += ', no_telp = ?';
       params.push(no_telp.trim());
+    }
+
+    if (telegram_chat_id !== undefined) {
+      updateFields += ', telegram_chat_id = ?';
+      params.push(telegram_chat_id.trim() === '' ? null : telegram_chat_id.trim());
     }
 
     let generatedNoKaryawan = null;
@@ -2479,6 +2589,14 @@ app.post('/api/settings', async (req, res) => {
         "INSERT INTO settings (key_name, key_value) VALUES ('telegram_bot_token', ?) ON DUPLICATE KEY UPDATE key_value = ?",
         [tokenVal, tokenVal]
       );
+
+      // Auto-register Telegram webhook on settings change if not localhost
+      const host = req.get('host');
+      if (tokenVal !== "" && host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+        registerTelegramWebhook(tokenVal, host).catch(err => {
+          console.error("Gagal registrasi Telegram Webhook secara otomatis saat save settings:", err);
+        });
+      }
     }
 
     if (telegram_chat_id !== undefined) {
@@ -2909,6 +3027,232 @@ app.post('/api/kie/submit', validateDeviceSession, async (req, res) => {
   }
 });
 
+// Webhook endpoint to receive Telegram Bot messages
+app.post('/api/telegram/webhook', async (req, res) => {
+  // 1. Send 200 OK immediately to Telegram
+  res.sendStatus(200);
+
+  try {
+    const update = req.body;
+    if (!update || !update.message) return;
+
+    const { chat, text, from, message_id } = update.message;
+    if (!chat || !chat.id || !text) return;
+
+    const chatIdStr = chat.id.toString();
+    const messageText = text.trim();
+
+    let chatName = "";
+    if (chat.title) {
+      chatName = chat.title.trim();
+    } else {
+      chatName = [chat.first_name, chat.last_name].filter(Boolean).join(" ").trim() || chat.username || "Private Chat";
+    }
+
+    // Fetch bot token from settings to reply
+    const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
+    const botToken = botTokenSetting[0]?.key_value;
+    if (!botToken || botToken.trim() === '') {
+      console.warn("Telegram webhook received message but telegram_bot_token is not set.");
+      return;
+    }
+
+    // 2. Check if it's a registration command
+    if (messageText.startsWith('/register')) {
+      const match = messageText.match(/^\/register\s+(.+)$/i);
+      if (!match) {
+        await sendTelegramReply(botToken, chat.id, "⚠️ Format salah. Gunakan: /register [username_aplikasi]", message_id);
+        return;
+      }
+      const targetUsername = match[1].trim();
+
+      // Find user by username
+      const [userRows] = await pool.query(
+        "SELECT id, username, nama_lengkap, role FROM users WHERE LOWER(username) = LOWER(?)",
+        [targetUsername]
+      );
+
+      if (userRows.length === 0) {
+        await sendTelegramReply(
+          botToken, 
+          chat.id, 
+          `❌ Username "${targetUsername}" tidak ditemukan di sistem absensi.`, 
+          message_id
+        );
+        return;
+      }
+
+      const targetUser = userRows[0];
+      // Update telegram_chat_id and telegram_chat_name for this user
+      await pool.query(
+        "UPDATE users SET telegram_chat_id = ?, telegram_chat_name = ? WHERE id = ?",
+        [chatIdStr, chatName, targetUser.id]
+      );
+
+      await sendTelegramReply(
+        botToken, 
+        chat.id, 
+        `✅ Berhasil! Grup ini sekarang terdaftar untuk siswa:\n👤 Nama: *${targetUser.nama_lengkap}*\n🏷️ Username: @${targetUser.username}`, 
+        message_id
+      );
+      return;
+    }
+
+    // 3. Extract candidate keys (32 characters, alphanumeric)
+    const lines = messageText
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
+    const candidateKeys = lines.filter(line => line.length === 32 && /^[a-zA-Z0-9]+$/.test(line));
+
+    // If no candidate keys, simply ignore the message (could be a general discussion in the group chat)
+    if (candidateKeys.length === 0) {
+      return;
+    }
+
+    // 4. Identify user by telegram_chat_id or fallback to sender's Telegram username
+    let [userRows] = await pool.query(
+      "SELECT id, username, nama_lengkap, role, kie_debt, telegram_chat_name FROM users WHERE telegram_chat_id = ?",
+      [chatIdStr]
+    );
+
+    // Fallback: If not registered by telegram_chat_id, check if sender's Telegram username exists in DB
+    if (userRows.length === 0 && from && from.username) {
+      const [fallbackRows] = await pool.query(
+        "SELECT id, username, nama_lengkap, role, kie_debt, telegram_chat_name FROM users WHERE LOWER(username) = LOWER(?)",
+        [from.username.trim()]
+      );
+      if (fallbackRows.length > 0) {
+        userRows = fallbackRows;
+        // Auto-register chat ID if this is a group chat
+        await pool.query(
+          "UPDATE users SET telegram_chat_id = ?, telegram_chat_name = ? WHERE id = ?",
+          [chatIdStr, chatName, fallbackRows[0].id]
+        );
+      }
+    }
+
+    if (userRows.length === 0) {
+      const senderInfo = from ? ` (@${from.username || ''})` : '';
+      await sendTelegramReply(
+        botToken,
+        chat.id,
+        `⚠️ Pengirim${senderInfo} belum terdaftar di sistem absensi.\nSilakan hubungi admin atau gunakan perintah \`/register [username_aplikasi]\` di grup ini.`,
+        message_id
+      );
+      return;
+    }
+
+    const targetUser = userRows[0];
+
+    // Keep telegram_chat_name updated if it changed
+    if (targetUser.telegram_chat_name !== chatName) {
+      await pool.query(
+        "UPDATE users SET telegram_chat_name = ? WHERE id = ?",
+        [chatName, targetUser.id]
+      );
+    }
+
+    // Sync user KIE debt first
+    await syncUserKieDebt(targetUser.id);
+
+    // Fetch refreshed user info
+    const [refreshedRows] = await pool.query(
+      "SELECT role, kie_debt FROM users WHERE id = ?",
+      [targetUser.id]
+    );
+    const refreshedUser = refreshedRows[0];
+    let currentDebt = refreshedUser?.kie_debt || 0;
+
+    const reportLines = [];
+    let successCount = 0;
+
+    // Process keys
+    for (const keyVal of candidateKeys) {
+      // Check if key already exists (globally duplicate check)
+      const [dupRows] = await pool.query(
+        "SELECT id FROM kie_submissions WHERE api_key = ?",
+        [keyVal]
+      );
+
+      if (dupRows.length > 0) {
+        reportLines.push(`❌ \`${keyVal.slice(0, 8)}...${keyVal.slice(-4)}\` - Duplikat/Sudah disetor`);
+        continue;
+      }
+
+      // Fetch today's count before insert
+      const [countRowsBefore] = await pool.query(
+        "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND DATE(submitted_at) = CURRENT_DATE",
+        [targetUser.id]
+      );
+      const countTodayBefore = countRowsBefore[0].count_today || 0;
+
+      // Insert KIE submission
+      await pool.query(
+        'INSERT INTO kie_submissions (user_id, api_key) VALUES (?, ?)',
+        [targetUser.id, keyVal]
+      );
+
+      successCount++;
+      const countToday = countTodayBefore + 1;
+
+      // Decrease debt if threshold reached
+      if (refreshedUser.role === 'student' && countToday > 4 && currentDebt > 0) {
+        currentDebt = currentDebt - 1;
+        await pool.query(
+          "UPDATE users SET kie_debt = ? WHERE id = ?",
+          [currentDebt, targetUser.id]
+        );
+      }
+
+      reportLines.push(`✅ \`${keyVal.slice(0, 8)}...${keyVal.slice(-4)}\` - Sukses`);
+    }
+
+    // Get final stats
+    const [finalCountRows] = await pool.query(
+      "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND DATE(submitted_at) = CURRENT_DATE",
+      [targetUser.id]
+    );
+    const finalCountToday = finalCountRows[0].count_today || 0;
+
+    // Build report message
+    const reportText = `📊 *Laporan Setoran KIE*
+👤 *Nama:* ${targetUser.nama_lengkap} (@${targetUser.username || ''})
+
+${reportLines.join('\n')}
+
+📈 Total setoran hari ini: *${finalCountToday}/5*
+💳 Sisa hutang KIE: *${refreshedUser.role === 'student' ? currentDebt : 0}*`;
+
+    await sendTelegramReply(botToken, chat.id, reportText, message_id);
+
+  } catch (err) {
+    console.error("Gagal memproses Telegram Webhook:", err);
+  }
+});
+
+// Endpoint to manually trigger Telegram Webhook registration
+app.post('/api/telegram/register-webhook', async (req, res) => {
+  try {
+    const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
+    const botToken = botTokenSetting[0]?.key_value;
+    if (!botToken || botToken.trim() === '') {
+      return res.status(400).json({ error: 'Telegram Bot Token belum diset di pengaturan.' });
+    }
+    const host = req.get('host');
+    const result = await registerTelegramWebhook(botToken, host);
+    if (result.success) {
+      res.json({ success: true, message: `Webhook berhasil didaftarkan ke https://${host}/api/telegram/webhook: ${result.message}` });
+    } else {
+      res.status(500).json({ error: `Gagal mendaftarkan webhook: ${result.message}` });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mendaftarkan webhook.' });
+  }
+});
+
 // GET today count of KIE submissions for the user
 app.get('/api/kie/today-count', validateDeviceSession, async (req, res) => {
   try {
@@ -2965,7 +3309,7 @@ app.get('/api/kie/admin/users-submissions', async (req, res) => {
 
     // Fetch page of users
     const [users] = await pool.query(
-      `SELECT id, username, nama_lengkap, role, foto_profile, email, kie_debt 
+      `SELECT id, username, nama_lengkap, role, foto_profile, email, kie_debt, telegram_chat_id, telegram_chat_name 
        FROM users 
        WHERE ${whereClause} 
        ORDER BY nama_lengkap ASC 

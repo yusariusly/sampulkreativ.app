@@ -416,13 +416,15 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
 async function getMentorStudents(dbClient, mentorId, dateStr, startDate, endDate) {
   if (startDate && endDate) {
     const students = await studentRepo.findByMentorId(dbClient, mentorId);
-    const [evaluations] = await dbClient.query(
-      `SELECT id, student_id, evaluation_date, wkt_point, skp_point, has_point, ker_point, ini_point 
-       FROM pkl_daily_evaluations 
-       WHERE student_id IN (SELECT id FROM pkl_students WHERE status = 'ACTIVE') 
-         AND evaluation_date BETWEEN ? AND ?`,
-      [startDate, endDate]
-    );
+    
+    const query = `
+      SELECT id, student_id, evaluation_date, wkt_point, skp_point, has_point, ker_point, ini_point 
+      FROM pkl_daily_evaluations 
+      WHERE student_id IN (SELECT id FROM pkl_students WHERE status = 'ACTIVE' ${mentorId ? 'AND mentor_id = ?' : ''}) 
+        AND evaluation_date BETWEEN ? AND ?
+    `;
+    const params = mentorId ? [mentorId, startDate, endDate] : [startDate, endDate];
+    const [evaluations] = await dbClient.query(query, params);
 
     const evalsGrouped = {};
     evaluations.forEach(ev => {

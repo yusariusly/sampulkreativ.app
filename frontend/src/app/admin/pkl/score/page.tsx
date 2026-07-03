@@ -122,6 +122,7 @@ export default function PklScoreboardPage() {
   const [students, setStudents] = useState<StudentRekap[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [dailyEvals, setDailyEvals] = useState<Record<string, DailyEval>>({}); // Date key -> Eval
+  const [weekEvaluations, setWeekEvaluations] = useState<any[]>([]);
 
   // Scoreboard Tab States
   const [activeTab, setActiveTab] = useState<"evaluation" | "scoreboard">("evaluation");
@@ -255,15 +256,15 @@ export default function PklScoreboardPage() {
       const json = await res.json();
       const list = json.status === "success" ? json.data : [];
       setStudents(list);
-      if (list.length > 0 && !selectedStudentId) {
-        setSelectedStudentId(list[0].student_id);
+      if (list.length > 0) {
+        setSelectedStudentId(prev => prev || list[0].student_id);
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Gagal mengambil data rekap");
     } finally {
       setLoading(false);
     }
-  }, [selectedStudentId]);
+  }, []);
 
   // API Call: Fetch Scoreboard Rankings
   const fetchScoreboard = useCallback(async (weekNum: number, userId: string, deviceId: string) => {
@@ -387,20 +388,26 @@ export default function PklScoreboardPage() {
     }
   };
 
-  // Load Initial Data
+  // Load Static Metadata Once
   useEffect(() => {
     fetchScoreboardVisibility();
     if (mentor) {
       fetchAspects();
       fetchTemplates();
       fetchAllNotices();
+    }
+  }, [mentor, fetchScoreboardVisibility, fetchAspects, fetchTemplates, fetchAllNotices]);
+
+  // Load Week/Tab Specific Data
+  useEffect(() => {
+    if (mentor) {
       if (activeTab === "evaluation") {
         fetchWeeklyRecap(selectedWeek, mentor.id, mentor.device_id || "");
       } else {
         fetchScoreboard(selectedWeek, mentor.id, mentor.device_id || "");
       }
     }
-  }, [mentor, selectedWeek, activeTab, fetchAspects, fetchTemplates, fetchWeeklyRecap, fetchScoreboard, fetchScoreboardVisibility, fetchAllNotices]);
+  }, [mentor, selectedWeek, activeTab, fetchWeeklyRecap, fetchScoreboard]);
 
   // Helper: Get Monday-Friday date range for current week number based on student info
   const getMonFriDates = (startDateStr: string, weekNum: number) => {
@@ -432,6 +439,31 @@ export default function PklScoreboardPage() {
     }
     return dates;
   };
+
+  // API Call: Fetch Daily Evaluations for the entire Week
+  const fetchWeekEvaluations = useCallback(async (weekNum: number, userId: string, deviceId: string) => {
+    setLoadingEvals(true);
+    try {
+      const monFri = getMonFriDates(cohortStartDate, weekNum);
+      const monDate = monFri[0].dateStr;
+      const friDate = monFri[4].dateStr;
+
+      const res = await fetch(`/api/v1/mentor/siswa?start_date=${monDate}&end_date=${friDate}`, {
+        headers: {
+          "x-user-id": userId,
+          "x-device-id": deviceId,
+        },
+      });
+      if (!res.ok) throw new Error("Gagal mengambil data evaluasi harian");
+      const studentList = await res.json();
+      const listData = studentList.status === "success" ? studentList.data : studentList;
+      setWeekEvaluations(listData || []);
+    } catch (err: any) {
+      console.error("Gagal mengambil daily evals:", err);
+    } finally {
+      setLoadingEvals(false);
+    }
+  }, [cohortStartDate]);
 
   const calculateWeekProgress = (
     studentStartDateStr: string,
@@ -486,81 +518,45 @@ export default function PklScoreboardPage() {
     }, 0);
   }, [dailyEvals]);
 
-  // Fetch daily evaluations when selected student or week changes
+  // Fetch daily evaluations for the entire week when selected week, active tab or mentor changes
   useEffect(() => {
-    if (!mentor || !selectedStudentId || !currentStudent) return;
+    if (mentor && activeTab === "evaluation") {
+      fetchWeekEvaluations(selectedWeek, mentor.id, mentor.device_id || "");
+    }
+  }, [mentor, selectedWeek, activeTab, fetchWeekEvaluations]);
 
-    // Immediately clear local evaluation state to prevent student state leakage
-    setDailyEvals({});
+  // Derive dailyEvals for selected student from cached weekEvaluations and update form states
+  useEffect(() => {
+    if (!selectedStudentId || !currentStudent) {
+      setDailyEvals({});
+      return;
+    }
 
-    const controller = new AbortController();
-    const signal = controller.signal;
+    // Find selected student from cached weekEvaluations list
+    const stdDetail = Array.isArray(weekEvaluations)
+      ? weekEvaluations.find((s: any) => s.student_id === selectedStudentId)
+      : null;
 
-    const loadDailyEvals = async () => {
-      setLoadingEvals(true);
-      try {
-        const monFri = getMonFriDates(cohortStartDate, selectedWeek);
-        const monDate = monFri[0].dateStr;
-        const friDate = monFri[4].dateStr;
-
-        // We fetch student list from backend with date range filters to pull all evaluations for the week
-        const res = await fetch(`/api/v1/mentor/siswa?start_date=${monDate}&end_date=${friDate}`, {
-          signal,
-          headers: {
-            "x-user-id": mentor.id,
-            "x-device-id": mentor.device_id || "",
-          },
+    if (stdDetail && stdDetail.evaluations) {
+      const evalsMap: Record<string, DailyEval> = {};
+      if (Array.isArray(stdDetail.evaluations)) {
+        stdDetail.evaluations.forEach((ev: any) => {
+          evalsMap[ev.evaluation_date.split("T")[0]] = ev;
         });
-        if (!res.ok) throw new Error("Gagal mengambil data evaluasi harian");
-        const studentList = await res.json();
-        const listData = studentList.status === "success" ? studentList.data : studentList;
-        
-        // Ensure request is not aborted and selected student is still the same
-        if (signal.aborted) return;
-
-        // Find current student from list and extract their evaluations
-        const stdDetail = Array.isArray(listData)
-          ? listData.find((s: any) => s.student_id === selectedStudentId)
-          : null;
-        if (stdDetail && stdDetail.evaluations) {
-          // If the backend returned a flat object or list, map it.
-          // For safety, let's map evaluations by date
-          const evalsMap: Record<string, DailyEval> = {};
-          // The API returns evaluations inside student detail. Let's trace it.
-          if (Array.isArray(stdDetail.evaluations)) {
-            stdDetail.evaluations.forEach((ev: any) => {
-              evalsMap[ev.evaluation_date.split("T")[0]] = ev;
-            });
-          } else if (stdDetail.evaluations.evaluation_date) {
-            evalsMap[stdDetail.evaluations.evaluation_date.split("T")[0]] = stdDetail.evaluations;
-          }
-          setDailyEvals(evalsMap);
-        } else {
-          setDailyEvals({});
-        }
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.error(err);
-        }
-      } finally {
-        if (!signal.aborted) {
-          setLoadingEvals(false);
-        }
+      } else if (stdDetail.evaluations.evaluation_date) {
+        evalsMap[stdDetail.evaluations.evaluation_date.split("T")[0]] = stdDetail.evaluations;
       }
-    };
-
-    loadDailyEvals();
+      setDailyEvals(evalsMap);
+    } else {
+      setDailyEvals({});
+    }
 
     // Populate feedback form safely
     setSelectedTags(currentStudent.tags || []);
     setCommentInput(currentStudent.comments || "");
     setExtendedDaysInput(currentStudent.extended_days || 0);
     setProgressOverrideInput(currentStudent.progress_override ?? null);
-
-    return () => {
-      controller.abort();
-    };
-  }, [selectedStudentId, selectedWeek, mentor]);
+  }, [selectedStudentId, weekEvaluations, currentStudent]);
 
   // Handler: Update Daily Point Aspek locally in UI
   const handlePointChange = (dateStr: string, aspectKey: string, valStr: string) => {
@@ -632,8 +628,9 @@ export default function PklScoreboardPage() {
         throw new Error("Gagal menyimpan poin evaluasi");
       }
 
-      // Automatically refetch weekly recap list to synchronize sidebar student total points
+      // Automatically refetch weekly recap list and daily evaluations to synchronize UI state
       fetchWeeklyRecap(selectedWeek, mentor.id, mentor.device_id || "");
+      fetchWeekEvaluations(selectedWeek, mentor.id, mentor.device_id || "");
     } catch (err: any) {
       setErrorMsg("Gagal melakukan auto-save poin: " + err.message);
     }

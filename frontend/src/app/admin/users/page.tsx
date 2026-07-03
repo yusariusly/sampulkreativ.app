@@ -32,6 +32,8 @@ interface UserAccount {
   start_date?: string;
   end_date?: string;
   kie_submissions_count?: number;
+  telegram_chat_id?: string;
+  telegram_chat_name?: string;
 }
 
 export default function AdminUsersPage() {
@@ -49,6 +51,7 @@ export default function AdminUsersPage() {
   const [jabatan, setJabatan] = useState<string>("");
   const [noKaryawan, setNoKaryawan] = useState<string>("");
   const [isActive, setIsActive] = useState(true);
+  const [telegramChatId, setTelegramChatId] = useState("");
 
   // Student PKL fields
   const [schoolName, setSchoolName] = useState("");
@@ -156,6 +159,7 @@ export default function AdminUsersPage() {
     setProgramTemplateId("");
     setStartDate("");
     setEndDate("");
+    setTelegramChatId("");
   };
 
   const handleEditTrigger = (u: any) => {
@@ -171,6 +175,7 @@ export default function AdminUsersPage() {
     setProgramTemplateId(u.program_template_id || "");
     setStartDate(u.start_date || "");
     setEndDate(u.end_date || "");
+    setTelegramChatId(u.telegram_chat_id || "");
     showToast(`✏️ Mode edit untuk "${u.nama_lengkap}" aktif`);
   };
 
@@ -230,7 +235,8 @@ export default function AdminUsersPage() {
           mentor_id: editingUserRole === "student" ? "usr-admin" : undefined,
           program_template_id: editingUserRole === "student" ? programTemplateId : undefined,
           start_date: editingUserRole === "student" ? startDate : undefined,
-          end_date: editingUserRole === "student" ? endDate : undefined
+          end_date: editingUserRole === "student" ? endDate : undefined,
+          telegram_chat_id: telegramChatId.trim()
         };
         if (password.trim() !== "") {
           bodyPayload.password = password.trim();
@@ -261,7 +267,8 @@ export default function AdminUsersPage() {
           mentor_id: role === "student" ? "usr-admin" : undefined,
           program_template_id: role === "student" ? programTemplateId : undefined,
           start_date: role === "student" ? startDate : undefined,
-          end_date: role === "student" ? endDate : undefined
+          end_date: role === "student" ? endDate : undefined,
+          telegram_chat_id: telegramChatId.trim()
         };
 
         const res = await fetch("/api/users", {
@@ -441,6 +448,11 @@ export default function AdminUsersPage() {
                         )}
                         {u.jabatan && (
                           <div className="text-xs text-gray-400 font-normal mt-0.5">{u.jabatan}</div>
+                        )}
+                        {u.telegram_chat_id && (
+                          <div className="text-[10px] text-gray-600 font-mono mt-0.5">
+                            <span className="font-extrabold text-[#2AB0B2]">Telegram Chat:</span> {u.telegram_chat_name || "Belum ada pesan"} <span className="text-gray-300">|</span> <span className="font-bold text-gray-400">ID:</span> {u.telegram_chat_id}
+                          </div>
                         )}
                         {u.kie_submissions_count !== undefined && u.kie_submissions_count > 0 && (
                           <div className="mt-1">
@@ -732,6 +744,17 @@ export default function AdminUsersPage() {
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
                   required
+                />
+              </div>
+
+              {/* Telegram Chat ID Input */}
+              <div>
+                <input
+                  type="text"
+                  placeholder="Telegram Group/Chat ID (opsional)"
+                  value={telegramChatId}
+                  onChange={(e) => setTelegramChatId(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
                 />
               </div>
 

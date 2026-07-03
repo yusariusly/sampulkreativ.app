@@ -23,13 +23,13 @@ async function submitDailySession(dbClient, mentorId, sessionDate) {
     throw err;
   }
 
-  // 2. Ambil seluruh data evaluasi harian yang sudah diisi untuk semua siswa pada tanggal terkait (Mencegah N+1)
+  // 2. Ambil seluruh data evaluasi harian yang sudah diisi untuk semua siswa bimbingan mentor pada tanggal terkait (Mencegah N+1)
   const [evalRows] = await dbClient.query(`
     SELECT student_id FROM pkl_daily_evaluations
     WHERE evaluation_date = ? AND student_id IN (
-      SELECT id FROM pkl_students WHERE status = 'ACTIVE'
+      SELECT id FROM pkl_students WHERE status = 'ACTIVE' AND mentor_id = ?
     )
-  `, [sessionDate]);
+  `, [sessionDate, mentorId]);
 
   const completedStudentIds = new Set(evalRows.map(row => row.student_id));
 

@@ -73,7 +73,7 @@ async function findByUserId(dbClient, userId) {
  * @returns {Promise<Array<object>>} Daftar siswa bimbingan
  */
 async function findByMentorId(dbClient, mentorId) {
-  const query = `
+  let query = `
     SELECT 
       s.id as student_id,
       s.user_id,
@@ -89,9 +89,14 @@ async function findByMentorId(dbClient, mentorId) {
     JOIN users u ON s.user_id = u.id
     JOIN pkl_program_templates t ON s.program_template_id = t.id
     WHERE s.status = 'ACTIVE' AND u.role = 'student'
-    ORDER BY u.nama_lengkap ASC
   `;
-  const [rows] = await dbClient.query(query);
+  const params = [];
+  if (mentorId) {
+    query += ' AND s.mentor_id = ?';
+    params.push(mentorId);
+  }
+  query += ' ORDER BY u.nama_lengkap ASC';
+  const [rows] = await dbClient.query(query, params);
   return rows;
 }
 
@@ -214,7 +219,7 @@ async function update(dbClient, studentId, updateData) {
  * @returns {Promise<Array<object>>} Daftar siswa bimbingan beserta evaluasi harian
  */
 async function findStudentsWithDailyEvaluation(dbClient, mentorId, date) {
-  const query = `
+  let query = `
     SELECT 
       s.id as student_id,
       s.user_id,
@@ -236,9 +241,14 @@ async function findStudentsWithDailyEvaluation(dbClient, mentorId, date) {
     JOIN pkl_program_templates t ON s.program_template_id = t.id
     LEFT JOIN pkl_daily_evaluations e ON s.id = e.student_id AND e.evaluation_date = ?
     WHERE s.status = 'ACTIVE' AND u.role = 'student'
-    ORDER BY u.nama_lengkap ASC
   `;
-  const [rows] = await dbClient.query(query, [date]);
+  const params = [date];
+  if (mentorId) {
+    query += ' AND s.mentor_id = ?';
+    params.push(mentorId);
+  }
+  query += ' ORDER BY u.nama_lengkap ASC';
+  const [rows] = await dbClient.query(query, params);
   return rows;
 }
 

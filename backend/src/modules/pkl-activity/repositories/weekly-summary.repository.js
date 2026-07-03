@@ -131,7 +131,7 @@ async function publish(dbClient, studentId, weekNumber) {
  * @returns {Promise<Array<object>>} Daftar rekap mingguan
  */
 async function findWeeklySummariesByMentor(dbClient, mentorId, weekNumber) {
-  const query = `
+  let query = `
     SELECT 
       s.id as student_id,
       u.nama_lengkap as student_name,
@@ -146,9 +146,14 @@ async function findWeeklySummariesByMentor(dbClient, mentorId, weekNumber) {
     JOIN users u ON s.user_id = u.id
     LEFT JOIN pkl_weekly_summaries ws ON s.id = ws.student_id AND ws.week_number = ?
     WHERE s.status = 'ACTIVE' AND u.role = 'student'
-    ORDER BY u.nama_lengkap ASC
   `;
-  const [rows] = await dbClient.query(query, [weekNumber]);
+  const params = [weekNumber];
+  if (mentorId) {
+    query += ' AND s.mentor_id = ?';
+    params.push(mentorId);
+  }
+  query += ' ORDER BY u.nama_lengkap ASC';
+  const [rows] = await dbClient.query(query, params);
   return rows;
 }
 
@@ -164,10 +169,10 @@ async function publishAllByMentor(dbClient, mentorId, weekNumber) {
     UPDATE pkl_weekly_summaries 
     SET is_published = 1, updated_at = NOW() 
     WHERE week_number = ? AND student_id IN (
-      SELECT id FROM pkl_students WHERE status = 'ACTIVE'
+      SELECT id FROM pkl_students WHERE status = 'ACTIVE' AND mentor_id = ?
     )
   `;
-  const [result] = await dbClient.query(query, [weekNumber]);
+  const [result] = await dbClient.query(query, [weekNumber, mentorId]);
   return result.affectedRows > 0;
 }
 
@@ -199,10 +204,10 @@ async function unpublishAllByMentor(dbClient, mentorId, weekNumber) {
     UPDATE pkl_weekly_summaries 
     SET is_published = 0, updated_at = NOW() 
     WHERE week_number = ? AND student_id IN (
-      SELECT id FROM pkl_students WHERE status = 'ACTIVE'
+      SELECT id FROM pkl_students WHERE status = 'ACTIVE' AND mentor_id = ?
     )
   `;
-  const [result] = await dbClient.query(query, [weekNumber]);
+  const [result] = await dbClient.query(query, [weekNumber, mentorId]);
   return result.affectedRows > 0;
 }
 
