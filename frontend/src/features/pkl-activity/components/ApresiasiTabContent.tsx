@@ -44,24 +44,50 @@ interface ApresiasiTabContentProps {
   active_week?: number;
 }
 
-// Jester / Clown Hat SVG
-const ClownHatIcon: React.FC<{ size?: number; className?: string }> = ({ size = 40, className }) => (
+// Crying Face SVG Icon
+const SadCryingIcon: React.FC<{ size?: number; className?: string }> = ({ size = 40, className }) => (
   <svg
     viewBox="0 0 24 24"
     width={size}
     height={size}
     className={className}
     fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
+    xmlns="http://www.w3.org/2000/svg"
   >
-    <path d="M5 19L12 4l7 15" />
-    <path d="M4 19c4-1.5 6-1.5 8 0s4 1.5 8 0" />
-    <circle cx="12" cy="4" r="1.5" fill="currentColor" stroke="none" />
-    <circle cx="8.5" cy="12" r="0.8" fill="currentColor" stroke="none" />
-    <circle cx="15.5" cy="12" r="0.8" fill="currentColor" stroke="none" />
+    {/* Face Background */}
+    <circle cx="12" cy="12" r="10" fill="#FFD043" stroke="#D97706" strokeWidth="1.5" />
+    
+    {/* Left Eye */}
+    <circle cx="8.5" cy="9.5" r="1.2" fill="#1E293B" />
+    
+    {/* Right Eye */}
+    <circle cx="15.5" cy="9.5" r="1.2" fill="#1E293B" />
+    
+    {/* Sad/Frowning Mouth */}
+    <path
+      d="M8.5 16.5C9.5 15.2 11 14.5 12 14.5C13 14.5 14.5 15.2 15.5 16.5"
+      stroke="#1E293B"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+    
+    {/* Left Tear */}
+    <path
+      d="M8.5 11C7.8 12.5 7.8 13.5 8.5 14C9.2 13.5 9.2 12.5 8.5 11Z"
+      fill="#3B82F6"
+      stroke="#2563EB"
+      strokeWidth="0.8"
+      strokeLinejoin="round"
+    />
+    
+    {/* Right Tear */}
+    <path
+      d="M15.5 11C14.8 12.5 14.8 13.5 15.5 14C16.2 13.5 16.2 12.5 15.5 11Z"
+      fill="#3B82F6"
+      stroke="#2563EB"
+      strokeWidth="0.8"
+      strokeLinejoin="round"
+    />
   </svg>
 );
 
@@ -97,9 +123,9 @@ function getHeroConfig(status: RankStatus) {
     case "loser":
       return {
         containerBg: "bg-white border-slate-200",
-        iconBg: "bg-slate-50 border-slate-200",
+        iconBg: "bg-rose-50 border-rose-150",
         label: "Peraih Poin Terendah",
-        labelColor: "text-slate-700 bg-slate-50 border-slate-200",
+        labelColor: "text-rose-600 bg-rose-50 border-rose-250/60 font-black",
         subtitle: "Jadikan minggu ini motivasi untuk berkinerja lebih baik!",
         subtitleColor: "text-slate-500",
         pointsColor: "text-[#1C3D3F]",
@@ -228,7 +254,7 @@ export const ApresiasiTabContent: React.FC<ApresiasiTabContentProps> = ({
         {rankStatus === "loser" && (
           <div className="mb-3 flex flex-col items-center">
             <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center ${heroConfig.iconBg}`}>
-              <ClownHatIcon size={36} className="text-slate-400" />
+              <SadCryingIcon size={38} />
             </div>
             <span className={`text-[9px] font-black uppercase tracking-widest border px-2.5 py-0.5 rounded-md mt-2 ${heroConfig.labelColor}`}>
               {heroConfig.label}
