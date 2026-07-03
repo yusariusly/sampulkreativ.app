@@ -34,6 +34,24 @@ const ROLE_COLORS: Record<string, string> = {
   mentor: "bg-amber-50 text-amber-600 border-amber-100",
 };
 
+const groupSubmissionsByDate = (subs: KieSubmission[]) => {
+  const groups: Record<string, KieSubmission[]> = {};
+  subs.forEach((sub) => {
+    const dateObj = new Date(sub.submitted_at);
+    const dateStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(dateObj);
+    if (!groups[dateStr]) {
+      groups[dateStr] = [];
+    }
+    groups[dateStr].push(sub);
+  });
+  return Object.keys(groups)
+    .sort((a, b) => b.localeCompare(a))
+    .map((dateStr) => ({
+      dateStr,
+      items: groups[dateStr],
+    }));
+};
+
 export default function AdminKiePage() {
   const [users, setUsers] = useState<UserKieData[]>([]);
   const [page, setPage] = useState(1);
@@ -404,103 +422,128 @@ export default function AdminKiePage() {
                           Belum ada API KIE yang disetor oleh pengguna ini.
                         </div>
                       ) : (
-                        <div className="space-y-3">
-                          {user.submissions.map((sub) => {
-                            const isCopied = copiedKey === sub.id;
-                            const isEditing = editingId === sub.id;
-                            return (
-                              <div
-                                key={sub.id}
-                                className="bg-white border border-gray-150 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-3xs"
-                              >
-                                <div className="min-w-0 flex-1 w-full">
-                                  {isEditing ? (
-                                    <div className="relative w-full">
-                                      <input
-                                        type="text"
-                                        value={editValue}
-                                        onChange={(e) => {
-                                          const val = e.target.value.replace(/\s/g, "");
-                                          if (val.length <= 32) setEditValue(val);
-                                        }}
-                                        className="w-full text-xs font-mono font-bold text-gray-700 bg-white border border-[#2AB0B2] focus:border-[#1C3D3F] outline-none px-3 py-1.5 rounded-lg select-all tracking-wider"
-                                        placeholder="Masukkan 32 karakter kunci API KIE"
-                                      />
-                                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md select-none">
-                                        {editValue.length}/32
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <p className="text-xs font-mono font-bold text-gray-700 bg-slate-50/80 border border-slate-100 px-3 py-1.5 rounded-lg select-all break-all tracking-wider">
-                                      {sub.api_key}
-                                    </p>
-                                  )}
-                                  <p className="text-[10px] text-gray-400 font-semibold mt-1.5 pl-1">
-                                    Disetor pada: {new Date(sub.submitted_at).toLocaleString("id-ID", {
-                                      day: "2-digit",
-                                      month: "long",
-                                      year: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })} WIB
-                                  </p>
-                                </div>
+                        <div className="space-y-6">
+                          {(() => {
+                            const grouped = groupSubmissionsByDate(user.submissions);
+                            return grouped.map((group) => {
+                              // We use group.dateStr + 'T00:00:00' to parse as a local date safely without timezone shift
+                              const [y, m, d] = group.dateStr.split('-').map(Number);
+                              const dateObj = new Date(y, m - 1, d);
+                              const formattedDate = dateObj.toLocaleDateString("id-ID", {
+                                weekday: "long",
+                                day: "2-digit",
+                                month: "long",
+                                year: "numeric",
+                              });
+                              return (
+                                <div key={group.dateStr} className="space-y-2.5">
+                                  <div className="flex items-center justify-between px-1 bg-slate-100/50 py-1 rounded-lg">
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5 pl-1.5">
+                                      📅 {formattedDate}
+                                    </span>
+                                    <span className="text-[9px] font-black bg-[#1C3D3F] text-white px-2 py-0.5 rounded-full pr-1.5">
+                                      {group.items.length} Keys
+                                    </span>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {group.items.map((sub) => {
+                                      const isCopied = copiedKey === sub.id;
+                                      const isEditing = editingId === sub.id;
+                                      return (
+                                        <div
+                                          key={sub.id}
+                                          className="bg-white border border-gray-150 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-3xs"
+                                        >
+                                          <div className="min-w-0 flex-1 w-full">
+                                            {isEditing ? (
+                                              <div className="relative w-full">
+                                                <input
+                                                  type="text"
+                                                  value={editValue}
+                                                  onChange={(e) => {
+                                                    const val = e.target.value.replace(/\s/g, "");
+                                                    if (val.length <= 32) setEditValue(val);
+                                                  }}
+                                                  className="w-full text-xs font-mono font-bold text-gray-700 bg-white border border-[#2AB0B2] focus:border-[#1C3D3F] outline-none px-3 py-1.5 rounded-lg select-all tracking-wider"
+                                                  placeholder="Masukkan 32 karakter kunci API KIE"
+                                                />
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md select-none">
+                                                  {editValue.length}/32
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <p className="text-xs font-mono font-bold text-gray-700 bg-slate-50/80 border border-slate-100 px-3 py-1.5 rounded-lg select-all break-all tracking-wider">
+                                                {sub.api_key}
+                                              </p>
+                                            )}
+                                            <p className="text-[10px] text-gray-400 font-semibold mt-1.5 pl-1">
+                                              Disetor pada: {new Date(sub.submitted_at).toLocaleString("id-ID", {
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                              })} WIB
+                                            </p>
+                                          </div>
 
-                                <div className="flex items-center gap-2 self-end sm:self-center">
-                                  {isEditing ? (
-                                    <>
-                                      <button
-                                        onClick={() => handleSaveEdit(sub.id, user.id)}
-                                        disabled={editValue.length !== 32}
-                                        className="p-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 disabled:bg-gray-50 disabled:border-gray-200 disabled:text-gray-400 transition-all cursor-pointer flex items-center justify-center"
-                                        title="Simpan"
-                                      >
-                                        <Check size={16} />
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setEditingId(null);
-                                          setEditValue("");
-                                        }}
-                                        className="p-2 rounded-xl border border-gray-200 bg-white text-gray-500 hover:text-gray-800 hover:bg-slate-50 transition-all cursor-pointer flex items-center justify-center"
-                                        title="Batal"
-                                      >
-                                        <X size={16} />
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <button
-                                        onClick={() => copyToClipboard(sub.api_key, sub.id)}
-                                        className={`p-2 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
-                                          isCopied
-                                            ? "bg-emerald-50 border-emerald-200 text-emerald-600"
-                                            : "bg-white border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-slate-50"
-                                        }`}
-                                        title={isCopied ? "Berhasil disalin" : "Salin Kunci API"}
-                                      >
-                                        {isCopied ? <Check size={16} /> : <Copy size={16} />}
-                                      </button>
-                                      <button
-                                        onClick={() => startEdit(sub.id, sub.api_key)}
-                                        className="p-2 rounded-xl border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all cursor-pointer flex items-center justify-center"
-                                        title="Edit Kunci API"
-                                      >
-                                        <Pencil size={16} />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteSubmission(sub.id, user.id)}
-                                        className="p-2 rounded-xl border border-gray-200 bg-white text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all cursor-pointer flex items-center justify-center"
-                                        title="Hapus Kunci API"
-                                      >
-                                        <Trash2 size={16} />
-                                      </button>
-                                    </>
-                                  )}
+                                          <div className="flex items-center gap-2 self-end sm:self-center">
+                                            {isEditing ? (
+                                              <>
+                                                <button
+                                                  onClick={() => handleSaveEdit(sub.id, user.id)}
+                                                  disabled={editValue.length !== 32}
+                                                  className="p-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 disabled:bg-gray-50 disabled:border-gray-200 disabled:text-gray-400 transition-all cursor-pointer flex items-center justify-center"
+                                                  title="Simpan"
+                                                >
+                                                  <Check size={16} />
+                                                </button>
+                                                <button
+                                                  onClick={() => {
+                                                    setEditingId(null);
+                                                    setEditValue("");
+                                                  }}
+                                                  className="p-2 rounded-xl border border-gray-200 bg-white text-gray-500 hover:text-gray-800 hover:bg-slate-50 transition-all cursor-pointer flex items-center justify-center"
+                                                  title="Batal"
+                                                >
+                                                  <X size={16} />
+                                                </button>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <button
+                                                  onClick={() => copyToClipboard(sub.api_key, sub.id)}
+                                                  className={`p-2 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
+                                                    isCopied
+                                                      ? "bg-emerald-50 border-emerald-200 text-emerald-600"
+                                                      : "bg-white border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-slate-50"
+                                                  }`}
+                                                  title={isCopied ? "Berhasil disalin" : "Salin Kunci API"}
+                                                >
+                                                  {isCopied ? <Check size={16} /> : <Copy size={16} />}
+                                                </button>
+                                                <button
+                                                  onClick={() => startEdit(sub.id, sub.api_key)}
+                                                  className="p-2 rounded-xl border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all cursor-pointer flex items-center justify-center"
+                                                  title="Edit Kunci API"
+                                                >
+                                                  <Pencil size={16} />
+                                                </button>
+                                                <button
+                                                  onClick={() => handleDeleteSubmission(sub.id, user.id)}
+                                                  className="p-2 rounded-xl border border-gray-200 bg-white text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all cursor-pointer flex items-center justify-center"
+                                                  title="Hapus Kunci API"
+                                                >
+                                                  <Trash2 size={16} />
+                                                </button>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            });
+                          })()}
                         </div>
                       )}
                     </div>

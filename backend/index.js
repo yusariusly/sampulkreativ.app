@@ -569,8 +569,15 @@ async function sendDailyReportEmail({ employeeName, reportContent, attachmentUrl
   await transporter.sendMail(mailOptions);
 }
 
+let connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/absensi_db';
+if (connectionString.includes('?')) {
+  connectionString += '&options=-c%20timezone=Asia/Jakarta';
+} else {
+  connectionString += '?options=-c%20timezone=Asia/Jakarta';
+}
+
 const pgPool = new mysql.Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/absensi_db',
+  connectionString,
   ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
@@ -2875,6 +2882,28 @@ app.post('/api/users/update-bio', validateDeviceSession, async (req, res) => {
   }
 });
 
+// Helper to parse date string YYYY-MM-DD into a UTC date object representing the calendar date relative to Jakarta
+function parseJakartaDate(dateInput) {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) {
+    const formatted = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(dateInput);
+    const [y, m, d] = formatted.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d));
+  }
+  const dateStr = typeof dateInput === 'string' ? dateInput : String(dateInput);
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const y = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    const d = parseInt(match[3], 10);
+    return new Date(Date.UTC(y, m - 1, d));
+  }
+  const dObj = new Date(dateStr);
+  const formatted = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(dObj);
+  const [y, m, d] = formatted.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
 // Helper to calculate and synchronize student KIE API submission debt
 async function syncUserKieDebt(userId) {
   try {
@@ -2887,7 +2916,7 @@ async function syncUserKieDebt(userId) {
     const user = userRows[0];
     if (user.role !== 'student') return;
 
-    const todayStr = new Date().toLocaleDateString('en-CA');
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 
     if (!user.last_kie_debt_date) {
       await pool.query(
@@ -2897,28 +2926,26 @@ async function syncUserKieDebt(userId) {
       return;
     }
 
-    const lastDateStr = user.last_kie_debt_date instanceof Date
-      ? user.last_kie_debt_date.toLocaleDateString('en-CA')
-      : new Date(user.last_kie_debt_date).toLocaleDateString('en-CA');
+    const todayDate = parseJakartaDate(todayStr);
+    const lastDate = parseJakartaDate(user.last_kie_debt_date);
 
-    if (lastDateStr === todayStr) {
-      return; // Already processed up to today
+    if (lastDate.getTime() >= todayDate.getTime()) {
+      return; // Already processed up to today (or past it)
     }
 
-    const lastDate = new Date(lastDateStr);
-    const today = new Date(todayStr);
-    
-    let currentDate = new Date(lastDate);
-    currentDate.setDate(currentDate.getDate() + 1);
-
+    // Start checking from the day after last_kie_debt_date
+    let currentDate = new Date(lastDate.getTime() + 24 * 60 * 60 * 1000);
     let newDebt = 0;
     let daysCount = 0;
+    let lastProcessedDateStr = user.last_kie_debt_date instanceof Date
+      ? user.last_kie_debt_date.toISOString().split('T')[0]
+      : String(user.last_kie_debt_date).split('T')[0];
 
-    while (currentDate < today) {
-      const dateString = currentDate.toLocaleDateString('en-CA');
+    while (currentDate.getTime() < todayDate.getTime()) {
+      const dateString = currentDate.toISOString().split('T')[0];
       
       const [rows] = await pool.query(
-        "SELECT COUNT(*) AS count_on_date FROM kie_submissions WHERE user_id = ? AND DATE(submitted_at) = ?",
+        "SELECT COUNT(*) AS count_on_date FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = ?",
         [userId, dateString]
       );
       const countOnDate = rows[0].count_on_date || 0;
@@ -2927,14 +2954,15 @@ async function syncUserKieDebt(userId) {
         newDebt += (4 - countOnDate);
       }
       
+      lastProcessedDateStr = dateString;
       daysCount++;
-      currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setTime(currentDate.getTime() + 24 * 60 * 60 * 1000);
     }
 
     if (daysCount > 0) {
       await pool.query(
         "UPDATE users SET kie_debt = COALESCE(kie_debt, 0) + ?, last_kie_debt_date = ? WHERE id = ?",
-        [newDebt, todayStr, userId]
+        [newDebt, lastProcessedDateStr, userId]
       );
     }
   } catch (err) {
@@ -2970,7 +2998,7 @@ app.post('/api/kie/submit', validateDeviceSession, async (req, res) => {
 
     // 3. Count today's submissions before inserting
     const [countRowsBefore] = await pool.query(
-      "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND DATE(submitted_at) = CURRENT_DATE",
+      "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date",
       [user.id]
     );
     const countTodayBefore = countRowsBefore[0].count_today || 0;
@@ -3183,7 +3211,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
 
       // Fetch today's count before insert
       const [countRowsBefore] = await pool.query(
-        "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND DATE(submitted_at) = CURRENT_DATE",
+        "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date",
         [targetUser.id]
       );
       const countTodayBefore = countRowsBefore[0].count_today || 0;
@@ -3211,7 +3239,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
 
     // Get final stats
     const [finalCountRows] = await pool.query(
-      "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND DATE(submitted_at) = CURRENT_DATE",
+      "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date",
       [targetUser.id]
     );
     const finalCountToday = finalCountRows[0].count_today || 0;
@@ -3264,14 +3292,20 @@ app.get('/api/kie/today-count', validateDeviceSession, async (req, res) => {
     // Fetch updated debt and today's submissions count
     const [userRows] = await pool.query("SELECT role, kie_debt FROM users WHERE id = ?", [user.id]);
     const [countRows] = await pool.query(
-      "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND DATE(submitted_at) = CURRENT_DATE",
+      "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date",
+      [user.id]
+    );
+
+    const [submissions] = await pool.query(
+      "SELECT id, api_key, submitted_at FROM kie_submissions WHERE user_id = ? ORDER BY submitted_at DESC",
       [user.id]
     );
 
     res.json({ 
       success: true, 
       count_today: countRows[0].count_today || 0,
-      kie_debt: userRows[0]?.role === 'student' ? (userRows[0]?.kie_debt || 0) : 0
+      kie_debt: userRows[0]?.role === 'student' ? (userRows[0]?.kie_debt || 0) : 0,
+      submissions: submissions || []
     });
   } catch (error) {
     console.error('Gagal mengambil jumlah KIE hari ini:', error);

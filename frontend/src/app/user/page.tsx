@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Camera, Clock, AlertTriangle, X, Lock, ArrowLeft, Calendar, ClipboardList, CreditCard, ChevronRight, FileText, HeartPulse, Laptop, Check, LogOut, Key, CheckCircle2, AlertCircle, Smile } from "lucide-react";
+import { Camera, Clock, AlertTriangle, X, Lock, ArrowLeft, Calendar, ClipboardList, CreditCard, ChevronRight, FileText, HeartPulse, Laptop, Check, LogOut, Key, CheckCircle2, AlertCircle, Smile, Copy, ChevronDown, ChevronUp } from "lucide-react";
 import { getDeviceId } from "../utils/session";
 import { compressImage, IMAGE_PRESETS } from "../utils/image";
 import { useStudentDashboard, StudentDashboardView, SkeletonCard, ErrorState, savingsService, QUERY_KEYS, StudentSavingsData, BaseResponse } from "@/features/pkl-activity";
@@ -58,6 +58,24 @@ interface PayrollSlip {
   status: string;
 }
 
+const groupSubmissionsByDate = (subs: any[]) => {
+  const groups: Record<string, any[]> = {};
+  subs.forEach((sub) => {
+    const dateObj = new Date(sub.submitted_at);
+    const dateStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(dateObj);
+    if (!groups[dateStr]) {
+      groups[dateStr] = [];
+    }
+    groups[dateStr].push(sub);
+  });
+  return Object.keys(groups)
+    .sort((a, b) => b.localeCompare(a))
+    .map((dateStr) => ({
+      dateStr,
+      items: groups[dateStr],
+    }));
+};
+
 function UserDashboardContent() {
   const router = useRouter();
   const [fullname, setFullname] = useState("Karyawan");
@@ -105,6 +123,9 @@ function UserDashboardContent() {
   // KIE progress states
   const [kieCount, setKieCount] = useState(0);
   const [kieDebt, setKieDebt] = useState(0);
+  const [kieSubmissions, setKieSubmissions] = useState<any[]>([]);
+  const [copiedKey, setCopiedKey] = useState<number | null>(null);
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
 
   const fetchKieCount = useCallback(async () => {
     try {
@@ -118,11 +139,20 @@ function UserDashboardContent() {
         const data = await res.json();
         setKieCount(data.count_today || 0);
         setKieDebt(data.kie_debt || 0);
+        setKieSubmissions(data.submissions || []);
       }
     } catch (err) {
       console.error("Gagal memuat KIE progress:", err);
     }
   }, []);
+
+  const copyToClipboard = (text: string, id: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(id);
+    setTimeout(() => {
+      setCopiedKey(null);
+    }, 2000);
+  };
 
   useEffect(() => {
     Promise.resolve().then(() => fetchKieCount());
@@ -917,6 +947,84 @@ function UserDashboardContent() {
                 </div>
               )}
             </div>
+
+            {/* Riwayat Setoran KIE Card */}
+            {isStudent && kieSubmissions.length > 0 && (
+              <div className="w-full bg-white border border-gray-200/80 rounded-2xl p-3.5 shadow-3xs flex flex-col gap-3">
+                <div className="flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                  <Key size={12} className="text-[#2AB0B2]" />
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                    Riwayat Setoran KIE
+                  </span>
+                </div>
+                
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                  {(() => {
+                    const grouped = groupSubmissionsByDate(kieSubmissions);
+                    return grouped.map((group) => {
+                      const isExpanded = expandedDates[group.dateStr];
+                      const [y, m, d] = group.dateStr.split('-').map(Number);
+                      const dateObj = new Date(y, m - 1, d);
+                      const formattedDate = dateObj.toLocaleDateString("id-ID", {
+                        weekday: "long",
+                        day: "2-digit",
+                        month: "long",
+                        year: "numeric",
+                      });
+                      
+                      return (
+                        <div key={group.dateStr} className="border border-gray-150 rounded-xl overflow-hidden">
+                          <button
+                            onClick={() => setExpandedDates(prev => ({ ...prev, [group.dateStr]: !prev[group.dateStr] }))}
+                            className="w-full bg-slate-50 hover:bg-slate-100/85 px-3 py-2 flex items-center justify-between text-left transition-all cursor-pointer"
+                          >
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                              📅 {formattedDate}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[8px] font-extrabold bg-[#1C3D3F] text-white px-2 py-0.5 rounded-full">
+                                {group.items.length} Keys
+                              </span>
+                              {isExpanded ? (
+                                <ChevronUp size={12} className="text-gray-400" />
+                              ) : (
+                                <ChevronDown size={12} className="text-gray-400" />
+                              )}
+                            </div>
+                          </button>
+                          
+                          {isExpanded && (
+                            <div className="p-2 bg-white border-t border-gray-100 space-y-1.5">
+                              {group.items.map((sub: any) => {
+                                const isCopied = copiedKey === sub.id;
+                                return (
+                                  <div key={sub.id} className="flex items-center justify-between gap-3 bg-slate-50/50 border border-slate-100 p-2 rounded-lg">
+                                    <span className="text-[10px] font-mono font-bold text-gray-650 truncate flex-1 tracking-wider">
+                                      {sub.api_key}
+                                    </span>
+                                    <button
+                                      onClick={() => copyToClipboard(sub.api_key, sub.id)}
+                                      className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                                        isCopied
+                                          ? "bg-emerald-50 border-emerald-200 text-emerald-600"
+                                          : "bg-white border-gray-200 text-gray-400 hover:text-gray-600"
+                                      }`}
+                                      title={isCopied ? "Tersalin" : "Salin"}
+                                    >
+                                      {isCopied ? <Check size={10} /> : <Copy size={10} />}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            )}
 
             {/* Unified Layanan & Absensi Card */}
             <div className="w-full bg-white border border-gray-200/80 rounded-2xl overflow-hidden shadow-3xs flex flex-col">
