@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  Crown,
   Star,
   Clock,
   Smile,
@@ -91,6 +90,80 @@ const SadCryingIcon: React.FC<{ size?: number; className?: string }> = ({ size =
   </svg>
 );
 
+// Colorful Crown SVG Icon
+const ColorfulCrownIcon: React.FC<{ size?: number; className?: string }> = ({ size = 40, className }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    className={className}
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <defs>
+      <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#FFE066" />
+        <stop offset="50%" stopColor="#F59E0B" />
+        <stop offset="100%" stopColor="#D97706" />
+      </linearGradient>
+      <linearGradient id="goldRimGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#D97706" />
+        <stop offset="50%" stopColor="#FFE066" />
+        <stop offset="100%" stopColor="#B45309" />
+      </linearGradient>
+      <radialGradient id="rubyGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#EF4444" />
+        <stop offset="100%" stopColor="#991B1B" />
+      </radialGradient>
+      <radialGradient id="sapphireGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#3B82F6" />
+        <stop offset="100%" stopColor="#1E3A8A" />
+      </radialGradient>
+      <radialGradient id="emeraldGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#10B981" />
+        <stop offset="100%" stopColor="#064E3B" />
+      </radialGradient>
+    </defs>
+
+    {/* Shadow under the crown base */}
+    <ellipse cx="12" cy="20.5" rx="7.5" ry="1.5" fill="#000" fillOpacity={0.15} />
+
+    {/* Crown Body */}
+    <path
+      d="M2 7L5.5 15.5H18.5L22 7L16.5 11.5L12 4L7.5 11.5L2 7Z"
+      fill="url(#goldGradient)"
+      stroke="#B45309"
+      strokeWidth="1.2"
+      strokeLinejoin="round"
+    />
+
+    {/* Crown Rim Base */}
+    <path
+      d="M4.5 15.5H19.5V18.5C19.5 19.3 18.8 20 18 20H6C5.2 20 4.5 19.3 4.5 18.5V15.5Z"
+      fill="url(#goldRimGradient)"
+      stroke="#92400E"
+      strokeWidth="1.2"
+      strokeLinejoin="round"
+    />
+
+    {/* Peak Gems */}
+    {/* Left Peak Gem */}
+    <circle cx="2" cy="7" r="1.8" fill="url(#rubyGlow)" stroke="#7F1D1D" strokeWidth="0.5" />
+    {/* Center Peak Gem */}
+    <circle cx="12" cy="4" r="2.2" fill="url(#sapphireGlow)" stroke="#0F172A" strokeWidth="0.5" />
+    {/* Right Peak Gem */}
+    <circle cx="22" cy="7" r="1.8" fill="url(#rubyGlow)" stroke="#7F1D1D" strokeWidth="0.5" />
+
+    {/* Base Gemstones */}
+    {/* Ruby */}
+    <rect x="7.3" y="16.8" width="1.5" height="1.5" rx="0.3" transform="rotate(45 8 17.5)" fill="url(#rubyGlow)" stroke="#7F1D1D" strokeWidth="0.4" />
+    {/* Emerald */}
+    <circle cx="12" cy="17.5" r="1.2" fill="url(#emeraldGlow)" stroke="#064E3B" strokeWidth="0.4" />
+    {/* Ruby */}
+    <rect x="15.3" y="16.8" width="1.5" height="1.5" rx="0.3" transform="rotate(45 16 17.5)" fill="url(#rubyGlow)" stroke="#7F1D1D" strokeWidth="0.4" />
+  </svg>
+);
+
 /** Maps icon_name string from aspect_settings to the correct Lucide component */
 const ICON_MAP: Record<string, typeof Star> = {
   Clock,
@@ -113,9 +186,9 @@ function getHeroConfig(status: RankStatus) {
     case "winner":
       return {
         containerBg: "bg-white border-slate-200",
-        iconBg: "bg-teal-50 border-teal-100",
+        iconBg: "bg-amber-50 border-amber-100",
         label: "Peraih Poin Tertinggi",
-        labelColor: "text-[#1C3D3F] bg-teal-50 border-[#2AB0B2]/30",
+        labelColor: "text-amber-700 bg-amber-50 border-amber-200/60 font-black",
         subtitle: "Luar biasa! Anda memimpin perolehan poin minggu ini.",
         subtitleColor: "text-slate-500",
         pointsColor: "text-[#1C3D3F]",
@@ -241,7 +314,7 @@ export const ApresiasiTabContent: React.FC<ApresiasiTabContentProps> = ({
         {rankStatus === "winner" && (
           <div className="mb-3 flex flex-col items-center">
             <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center ${heroConfig.iconBg}`}>
-              <Crown size={36} className="text-[#2AB0B2] fill-[#2AB0B2]/15 stroke-[2px]" />
+              <ColorfulCrownIcon size={38} />
             </div>
             <span className={`text-[9px] font-black uppercase tracking-widest border px-2.5 py-0.5 rounded-md mt-2 ${heroConfig.labelColor}`}>
               {heroConfig.label}
