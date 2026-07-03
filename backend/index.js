@@ -3304,7 +3304,7 @@ app.get('/api/kie/today-count', validateDeviceSession, async (req, res) => {
     await syncUserKieDebt(user.id);
 
     // Fetch updated debt and today's submissions count
-    const [userRows] = await pool.query("SELECT role, kie_debt FROM users WHERE id = ?", [user.id]);
+    const [userRows] = await pool.query("SELECT role, kie_debt, created_at FROM users WHERE id = ?", [user.id]);
     const [countRows] = await pool.query(
       "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date",
       [user.id]
@@ -3319,6 +3319,7 @@ app.get('/api/kie/today-count', validateDeviceSession, async (req, res) => {
       success: true, 
       count_today: countRows[0].count_today || 0,
       kie_debt: userRows[0]?.role === 'student' ? (userRows[0]?.kie_debt || 0) : 0,
+      created_at: userRows[0]?.created_at,
       submissions: submissions || []
     });
   } catch (error) {
@@ -3357,7 +3358,7 @@ app.get('/api/kie/admin/users-submissions', async (req, res) => {
 
     // Fetch page of users
     const [users] = await pool.query(
-      `SELECT id, username, nama_lengkap, role, foto_profile, email, kie_debt, telegram_chat_id, telegram_chat_name 
+      `SELECT id, username, nama_lengkap, role, foto_profile, email, kie_debt, telegram_chat_id, telegram_chat_name, created_at 
        FROM users 
        WHERE ${whereClause} 
        ORDER BY nama_lengkap ASC 

@@ -76,6 +76,76 @@ const groupSubmissionsByDate = (subs: any[]) => {
     }));
 };
 
+const getDailyAuditList = (subs: any[], userCreatedAt?: string) => {
+  const groups: Record<string, any[]> = {};
+  subs.forEach((sub) => {
+    const dateObj = new Date(sub.submitted_at);
+    const dateStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(dateObj);
+    if (!groups[dateStr]) {
+      groups[dateStr] = [];
+    }
+    groups[dateStr].push(sub);
+  });
+
+  const systemStartDate = new Date(Date.UTC(2026, 6, 2)); // 2026-07-02
+  let registerDate = systemStartDate;
+  if (userCreatedAt) {
+    const parsedReg = new Date(userCreatedAt);
+    const formatted = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(parsedReg);
+    const [y, m, d] = formatted.split('-').map(Number);
+    registerDate = new Date(Date.UTC(y, m - 1, d));
+  }
+  
+  const startDate = registerDate.getTime() < systemStartDate.getTime() ? systemStartDate : registerDate;
+
+  const todayFormatted = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+  const [ty, tm, td] = todayFormatted.split('-').map(Number);
+  const todayDate = new Date(Date.UTC(ty, tm - 1, td));
+
+  const auditList = [];
+  let current = new Date(todayDate);
+  while (current.getTime() >= startDate.getTime()) {
+    const dateStr = current.toISOString().split('T')[0];
+    const items = groups[dateStr] || [];
+    
+    let statusLabel = "";
+    let statusColor = "";
+    
+    const count = items.length;
+    const isToday = dateStr === todayFormatted;
+    
+    if (count < 4) {
+      if (isToday) {
+        statusLabel = `Belum Lengkap (Kurang ${4 - count} Key)`;
+        statusColor = "text-amber-600 bg-amber-50 border-amber-200/60";
+      } else {
+        statusLabel = `Hutang +${4 - count} KIE`;
+        statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
+      }
+    } else {
+      if (count === 4) {
+        statusLabel = "Target Tercapai";
+        statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
+      } else {
+        statusLabel = `Kelebihan +${count - 4} Key (Potong Hutang)`;
+        statusColor = "text-blue-600 bg-blue-50 border-blue-200/60 font-bold";
+      }
+    }
+
+    auditList.push({
+      dateStr,
+      items,
+      statusLabel,
+      statusColor,
+      isToday
+    });
+
+    current.setTime(current.getTime() - 24 * 60 * 60 * 1000);
+  }
+
+  return auditList;
+};
+
 function UserDashboardContent() {
   const router = useRouter();
   const [fullname, setFullname] = useState("Karyawan");
@@ -123,6 +193,7 @@ function UserDashboardContent() {
   // KIE progress states
   const [kieCount, setKieCount] = useState(0);
   const [kieDebt, setKieDebt] = useState(0);
+  const [userCreatedAt, setUserCreatedAt] = useState<string | undefined>(undefined);
   const [kieSubmissions, setKieSubmissions] = useState<any[]>([]);
   const [copiedKey, setCopiedKey] = useState<number | null>(null);
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
@@ -139,6 +210,7 @@ function UserDashboardContent() {
         const data = await res.json();
         setKieCount(data.count_today || 0);
         setKieDebt(data.kie_debt || 0);
+        setUserCreatedAt(data.created_at);
         setKieSubmissions(data.submissions || []);
       }
     } catch (err) {
@@ -949,19 +1021,19 @@ function UserDashboardContent() {
             </div>
 
             {/* Riwayat Setoran KIE Card */}
-            {isStudent && kieSubmissions.length > 0 && (
+            {isStudent && (
               <div className="w-full bg-white border border-gray-200/80 rounded-2xl p-3.5 shadow-3xs flex flex-col gap-3">
                 <div className="flex items-center gap-1.5 pb-2 border-b border-slate-100">
                   <Key size={12} className="text-[#2AB0B2]" />
                   <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
-                    Riwayat Setoran KIE
+                    Riwayat & Denda KIE Harian
                   </span>
                 </div>
                 
                 <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                   {(() => {
-                    const grouped = groupSubmissionsByDate(kieSubmissions);
-                    return grouped.map((group) => {
+                    const auditList = getDailyAuditList(kieSubmissions, userCreatedAt);
+                    return auditList.map((group) => {
                       const isExpanded = expandedDates[group.dateStr];
                       const [y, m, d] = group.dateStr.split('-').map(Number);
                       const dateObj = new Date(y, m - 1, d);
@@ -978,10 +1050,15 @@ function UserDashboardContent() {
                             onClick={() => setExpandedDates(prev => ({ ...prev, [group.dateStr]: !prev[group.dateStr] }))}
                             className="w-full bg-slate-50 hover:bg-slate-100/85 px-3 py-2 flex items-center justify-between text-left transition-all cursor-pointer"
                           >
-                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                              📅 {formattedDate}
-                            </span>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col gap-1 min-w-0">
+                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                📅 {formattedDate}
+                              </span>
+                              <span className={`w-fit text-[8px] px-1.5 py-0.5 rounded border tracking-wide font-extrabold ${group.statusColor}`}>
+                                {group.statusLabel}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
                               <span className="text-[8px] font-extrabold bg-[#1C3D3F] text-white px-2 py-0.5 rounded-full">
                                 {group.items.length} Keys
                               </span>
@@ -995,27 +1072,33 @@ function UserDashboardContent() {
                           
                           {isExpanded && (
                             <div className="p-2 bg-white border-t border-gray-100 space-y-1.5">
-                              {group.items.map((sub: any) => {
-                                const isCopied = copiedKey === sub.id;
-                                return (
-                                  <div key={sub.id} className="flex items-center justify-between gap-3 bg-slate-50/50 border border-slate-100 p-2 rounded-lg">
-                                    <span className="text-[10px] font-mono font-bold text-gray-650 truncate flex-1 tracking-wider">
-                                      {sub.api_key}
-                                    </span>
-                                    <button
-                                      onClick={() => copyToClipboard(sub.api_key, sub.id)}
-                                      className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                                        isCopied
-                                          ? "bg-emerald-50 border-emerald-200 text-emerald-600"
-                                          : "bg-white border-gray-200 text-gray-400 hover:text-gray-600"
-                                      }`}
-                                      title={isCopied ? "Tersalin" : "Salin"}
-                                    >
-                                      {isCopied ? <Check size={10} /> : <Copy size={10} />}
-                                    </button>
-                                  </div>
-                                );
-                              })}
+                              {group.items.length === 0 ? (
+                                <div className="text-center py-2.5 text-gray-450 text-[9px] font-bold select-none">
+                                  Tidak ada setoran API KIE pada tanggal ini.
+                                </div>
+                              ) : (
+                                group.items.map((sub: any) => {
+                                  const isCopied = copiedKey === sub.id;
+                                  return (
+                                    <div key={sub.id} className="flex items-center justify-between gap-3 bg-slate-50/50 border border-slate-100 p-2 rounded-lg">
+                                      <span className="text-[10px] font-mono font-bold text-gray-650 truncate flex-1 tracking-wider">
+                                        {sub.api_key}
+                                      </span>
+                                      <button
+                                        onClick={() => copyToClipboard(sub.api_key, sub.id)}
+                                        className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                                          isCopied
+                                            ? "bg-emerald-50 border-emerald-200 text-emerald-600"
+                                            : "bg-white border-gray-200 text-gray-400 hover:text-gray-600"
+                                        }`}
+                                        title={isCopied ? "Tersalin" : "Salin"}
+                                      >
+                                        {isCopied ? <Check size={10} /> : <Copy size={10} />}
+                                      </button>
+                                    </div>
+                                  );
+                                })
+                              )}
                             </div>
                           )}
                         </div>
