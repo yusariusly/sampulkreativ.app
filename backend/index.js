@@ -2293,8 +2293,8 @@ app.post('/api/users', async (req, res) => {
 app.put('/api/users', async (req, res) => {
   try {
     const { id, nama_lengkap, username, password, is_active, role, jabatan, email, no_telp, school_name, mentor_id, program_template_id, start_date, end_date, telegram_chat_id } = req.body;
-    if (!id || !nama_lengkap || !username) {
-      return res.status(400).json({ error: 'Data update tidak lengkap' });
+    if (!id) {
+      return res.status(400).json({ error: 'ID Pengguna wajib disertakan' });
     }
 
     const [userRows] = await pool.query('SELECT * FROM users WHERE id = ?', [id]);
@@ -2303,7 +2303,14 @@ app.put('/api/users', async (req, res) => {
     }
     const user = userRows[0];
 
-    const [dupRows] = await pool.query('SELECT * FROM users WHERE id != ? AND LOWER(username) = ?', [id, username.trim().toLowerCase()]);
+    const nama_lengkap_val = nama_lengkap !== undefined ? nama_lengkap : user.nama_lengkap;
+    const username_val = username !== undefined ? username : user.username;
+
+    if (!nama_lengkap_val || !username_val) {
+      return res.status(400).json({ error: 'Nama lengkap dan username tidak boleh kosong' });
+    }
+
+    const [dupRows] = await pool.query('SELECT * FROM users WHERE id != ? AND LOWER(username) = ?', [id, username_val.trim().toLowerCase()]);
     if (dupRows.length > 0) {
       return res.status(400).json({ error: 'Username/nomor HP sudah digunakan oleh akun lain' });
     }
@@ -2311,18 +2318,40 @@ app.put('/api/users', async (req, res) => {
     const currentRole = user.role;
     const targetRole = role ? role.toLowerCase() : currentRole;
 
+    let school_name_val = school_name;
+    let mentor_id_val = mentor_id;
+    let program_template_id_val = program_template_id;
+    let start_date_val = start_date;
+    let end_date_val = end_date;
+
     if (targetRole === 'student') {
-      if (!school_name || !mentor_id || !program_template_id || !start_date || !end_date) {
+      const [studentRows] = await pool.query('SELECT mentor_id, program_template_id, school_name, start_date, end_date FROM pkl_students WHERE user_id = ?', [id]);
+      const studentProfile = studentRows.length > 0 ? studentRows[0] : null;
+
+      const existingSchoolName = studentProfile ? studentProfile.school_name : '';
+      const existingMentorId = studentProfile ? studentProfile.mentor_id : '';
+      const existingTemplateId = studentProfile ? studentProfile.program_template_id : '';
+      const existingStartDate = studentProfile ? studentProfile.start_date : '';
+      const existingEndDate = studentProfile ? studentProfile.end_date : '';
+
+      school_name_val = school_name !== undefined ? school_name : existingSchoolName;
+      mentor_id_val = mentor_id !== undefined ? mentor_id : existingMentorId;
+      program_template_id_val = program_template_id !== undefined ? program_template_id : existingTemplateId;
+      start_date_val = start_date !== undefined ? start_date : existingStartDate;
+      end_date_val = end_date !== undefined ? end_date : existingEndDate;
+
+      if (!school_name_val || !mentor_id_val || !program_template_id_val || !start_date_val || !end_date_val) {
         return res.status(400).json({ error: 'Data profil PKL tidak lengkap' });
       }
+
       const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
-      if (start_date > todayStr) {
+      if (start_date !== undefined && start_date_val > todayStr) {
         return res.status(400).json({ error: 'Tanggal mulai magang tidak boleh di masa depan' });
       }
     }
 
     let updateFields = 'nama_lengkap = ?, username = ?';
-    let params = [nama_lengkap.trim(), username.trim().toLowerCase()];
+    let params = [nama_lengkap_val.trim(), username_val.trim().toLowerCase()];
 
     if (is_active !== undefined) {
       if (user.username === 'admin' && !is_active) {
@@ -2363,8 +2392,14 @@ app.put('/api/users', async (req, res) => {
     }
 
     if (telegram_chat_id !== undefined) {
-      updateFields += ', telegram_chat_id = ?';
-      params.push(telegram_chat_id.trim() === '' ? null : telegram_chat_id.trim());
+      const cleanChatId = telegram_chat_id.trim();
+      if (cleanChatId === '') {
+        updateFields += ', telegram_chat_id = ?, telegram_chat_name = NULL';
+        params.push(null);
+      } else {
+        updateFields += ', telegram_chat_id = ?';
+        params.push(cleanChatId);
+      }
     }
 
     let generatedNoKaryawan = null;
@@ -2388,14 +2423,14 @@ app.put('/api/users', async (req, res) => {
             `UPDATE pkl_students 
              SET mentor_id = ?, program_template_id = ?, school_name = ?, start_date = ?, end_date = ?, status = 'ACTIVE' 
              WHERE user_id = ?`,
-            [mentor_id, program_template_id, school_name.trim(), start_date, end_date, id]
+            [mentor_id_val, program_template_id_val, school_name_val.trim(), start_date_val, end_date_val, id]
           );
         } else {
           const studentProfileId = `std-${Date.now()}`;
           await pool.queryWithClient(client,
             `INSERT INTO pkl_students (id, user_id, mentor_id, program_template_id, school_name, start_date, end_date, status) 
              VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
-            [studentProfileId, id, mentor_id, program_template_id, school_name.trim(), start_date, end_date]
+            [studentProfileId, id, mentor_id_val, program_template_id_val, school_name_val.trim(), start_date_val, end_date_val]
           );
         }
       } else if (currentRole === 'student' && targetRole !== 'student') {
