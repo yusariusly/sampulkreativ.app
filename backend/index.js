@@ -1,6 +1,7 @@
 const express = require('express');
 const mysql = require('pg');
 mysql.types.setTypeParser(1082, (val) => val); // Prevent pg from shifting DATE values by returning them as raw strings
+mysql.types.setTypeParser(1114, (val) => new Date(val.replace(' ', 'T') + 'Z')); // Prevent pg from parsing TIMESTAMP using Node process local time offset
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
