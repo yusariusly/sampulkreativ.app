@@ -233,7 +233,7 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
 
   // 3. Program Kerja & Tugas Minggu Aktif
   const allTasks = await taskRepo.findTasksByStudentId(dbClient, student.student_id);
-  const activeWeekTasks = allTasks.filter(t => t.week_number === progress.active_week);
+  const activeWeekTasks = allTasks.filter(t => ((t.month_number - 1) * 4 + t.week_number) === progress.active_week);
   
   // Dapatkan seluruh summary mingguan siswa untuk mencari extended_days dan progress_override
   const [summariesRows] = await dbClient.query(
@@ -248,14 +248,15 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
   // Susun data minggu beserta tugasnya
   const weeksWithTasks = weeks.map(w => {
     const weekTasks = allTasks.filter(t => t.week_id === w.id);
-    const summary = summariesMap.get(w.week_number);
+    const wAbsoluteWeek = (w.month_number - 1) * 4 + w.week_number;
+    const summary = summariesMap.get(wAbsoluteWeek);
     const extendedDays = summary ? (summary.extended_days || 0) : 0;
     const progressOverride = summary ? (summary.progress_override ?? null) : null;
 
     // Gunakan progress_override jika di-set oleh admin, jika tidak gunakan kalkulasi otomatis
     const calculatedProgress = calculateWeekProgress(
       student.start_date,
-      w.week_number,
+      wAbsoluteWeek,
       progress.active_week,
       extendedDays,
       todayDateStr
@@ -279,15 +280,16 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
     };
   });
 
-  const activeWeekMeta = weeks.find(w => w.week_number === progress.active_week);
+  const activeWeekMeta = weeks.find(w => ((w.month_number - 1) * 4 + w.week_number) === progress.active_week);
   const milestoneTitle = activeWeekMeta ? activeWeekMeta.milestone_title : 'Aktivitas Mingguan';
 
   // Hutang tugas (backlog) dari minggu sebelumnya yang belum selesai
-  const backlogTasks = allTasks.filter(t => t.week_number < progress.active_week && t.is_completed === 0);
+  const backlogTasks = allTasks.filter(t => ((t.month_number - 1) * 4 + t.week_number) < progress.active_week && t.is_completed === 0);
   const backlogTasksMapped = backlogTasks.map(t => ({
     task_id: t.task_id,
     title: t.task_title,
     week_number: t.week_number,
+    month_number: t.month_number,
     is_completed: false,
     is_mandatory: t.is_mandatory === 1
   }));

@@ -34,8 +34,22 @@ export const useStudentDashboard = (date?: string, options?: { enabled?: boolean
       ]);
 
       // Optimistically update the cache
-      if (previousDashboard?.data?.program_kerja?.tasks) {
-        const updatedTasks = previousDashboard.data.program_kerja.tasks.map(task =>
+      if (previousDashboard?.data?.program_kerja) {
+        const updatedTasks = (previousDashboard.data.program_kerja.tasks || []).map(task =>
+          task.task_id === taskId ? { ...task, is_completed: isCompleted } : task
+        );
+        
+        const updatedWeeks = (previousDashboard.data.program_kerja.weeks || []).map(week => {
+          const weekTasks = (week.tasks || []).map(task =>
+            task.task_id === taskId ? { ...task, is_completed: isCompleted } : task
+          );
+          return {
+            ...week,
+            tasks: weekTasks
+          };
+        });
+
+        const updatedBacklog = (previousDashboard.data.program_kerja.backlog_tasks || []).map(task =>
           task.task_id === taskId ? { ...task, is_completed: isCompleted } : task
         );
         
@@ -47,7 +61,9 @@ export const useStudentDashboard = (date?: string, options?: { enabled?: boolean
               ...previousDashboard.data,
               program_kerja: {
                 ...previousDashboard.data.program_kerja,
-                tasks: updatedTasks
+                tasks: updatedTasks,
+                weeks: updatedWeeks,
+                backlog_tasks: updatedBacklog
               }
             }
           }

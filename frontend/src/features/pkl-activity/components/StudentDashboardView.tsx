@@ -117,16 +117,12 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
 }) => {
   const [fullname, setFullname] = useState("Siswa Magang");
   const [sekolahName, setSekolahName] = useState("Instansi Pendidikan");
-  const [selectedWeekNo, setSelectedWeekNo] = useState<number>(data.program_kerja?.active_week || data.progress?.active_week || 1);
+  const activeWeekAbs = data.program_kerja?.active_week || data.progress?.active_week || 1;
+  const activeMonthRel = Math.ceil(activeWeekAbs / 4);
+  const activeWeekRel = activeWeekAbs % 4 === 0 ? 4 : activeWeekAbs % 4;
 
-  // Navigasi Bulan untuk Kurikulum
-  const initialMonth = (() => {
-    const initialWeek = (data.program_kerja?.weeks || []).find(
-      (w: any) => w.week_number === (data.program_kerja?.active_week || data.progress?.active_week || 1)
-    );
-    return initialWeek ? initialWeek.month_number : 1;
-  })();
-  const [selectedMonth, setSelectedMonth] = useState<number>(initialMonth);
+  const [selectedMonth, setSelectedMonth] = useState<number>(activeMonthRel);
+  const [selectedWeekNo, setSelectedWeekNo] = useState<number>(activeWeekRel);
 
   const handleMonthChange = (month: number) => {
     setSelectedMonth(month);
@@ -134,7 +130,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
     if (weeksInMonth.length > 0) {
       setSelectedWeekNo(weeksInMonth[0].week_number);
     } else {
-      setSelectedWeekNo((month - 1) * 4 + 1);
+      setSelectedWeekNo(1);
     }
   };
 
@@ -243,11 +239,12 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
 
 
   useEffect(() => {
-    if (data.program_kerja?.active_week) {
-      setSelectedWeekNo(data.program_kerja.active_week);
-    } else if (data.progress?.active_week) {
-      setSelectedWeekNo(data.progress.active_week);
-    }
+    const activeWeekAbs = data.program_kerja?.active_week || data.progress?.active_week || 1;
+    const activeMonthRel = Math.ceil(activeWeekAbs / 4);
+    const activeWeekRel = activeWeekAbs % 4 === 0 ? 4 : activeWeekAbs % 4;
+
+    setSelectedMonth(activeMonthRel);
+    setSelectedWeekNo(activeWeekRel);
   }, [data.program_kerja?.active_week, data.progress?.active_week]);
 
   // Fetch active notice on mount
@@ -724,7 +721,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
                       <div className="flex flex-wrap gap-1.5">
                         {weeksInMonth.map((wk: any) => {
                           const isSelected = selectedWeekNo === wk.week_number;
-                          const isActiveWeek = program_kerja.active_week === wk.week_number;
+                          const isActiveWeek = program_kerja.active_week === ((wk.month_number - 1) * 4 + wk.week_number);
 
                           return (
                             <button
@@ -761,9 +758,11 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
 
                 {/* Selected Week Content */}
                 {(() => {
-                  const selectedWeekData = (program_kerja.weeks || []).find(w => w.week_number === selectedWeekNo);
+                  const selectedWeekData = (program_kerja.weeks || []).find(
+                    w => w.week_number === selectedWeekNo && w.month_number === selectedMonth
+                  );
                   const activeWeek = program_kerja.active_week || progress.active_week;
-                  const isSelectedActive = selectedWeekNo === activeWeek;
+                  const isSelectedActive = ((selectedMonth - 1) * 4 + selectedWeekNo) === activeWeek;
 
                   if (selectedWeekData) {
                     return (

@@ -25,7 +25,7 @@ async function findWeeksByTemplateId(dbClient, templateId) {
     SELECT id, template_id, week_number, month_number, milestone_title, progress_percent, created_at 
     FROM pkl_program_weeks 
     WHERE template_id = ? 
-    ORDER BY week_number ASC
+    ORDER BY month_number ASC, week_number ASC
   `;
   const [rows] = await dbClient.query(query, [templateId]);
   return rows;
