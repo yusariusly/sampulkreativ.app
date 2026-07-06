@@ -193,6 +193,9 @@ export default function PklManagementPage() {
   // ── Error State ──
   const [errorMsg, setErrorMsg] = useState("");
 
+  // ── Month Filter State ──
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>("all");
+
   // ── Dress Code State ──
   const [dressCode, setDressCode] = useState<{ day_number: number; day_name: string; clothes_description: string }[]>([]);
   const [loadingDressCode, setLoadingDressCode] = useState(false);
@@ -328,6 +331,7 @@ export default function PklManagementPage() {
   /** Navigate from list → detail view for a specific template */
   const openTemplateDetail = (template: Template) => {
     setSelectedTemplate(template);
+    setSelectedMonthFilter("all");
     setWeeks([]);
     setAssignedStudents([]);
     setActiveView("detail");
@@ -339,6 +343,7 @@ export default function PklManagementPage() {
   const backToList = () => {
     setActiveView("list");
     setSelectedTemplate(null);
+    setSelectedMonthFilter("all");
     setWeeks([]);
     setAssignedStudents([]);
   };
@@ -896,130 +901,177 @@ export default function PklManagementPage() {
               <LoadingSpinner />
             ) : weeks.length === 0 ? (
               <EmptyState message="Belum ada aktivitas mingguan. Tambahkan di form di atas." />
-            ) : (
-              <div className="space-y-3">
-                {weeks.map((wk) => (
-                  <div
-                    key={wk.id}
-                    className="flex items-center justify-between p-4 rounded-2xl border border-slate-200/70 bg-white hover:bg-slate-50/50 transition-colors"
-                  >
-                    {editingWeekId === wk.id ? (
-                      <form onSubmit={handleUpdateWeek} className="w-full flex flex-col gap-3">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                          <div>
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Minggu Ke</label>
-                            <select
-                              value={editingWeekNumber}
-                              onChange={(e) => setEditingWeekNumber(e.target.value)}
-                              className="w-full text-xs font-semibold px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-[#2AB0B2] bg-white text-slate-800 cursor-pointer"
-                              required
-                            >
-                              {[1, 2, 3, 4].map((w) => (
-                                <option key={w} value={w.toString()}>
-                                  Minggu {w}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Bulan Ke</label>
-                            <select
-                              value={editingWeekMonth}
-                              onChange={(e) => setEditingWeekMonth(e.target.value)}
-                              className="w-full text-xs font-semibold px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-[#2AB0B2] bg-white text-slate-800 cursor-pointer"
-                              required
-                            >
-                              {Array.from({ length: selectedTemplate.duration_months }, (_, i) => (
-                                <option key={i + 1} value={(i + 1).toString()}>
-                                  Bulan {i + 1}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="sm:col-span-2">
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Target / Judul Aktivitas</label>
-                            <input
-                              type="text"
-                              value={editingWeekTitle}
-                              onChange={(e) => setEditingWeekTitle(e.target.value)}
-                              className="w-full text-xs font-semibold px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-[#2AB0B2] bg-white text-slate-800"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Progres (%)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={editingWeekProgress}
-                              onChange={(e) => setEditingWeekProgress(e.target.value)}
-                              className="w-full text-xs font-semibold px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-[#2AB0B2] bg-white text-slate-800"
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2 mt-1">
+            ) : (() => {
+              const filtered = weeks.filter(
+                (wk) =>
+                  selectedMonthFilter === "all" ||
+                  wk.month_number.toString() === selectedMonthFilter
+              );
+              return (
+                <>
+                  {/* Tabs Filter Bulan */}
+                  {selectedTemplate.duration_months > 1 && (
+                    <div className="flex flex-wrap gap-1.5 mb-4 border-b border-slate-100 pb-3">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMonthFilter("all")}
+                        className={`text-[10px] uppercase tracking-wider font-extrabold px-3.5 py-2 rounded-xl border transition-all cursor-pointer ${
+                          selectedMonthFilter === "all"
+                            ? "bg-[#2AB0B2] text-white border-[#2AB0B2] shadow-xs"
+                            : "bg-slate-50 text-slate-500 border-slate-200/60 hover:bg-slate-100/70"
+                        }`}
+                      >
+                        Semua Bulan
+                      </button>
+                      {Array.from({ length: selectedTemplate.duration_months }, (_, i) => {
+                        const mNum = i + 1;
+                        return (
                           <button
+                            key={mNum}
                             type="button"
-                            onClick={cancelEditWeek}
-                            className="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                            onClick={() => setSelectedMonthFilter(mNum.toString())}
+                            className={`text-[10px] uppercase tracking-wider font-extrabold px-3.5 py-2 rounded-xl border transition-all cursor-pointer ${
+                              selectedMonthFilter === mNum.toString()
+                                ? "bg-[#2AB0B2] text-white border-[#2AB0B2] shadow-xs"
+                                : "bg-slate-50 text-slate-500 border-slate-200/60 hover:bg-slate-100/70"
+                            }`}
                           >
-                            Batal
+                            Bulan {mNum}
                           </button>
-                          <button
-                            type="submit"
-                            disabled={isSavingEdit}
-                            className="px-3 py-1.5 bg-[#2AB0B2] hover:bg-[#209092] disabled:bg-[#2AB0B2]/50 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
-                          >
-                            {isSavingEdit ? "Menyimpan..." : "Simpan"}
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <>
-                        {/* Week Info */}
-                        <div className="flex-1 min-w-0 pr-3">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-[10px] font-black px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-600 rounded-md">
-                              Minggu {wk.week_number}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                              Bulan {wk.month_number}
-                            </span>
-                            <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-md">
-                              Progres: {wk.progress_percent || 0}%
-                            </span>
-                          </div>
-                          <h3 className="text-sm font-bold text-slate-800 leading-snug break-words">
-                            {wk.milestone_title}
-                          </h3>
-                        </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                        {/* Actions */}
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <button
-                            onClick={() => startEditWeek(wk)}
-                            className="p-2 text-slate-350 hover:text-[#2AB0B2] rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
-                            title="Edit Minggu"
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteWeek(wk.id)}
-                            className="p-2 text-slate-350 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Hapus Minggu"
-                          >
-                            <Trash2 size={15} />
-                          </button>
+                  {filtered.length === 0 ? (
+                    <EmptyState message={`Belum ada aktivitas untuk Bulan ${selectedMonthFilter === 'all' ? '' : selectedMonthFilter}.`} />
+                  ) : (
+                    <div className="space-y-3">
+                      {filtered.map((wk) => (
+                        <div
+                          key={wk.id}
+                          className="flex items-center justify-between p-4 rounded-2xl border border-slate-200/70 bg-white hover:bg-slate-50/50 transition-colors"
+                        >
+                          {editingWeekId === wk.id ? (
+                            <form onSubmit={handleUpdateWeek} className="w-full flex flex-col gap-3">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div>
+                                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Minggu Ke</label>
+                                  <select
+                                    value={editingWeekNumber}
+                                    onChange={(e) => setEditingWeekNumber(e.target.value)}
+                                    className="w-full text-xs font-semibold px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-[#2AB0B2] bg-white text-slate-800 cursor-pointer"
+                                    required
+                                  >
+                                    {[1, 2, 3, 4].map((w) => (
+                                      <option key={w} value={w.toString()}>
+                                        Minggu {w}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Bulan Ke</label>
+                                  <select
+                                    value={editingWeekMonth}
+                                    onChange={(e) => setEditingWeekMonth(e.target.value)}
+                                    className="w-full text-xs font-semibold px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-[#2AB0B2] bg-white text-slate-800 cursor-pointer"
+                                    required
+                                  >
+                                    {Array.from({ length: selectedTemplate.duration_months }, (_, i) => (
+                                      <option key={i + 1} value={(i + 1).toString()}>
+                                        Bulan {i + 1}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="sm:col-span-2">
+                                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Target / Judul Aktivitas</label>
+                                  <input
+                                    type="text"
+                                    value={editingWeekTitle}
+                                    onChange={(e) => setEditingWeekTitle(e.target.value)}
+                                    className="w-full text-xs font-semibold px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-[#2AB0B2] bg-white text-slate-800"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Progres (%)</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={editingWeekProgress}
+                                    onChange={(e) => setEditingWeekProgress(e.target.value)}
+                                    className="w-full text-xs font-semibold px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-[#2AB0B2] bg-white text-slate-800"
+                                    required
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-end gap-2 mt-1">
+                                <button
+                                  type="button"
+                                  onClick={cancelEditWeek}
+                                  className="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                                >
+                                  Batal
+                                </button>
+                                <button
+                                  type="submit"
+                                  disabled={isSavingEdit}
+                                  className="px-3 py-1.5 bg-[#2AB0B2] hover:bg-[#209092] disabled:bg-[#2AB0B2]/50 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                  {isSavingEdit ? "Menyimpan..." : "Simpan"}
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            <>
+                              {/* Week Info */}
+                              <div className="flex-1 min-w-0 pr-3">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <span className="text-[10px] font-black px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-600 rounded-md">
+                                    Minggu {wk.week_number}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                    Bulan {wk.month_number}
+                                  </span>
+                                  <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-md">
+                                    Progres: {wk.progress_percent || 0}%
+                                  </span>
+                                </div>
+                                <h3 className="text-sm font-bold text-slate-800 leading-snug break-words">
+                                  {wk.milestone_title}
+                                </h3>
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <button
+                                  onClick={() => startEditWeek(wk)}
+                                  className="p-2 text-slate-350 hover:text-[#2AB0B2] rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+                                  title="Edit Minggu"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteWeek(wk.id)}
+                                  className="p-2 text-slate-350 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-colors cursor-pointer"
+                                  title="Hapus Minggu"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+                      ))}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

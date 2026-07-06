@@ -98,8 +98,8 @@ const getDailyAuditList = (subs: KieSubmission[], userCreatedAt?: string) => {
         statusLabel = "Hari Libur (Rest Day)";
         statusColor = "text-slate-500 bg-slate-50 border-slate-200";
       } else {
-        statusLabel = `Kelebihan +${count} Key (Potong Hutang)`;
-        statusColor = "text-blue-600 bg-blue-50 border-blue-200/60 font-bold";
+        statusLabel = "Target Tercapai";
+        statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
       }
     } else {
       if (count < 4) {
@@ -111,13 +111,8 @@ const getDailyAuditList = (subs: KieSubmission[], userCreatedAt?: string) => {
           statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
         }
       } else {
-        if (count === 4) {
-          statusLabel = "Target Tercapai";
-          statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
-        } else {
-          statusLabel = `Kelebihan +${count - 4} Key (Potong Hutang)`;
-          statusColor = "text-blue-600 bg-blue-50 border-blue-200/60 font-bold";
-        }
+        statusLabel = "Target Tercapai";
+        statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
       }
     }
 

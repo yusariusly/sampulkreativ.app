@@ -986,6 +986,14 @@ async function initDb() {
       console.log("Migrasi KIE: Selesai.");
     }
 
+    // Migration: Update program weeks unique constraint
+    try {
+      await pool.query("ALTER TABLE pkl_program_weeks DROP CONSTRAINT IF EXISTS uq_template_week");
+      await pool.query("ALTER TABLE pkl_program_weeks ADD CONSTRAINT uq_template_month_week UNIQUE (template_id, month_number, week_number)");
+    } catch (err) {
+      console.error("Gagal memperbarui unique constraint pkl_program_weeks:", err);
+    }
+
     // 4. Seed default QR if empty
     const [qrRows] = await pool.query("SELECT COUNT(*) as cnt FROM qr_token");
     if (qrRows[0].cnt === 0) {
@@ -2996,7 +3004,7 @@ async function syncUserKieDebt(userId) {
 
     // Start checking from the day after last_kie_debt_date
     let currentDate = new Date(lastDate.getTime() + 24 * 60 * 60 * 1000);
-    let currentKieDebt = user.kie_debt || 0;
+    let currentKieDebt = !user.last_kie_debt_date ? 0 : (user.kie_debt || 0);
     let daysCount = 0;
     let lastProcessedDateStr = lastDate.toISOString().split('T')[0];
 
@@ -4182,7 +4190,7 @@ app.delete('/api/pkl-templates/:id', async (req, res) => {
 
 app.get('/api/pkl-templates/:templateId/weeks', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, template_id, week_number, month_number, milestone_title, progress_percent FROM pkl_program_weeks WHERE template_id = ? ORDER BY week_number ASC', [req.params.templateId]);
+    const [rows] = await pool.query('SELECT id, template_id, week_number, month_number, milestone_title, progress_percent FROM pkl_program_weeks WHERE template_id = ? ORDER BY month_number ASC, week_number ASC', [req.params.templateId]);
     res.json(rows);
   } catch (error) {
     console.error('Gagal mengambil data minggu:', error);

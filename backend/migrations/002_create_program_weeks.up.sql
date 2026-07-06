@@ -8,5 +8,5 @@ CREATE TABLE IF NOT EXISTS pkl_program_weeks (
   milestone_title VARCHAR(255) NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (template_id) REFERENCES pkl_program_templates(id) ON DELETE CASCADE,
-  CONSTRAINT uq_template_week UNIQUE (template_id, week_number)
+  CONSTRAINT uq_template_month_week UNIQUE (template_id, month_number, week_number)
 );
