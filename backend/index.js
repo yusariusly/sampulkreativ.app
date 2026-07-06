@@ -977,6 +977,15 @@ async function initDb() {
     await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('smtp_sender', '') ON DUPLICATE KEY UPDATE key_value = key_value");
     await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('show_pkl_scoreboard', '1') ON DUPLICATE KEY UPDATE key_value = key_value");
 
+    // Migration: Reset student KIE debt to recalculate excluding weekends
+    const [migratedRows] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'kie_weekend_migrated'");
+    if (migratedRows.length === 0 || migratedRows[0].key_value !== '1') {
+      console.log("Migrasi KIE: Mereset hutang KIE siswa untuk menghitung ulang tanpa hari Sabtu dan Minggu...");
+      await pool.query("UPDATE users SET last_kie_debt_date = NULL, kie_debt = 0 WHERE role = 'student'");
+      await pool.query("INSERT INTO settings (key_name, key_value) VALUES ('kie_weekend_migrated', '1') ON CONFLICT (key_name) DO UPDATE SET key_value = '1'");
+      console.log("Migrasi KIE: Selesai.");
+    }
+
     // 4. Seed default QR if empty
     const [qrRows] = await pool.query("SELECT COUNT(*) as cnt FROM qr_token");
     if (qrRows[0].cnt === 0) {
@@ -2941,6 +2950,7 @@ function parseJakartaDate(dateInput) {
 }
 
 // Helper to calculate and synchronize student KIE API submission debt
+// Helper to calculate and synchronize student KIE API submission debt
 async function syncUserKieDebt(userId) {
   try {
     const [userRows] = await pool.query(
@@ -2954,6 +2964,7 @@ async function syncUserKieDebt(userId) {
 
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 
+    let lastDate;
     if (!user.last_kie_debt_date) {
       // If user has no last_kie_debt_date, check their registration date.
       // If they registered before KIE system start date (2026-07-02), start checking from 2026-07-02 (so last_kie_debt_date = '2026-07-01').
@@ -2969,14 +2980,15 @@ async function syncUserKieDebt(userId) {
       }
 
       await pool.query(
-        "UPDATE users SET last_kie_debt_date = ? WHERE id = ?",
+        "UPDATE users SET last_kie_debt_date = ?, kie_debt = 0 WHERE id = ?",
         [initialDateStr, userId]
       );
-      return;
+      lastDate = parseJakartaDate(initialDateStr);
+    } else {
+      lastDate = parseJakartaDate(user.last_kie_debt_date);
     }
 
     const todayDate = parseJakartaDate(todayStr);
-    const lastDate = parseJakartaDate(user.last_kie_debt_date);
 
     if (lastDate.getTime() >= todayDate.getTime()) {
       return; // Already processed up to today (or past it)
@@ -2984,14 +2996,13 @@ async function syncUserKieDebt(userId) {
 
     // Start checking from the day after last_kie_debt_date
     let currentDate = new Date(lastDate.getTime() + 24 * 60 * 60 * 1000);
-    let newDebt = 0;
+    let currentKieDebt = user.kie_debt || 0;
     let daysCount = 0;
-    let lastProcessedDateStr = user.last_kie_debt_date instanceof Date
-      ? user.last_kie_debt_date.toISOString().split('T')[0]
-      : String(user.last_kie_debt_date).split('T')[0];
+    let lastProcessedDateStr = lastDate.toISOString().split('T')[0];
 
     while (currentDate.getTime() < todayDate.getTime()) {
       const dateString = currentDate.toISOString().split('T')[0];
+      const dayOfWeek = currentDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
       
       const [rows] = await pool.query(
         "SELECT COUNT(*) AS count_on_date FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = ?",
@@ -2999,8 +3010,18 @@ async function syncUserKieDebt(userId) {
       );
       const countOnDate = rows[0].count_on_date || 0;
       
-      if (countOnDate < 4) {
-        newDebt += (4 - countOnDate);
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        // Saturday/Sunday: no daily target, but any submissions reduce the debt
+        if (countOnDate > 0) {
+          currentKieDebt = Math.max(0, currentKieDebt - countOnDate);
+        }
+      } else {
+        // Weekday (Monday-Friday): target is 4
+        if (countOnDate < 4) {
+          currentKieDebt += (4 - countOnDate);
+        } else if (countOnDate > 4) {
+          currentKieDebt = Math.max(0, currentKieDebt - (countOnDate - 4));
+        }
       }
       
       lastProcessedDateStr = dateString;
@@ -3010,8 +3031,8 @@ async function syncUserKieDebt(userId) {
 
     if (daysCount > 0) {
       await pool.query(
-        "UPDATE users SET kie_debt = COALESCE(kie_debt, 0) + ?, last_kie_debt_date = ? WHERE id = ?",
-        [newDebt, lastProcessedDateStr, userId]
+        "UPDATE users SET kie_debt = ?, last_kie_debt_date = ? WHERE id = ?",
+        [currentKieDebt, lastProcessedDateStr, userId]
       );
     }
   } catch (err) {
@@ -3061,9 +3082,15 @@ app.post('/api/kie/submit', validateDeviceSession, async (req, res) => {
     // 5. Calculate new today's count
     const countToday = countTodayBefore + 1;
 
-    // 6. If user is student, and today's count is > 4, and they have a debt: decrease their debt by 1
+    // 6. If user is student, and today's count is > threshold, and they have a debt: decrease their debt by 1
     let newDebtVal = currentDebt;
-    if (userBefore.role === 'student' && countToday > 4 && currentDebt > 0) {
+    const localDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+    const localDate = parseJakartaDate(localDateStr);
+    const dayOfWeek = localDate.getUTCDay();
+    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+    const threshold = isWeekend ? 0 : 4;
+
+    if (userBefore.role === 'student' && countToday > threshold && currentDebt > 0) {
       newDebtVal = currentDebt - 1;
       await pool.query(
         "UPDATE users SET kie_debt = ? WHERE id = ?",
@@ -3275,7 +3302,13 @@ app.post('/api/telegram/webhook', async (req, res) => {
       const countToday = countTodayBefore + 1;
 
       // Decrease debt if threshold reached
-      if (refreshedUser.role === 'student' && countToday > 4 && currentDebt > 0) {
+      const localDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+      const localDate = parseJakartaDate(localDateStr);
+      const dayOfWeek = localDate.getUTCDay();
+      const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+      const threshold = isWeekend ? 0 : 4;
+
+      if (refreshedUser.role === 'student' && countToday > threshold && currentDebt > 0) {
         currentDebt = currentDebt - 1;
         await pool.query(
           "UPDATE users SET kie_debt = ? WHERE id = ?",

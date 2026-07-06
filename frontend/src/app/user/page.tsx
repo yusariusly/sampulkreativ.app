@@ -107,6 +107,8 @@ const getDailyAuditList = (subs: any[], userCreatedAt?: string) => {
   while (current.getTime() >= startDate.getTime()) {
     const dateStr = current.toISOString().split('T')[0];
     const items = groups[dateStr] || [];
+    const dayOfWeek = current.getUTCDay(); // 0 = Sunday, 6 = Saturday
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     
     let statusLabel = "";
     let statusColor = "";
@@ -114,21 +116,31 @@ const getDailyAuditList = (subs: any[], userCreatedAt?: string) => {
     const count = items.length;
     const isToday = dateStr === todayFormatted;
     
-    if (count < 4) {
-      if (isToday) {
-        statusLabel = `Belum Lengkap (Kurang ${4 - count} Key)`;
-        statusColor = "text-amber-600 bg-amber-50 border-amber-200/60";
+    if (isWeekend) {
+      if (count === 0) {
+        statusLabel = "Hari Libur (Rest Day)";
+        statusColor = "text-slate-500 bg-slate-50 border-slate-200";
       } else {
-        statusLabel = `Hutang +${4 - count} KIE`;
-        statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
+        statusLabel = `Kelebihan +${count} Key (Potong Hutang)`;
+        statusColor = "text-blue-600 bg-blue-50 border-blue-200/60 font-bold";
       }
     } else {
-      if (count === 4) {
-        statusLabel = "Target Tercapai";
-        statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
+      if (count < 4) {
+        if (isToday) {
+          statusLabel = `Belum Lengkap (Kurang ${4 - count} Key)`;
+          statusColor = "text-amber-600 bg-amber-50 border-amber-200/60";
+        } else {
+          statusLabel = `Hutang +${4 - count} KIE`;
+          statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
+        }
       } else {
-        statusLabel = `Kelebihan +${count - 4} Key (Potong Hutang)`;
-        statusColor = "text-blue-600 bg-blue-50 border-blue-200/60 font-bold";
+        if (count === 4) {
+          statusLabel = "Target Tercapai";
+          statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
+        } else {
+          statusLabel = `Kelebihan +${count - 4} Key (Potong Hutang)`;
+          statusColor = "text-blue-600 bg-blue-50 border-blue-200/60 font-bold";
+        }
       }
     }
 
