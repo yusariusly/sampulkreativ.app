@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Home, History, User, LogOut, Settings, ArrowLeft, Key } from "lucide-react";
 import { SavingsProgressBar } from "@/features/pkl-activity/components/SavingsProgressBar";
+import PaydayNotice from "./components/PaydayNotice";
 
 function AppLogo({ size = 80 }: { size?: number }) {
   return (
@@ -256,6 +257,11 @@ export default function UserLayout({
           <Suspense fallback={null}>
             <BottomNav activeTab={activeTab} />
           </Suspense>
+        )}
+
+        {/* Floating Payday Notice overlay */}
+        {currentUser?.role === "employee" && (
+          <PaydayNotice />
         )}
       </div>
 

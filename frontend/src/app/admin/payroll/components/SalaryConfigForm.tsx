@@ -29,7 +29,6 @@ export default function SalaryConfigForm({
   const [gajiPokok, setGajiPokok] = useState(0);
   const [tunjanganMakan, setTunjanganMakan] = useState(0);
   const [tunjanganTransport, setTunjanganTransport] = useState(0);
-  const [potonganAlpha, setPotonganAlpha] = useState(0);
   const [bonus, setBonus] = useState(0);
   
   const [saving, setSaving] = useState(false);
@@ -42,7 +41,6 @@ export default function SalaryConfigForm({
     setGajiPokok(Number(employee.gaji_pokok) || 0);
     setTunjanganMakan(Number(employee.tunjangan_makan) || 0);
     setTunjanganTransport(Number(employee.tunjangan_transport) || 0);
-    setPotonganAlpha(Number(employee.potongan_alpha) || 0);
     setBonus(Number(employee.bonus) || 0);
     setSuccess(false);
     setErrorMsg("");
@@ -63,7 +61,7 @@ export default function SalaryConfigForm({
           gaji_pokok: gajiPokok,
           tunjangan_makan: tunjanganMakan,
           tunjangan_transport: tunjanganTransport,
-          potongan_alpha: potonganAlpha,
+          potongan_alpha: gajiPokok,
           jabatan: jabatan,
           bonus: bonus,
         }),
@@ -155,7 +153,7 @@ export default function SalaryConfigForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Tunjangan Makan */}
           <div>
             <label className="block text-[11px] font-bold text-gray-400 mb-1.5 uppercase tracking-wide">
@@ -169,7 +167,7 @@ export default function SalaryConfigForm({
               required
             />
           </div>
-
+ 
           {/* Tunjangan Transport */}
           <div>
             <label className="block text-[11px] font-bold text-gray-400 mb-1.5 uppercase tracking-wide">
@@ -179,20 +177,6 @@ export default function SalaryConfigForm({
               type="text"
               value={formatDotNumber(tunjanganTransport)}
               onChange={(e) => setTunjanganTransport(parseDotNumber(e.target.value))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-xs text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all"
-              required
-            />
-          </div>
-
-          {/* Potongan Alpha */}
-          <div>
-            <label className="block text-[11px] font-bold text-gray-400 mb-1.5 uppercase tracking-wide">
-              Potongan Alpha / Hari
-            </label>
-            <input
-              type="text"
-              value={formatDotNumber(potonganAlpha)}
-              onChange={(e) => setPotonganAlpha(parseDotNumber(e.target.value))}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-xs text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all"
               required
             />
@@ -207,6 +191,21 @@ export default function SalaryConfigForm({
           </div>
           <div className="text-right">
             <span className="text-base font-black text-[#2AB0B2]">{formatRupiah(estimasiBulanan)}</span>
+          </div>
+        </div>
+
+        {/* Rincian Pemotongan Harian Otomatis */}
+        <div className="bg-rose-50/20 border border-rose-100/30 p-4 rounded-xl space-y-2 text-xs select-none">
+          <p className="font-bold text-rose-800 text-[11px] uppercase tracking-wide">Rincian Pemotongan Harian Otomatis</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <p className="text-[10px] text-gray-400 font-semibold">Potongan Alpa / Hari (Gaji Pokok)</p>
+              <p className="text-xs font-bold text-rose-600 mt-0.5">{formatRupiah(gajiPokok)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-400 font-semibold">Potongan Sakit & Izin / Hari (Makan + Transport)</p>
+              <p className="text-xs font-bold text-rose-600 mt-0.5">{formatRupiah(tunjanganMakan + tunjanganTransport)}</p>
+            </div>
           </div>
         </div>
 

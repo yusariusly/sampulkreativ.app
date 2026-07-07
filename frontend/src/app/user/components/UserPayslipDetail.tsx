@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Download, CreditCard, Calendar, ShieldCheck, RefreshCw } from "lucide-react";
-import html2canvas from "html2canvas";
+import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 
 interface PayrollSlip {
@@ -28,6 +28,7 @@ interface PayrollSlip {
   hari_alpha: number;
   gaji_bersih: number;
   status: string;
+  transfer_proof?: string;
 }
 
 interface UserPayslipDetailProps {
@@ -39,6 +40,35 @@ export default function UserPayslipDetail({ slip, onBack }: UserPayslipDetailPro
   const [activeSegment, setActiveSegment] = useState<"pendapatan" | "potongan">("pendapatan");
   const [downloading, setDownloading] = useState(false);
   const [approver, setApprover] = useState({ name: "M. Firas Faisal", role: "Direktur Utama" });
+
+  const handleDownloadProof = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!slip.transfer_proof) return;
+    try {
+      const response = await fetch(slip.transfer_proof);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      let extension = "png";
+      if (slip.transfer_proof.toLowerCase().endsWith(".pdf")) {
+        extension = "pdf";
+      } else if (slip.transfer_proof.toLowerCase().endsWith(".jpg") || slip.transfer_proof.toLowerCase().endsWith(".jpeg")) {
+        extension = "jpg";
+      } else if (slip.transfer_proof.toLowerCase().endsWith(".webp")) {
+        extension = "webp";
+      }
+      
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `bukti-transfer-${slip.slip_no.replace(/\//g, "-")}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      window.open(slip.transfer_proof, "_blank");
+    }
+  };
 
   // Fetch approver details to match admin settings
   useEffect(() => {
@@ -88,13 +118,33 @@ export default function UserPayslipDetail({ slip, onBack }: UserPayslipDetailPro
     try {
       // Temporarily remove hidden classes for canvas rendering
       element.style.display = "block";
-      element.style.position = "static";
+      element.style.position = "relative";
       element.style.visibility = "visible";
 
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+        onclone: (clonedDoc) => {
+          const clonedEl = clonedDoc.getElementById("payslip-print-area-user");
+          if (clonedEl) {
+            clonedEl.style.display = "block";
+            clonedEl.style.position = "relative";
+            clonedEl.style.visibility = "visible";
+            clonedEl.style.maxHeight = "none";
+            clonedEl.style.height = "auto";
+
+            let parent = clonedEl.parentElement;
+            while (parent && parent !== clonedDoc.body) {
+              parent.style.overflow = "visible";
+              parent.style.maxHeight = "none";
+              parent.style.height = "auto";
+              parent = parent.parentElement;
+            }
+          }
+        }
       });
 
       // Restore styling
@@ -280,18 +330,42 @@ export default function UserPayslipDetail({ slip, onBack }: UserPayslipDetailPro
             <span className="text-sm font-black text-[#2AB0B2]">{formatRupiah(slip.gaji_bersih)}</span>
           </div>
 
-          <button
-            onClick={handleDownloadPDF}
-            disabled={downloading}
-            className="w-full py-2.5 bg-[#2AB0B2] hover:bg-[#209092] disabled:opacity-50 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs active:scale-[0.98] mt-1"
-          >
-            {downloading ? (
-              <RefreshCw size={14} className="animate-spin" />
-            ) : (
-              <Download size={14} />
-            )}
-            {downloading ? "Mengekspor PDF..." : "Unduh Slip Gaji (PDF)"}
-          </button>
+          {slip.transfer_proof ? (
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={handleDownloadPDF}
+                disabled={downloading}
+                className="flex-1 py-2.5 bg-[#2AB0B2] hover:bg-[#209092] disabled:opacity-50 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs active:scale-[0.98]"
+              >
+                {downloading ? (
+                  <RefreshCw size={14} className="animate-spin" />
+                ) : (
+                  <Download size={14} />
+                )}
+                {downloading ? "Mengekspor..." : "Unduh Slip (PDF)"}
+              </button>
+              <button
+                onClick={handleDownloadProof}
+                className="flex-1 py-2.5 bg-[#1C3D3F] hover:bg-[#1C3D3F]/90 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs active:scale-[0.98] text-center"
+              >
+                <Download size={14} />
+                Bukti Transfer
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleDownloadPDF}
+              disabled={downloading}
+              className="w-full py-2.5 bg-[#2AB0B2] hover:bg-[#209092] disabled:opacity-50 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs active:scale-[0.98] mt-1"
+            >
+              {downloading ? (
+                <RefreshCw size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
+              {downloading ? "Mengekspor PDF..." : "Unduh Slip Gaji (PDF)"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -314,133 +388,115 @@ export default function UserPayslipDetail({ slip, onBack }: UserPayslipDetailPro
         }}
       >
         {/* Kop Surat */}
-        <div style={{ textAlign: "center", marginBottom: "20px", borderBottom: "2px solid #000", paddingBottom: "10px" }}>
-          <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "900", letterSpacing: "1px" }}>SAMPUL KREATIV</h2>
-          <p style={{ margin: "2px 0 0 0", fontSize: "10px" }}>
+        <div style={{ textAlign: "left", marginBottom: "24px", fontFamily: "Arial, sans-serif" }}>
+          <p style={{ margin: "0 0 2px 0", fontSize: "10px", fontWeight: "bold" }}>
             Gd. BITC Lt.3, Jl. HMS Mintareja Sarjana Hukum, Baros
           </p>
-          <p style={{ margin: "1px 0 0 0", fontSize: "10px" }}>
+          <p style={{ margin: "0 0 2px 0", fontSize: "10px", fontWeight: "bold" }}>
             Kec. Cimahi Tengah, Kota Cimahi, Jawa Barat 40521
           </p>
-          <p style={{ margin: "1px 0 0 0", fontSize: "10px" }}>
-            Email: contact@sampulkreativ.id, Web: sampulkreativ.id
+          <p style={{ margin: "0", fontSize: "10px", fontWeight: "bold", color: "#1e40af" }}>
+            Email : <span style={{ textDecoration: "underline" }}>contact@sampulkreativ.id</span>, Web : <span style={{ textDecoration: "underline" }}>sampulkreativ.id</span>
           </p>
         </div>
 
         {/* Judul Slip */}
-        <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <div style={{ border: "1px solid #000", padding: "6px", display: "inline-block", fontWeight: "bold", fontSize: "12px", width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: "16px", fontFamily: "Arial, sans-serif" }}>
+          <div style={{ border: "1px solid #000", padding: "6px", fontWeight: "bold", fontSize: "11px", backgroundColor: "#D2E4F4", width: "100%", textDecoration: "underline" }}>
             SLIP GAJI KARYAWAN
           </div>
         </div>
 
         {/* Informasi Karyawan */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "10px", marginBottom: "20px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "130px 10px 1fr" }}>
-            <span>Nama Karyawan</span>
-            <span>:</span>
-            <span style={{ fontWeight: "bold" }}>{slip.nama_lengkap}</span>
-
-            <span>Jabatan</span>
-            <span>:</span>
-            <span>{slip.jabatan}</span>
-
-            <span>Periode</span>
-            <span>:</span>
-            <span style={{ fontWeight: "bold" }}>{slip.periode}</span>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "100px 10px 1fr" }}>
-            <span>Slip No</span>
-            <span>:</span>
-            <span>{slip.slip_no}</span>
-
-            <span>Tanggal Cetak</span>
-            <span>:</span>
-            <span>{displayCetakDate}</span>
-          </div>
-        </div>
+        <table style={{ width: "100%", border: "1px solid #000", borderCollapse: "collapse", fontSize: "10px", marginBottom: "16px", fontFamily: "Arial, sans-serif" }}>
+          <tbody>
+            <tr>
+              <td style={{ padding: "6px", fontWeight: "bold", width: "18%" }}>Nama Karyawan</td>
+              <td style={{ padding: "6px", width: "32%" }}>: {slip.nama_lengkap}</td>
+              <td style={{ padding: "6px", fontWeight: "bold", width: "18%" }}>Slip No</td>
+              <td style={{ padding: "6px", width: "32%" }}>: {slip.slip_no}</td>
+            </tr>
+            <tr>
+              <td style={{ padding: "6px", fontWeight: "bold" }}>Jabatan</td>
+              <td style={{ padding: "6px" }}>: {slip.jabatan}</td>
+              <td style={{ padding: "6px", fontWeight: "bold" }}>Dicetak tgl</td>
+              <td style={{ padding: "6px" }}>: {displayCetakDate}</td>
+            </tr>
+            <tr>
+              <td style={{ padding: "6px", fontWeight: "bold" }}>Periode</td>
+              <td style={{ padding: "6px" }}>: {slip.periode}</td>
+              <td style={{ padding: "6px" }}></td>
+              <td style={{ padding: "6px" }}></td>
+            </tr>
+          </tbody>
+        </table>
 
         {/* Tabel Slip Resmi */}
-        <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #000", fontSize: "9px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #000", fontSize: "9px", fontFamily: "Arial, sans-serif" }}>
           <thead>
-            <tr style={{ borderBottom: "1px solid #000", backgroundColor: "#f2f2f2", fontWeight: "bold" }}>
-              <th style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left", width: "25%" }} colSpan={2}>
+            <tr style={{ borderBottom: "1px solid #000", backgroundColor: "#D2E4F4", fontWeight: "bold" }}>
+              <th style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "center", width: "24%" }} colSpan={2}>
                 DATA ABSENSI
               </th>
-              <th style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left", width: "40%" }}>
+              <th style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "center", width: "36%" }} colSpan={2}>
                 PENDAPATAN
               </th>
-              <th style={{ padding: "6px", textAlign: "left", width: "35%" }}>
+              <th style={{ padding: "6px", textAlign: "center", width: "40%" }} colSpan={3}>
                 POTONGAN
               </th>
             </tr>
           </thead>
           <tbody>
-            <tr style={{ borderBottom: "1px solid #ddd" }}>
-              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left" }}>Hari Masuk Kantor</td>
-              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "center", fontWeight: "bold" }}>{slip.hari_kantor}</td>
-              <td style={{ borderRight: "1px solid #000", padding: "6px", display: "flex", justifyContent: "space-between" }}>
-                <span>Gaji Pokok</span>
-                <span style={{ fontWeight: "bold" }}>{formatRupiah(slip.gaji_pokok)}</span>
-              </td>
-              <td style={{ padding: "6px", display: "flex", justifyContent: "space-between" }}>
-                <span>Tanpa Keterangan</span>
-                <span style={{ fontWeight: "bold" }}>{formatRupiah(slip.potongan_alpha)}</span>
-              </td>
+            <tr style={{ borderBottom: "1px solid #000" }}>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left", width: "18%" }}>Hari Masuk Kantor</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "center", fontWeight: "bold", width: "6%" }}>{slip.hari_kantor}</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left", width: "24%" }}>Gaji Pokok</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "right", width: "12%" }}>{formatRupiah(slip.gaji_pokok)}</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left", width: "20%" }}>Tanpa Keterangan</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "center", fontWeight: "bold", width: "8%" }}>{slip.hari_alpha}</td>
+              <td style={{ padding: "6px", textAlign: "right", width: "12%" }}>{formatRupiah(slip.potongan_alpha)}</td>
             </tr>
-            <tr style={{ borderBottom: "1px solid #ddd" }}>
+            <tr style={{ borderBottom: "1px solid #000" }}>
               <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left" }}>Hari Masuk Remote</td>
               <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "center", fontWeight: "bold" }}>{slip.hari_remote}</td>
-              <td style={{ borderRight: "1px solid #000", padding: "6px", display: "flex", justifyContent: "space-between" }}>
-                <span>Tunjangan Makan</span>
-                <span style={{ fontWeight: "bold" }}>{formatRupiah(slip.tunjangan_makan)}</span>
-              </td>
-              <td style={{ padding: "6px", display: "flex", justifyContent: "space-between" }}>
-                <span>Sakit</span>
-                <span style={{ fontWeight: "bold" }}>{formatRupiah(slip.potongan_sakit)}</span>
-              </td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left" }}>Tunjangan makan</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "right" }}>{formatRupiah(slip.tunjangan_makan)}</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left" }}>Sakit</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "center", fontWeight: "bold" }}>{slip.hari_sakit}</td>
+              <td style={{ padding: "6px", textAlign: "right" }}>{formatRupiah(slip.potongan_sakit)}</td>
             </tr>
-            <tr style={{ borderBottom: "1px solid #ddd" }}>
+            <tr style={{ borderBottom: "1px solid #000" }}>
               <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left" }}>Total Hari Bekerja</td>
               <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "center", fontWeight: "bold" }}>{slip.hari_kantor + slip.hari_remote}</td>
-              <td style={{ borderRight: "1px solid #000", padding: "6px", display: "flex", justifyContent: "space-between" }}>
-                <span>Tunjangan Transport</span>
-                <span style={{ fontWeight: "bold" }}>{formatRupiah(slip.tunjangan_transport)}</span>
-              </td>
-              <td style={{ padding: "6px", display: "flex", justifyContent: "space-between" }}>
-                <span>Izin</span>
-                <span style={{ fontWeight: "bold" }}>{formatRupiah(slip.potongan_izin)}</span>
-              </td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left" }}>Tunjangan transport</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "right" }}>{formatRupiah(slip.tunjangan_transport)}</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left" }}>Izin</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "center", fontWeight: "bold" }}>{slip.hari_izin}</td>
+              <td style={{ padding: "6px", textAlign: "right" }}>{formatRupiah(slip.potongan_izin)}</td>
             </tr>
             <tr style={{ borderBottom: "1px solid #000" }}>
               <td style={{ borderRight: "1px solid #000", padding: "6px" }}></td>
               <td style={{ borderRight: "1px solid #000", padding: "6px" }}></td>
-              <td style={{ borderRight: "1px solid #000", padding: "6px", display: "flex", justifyContent: "space-between" }}>
-                <span>Bonus Kinerja</span>
-                <span style={{ fontWeight: "bold", color: "#16a34a" }}>{formatRupiah(slip.bonus)}</span>
-              </td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "left" }}>Bonus Kinerja</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "right", fontWeight: "bold" }}>{formatRupiah(slip.bonus)}</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px" }}></td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px" }}></td>
               <td style={{ padding: "6px" }}></td>
             </tr>
             {/* Subtotal */}
-            <tr style={{ borderBottom: "1px solid #000", fontWeight: "bold", backgroundColor: "#fbfbfb" }}>
+            <tr style={{ borderBottom: "1px solid #000", fontWeight: "bold" }}>
               <td style={{ borderRight: "1px solid #000", padding: "6px" }} colSpan={2}></td>
-              <td style={{ borderRight: "1px solid #000", padding: "6px", display: "flex", justifyContent: "space-between" }}>
-                <span>Total Pendapatan</span>
-                <span>{formatRupiah(slip.total_pendapatan)}</span>
-              </td>
-              <td style={{ padding: "6px", display: "flex", justifyContent: "space-between" }}>
-                <span>Total Potongan</span>
-                <span style={{ color: "#dc2626" }}>-{formatRupiah(slip.total_potongan)}</span>
-              </td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "right" }}>Total</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "right" }}>{formatRupiah(slip.total_pendapatan)}</td>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "right" }} colSpan={2}>Total</td>
+              <td style={{ padding: "6px", textAlign: "right" }}>{formatRupiah(slip.total_potongan)}</td>
             </tr>
             {/* Gaji Bersih */}
-            <tr style={{ fontWeight: "900", fontSize: "10px", backgroundColor: "#f4f4f5" }}>
-              <td style={{ padding: "6px" }} colSpan={2}></td>
-              <td style={{ border: "1px solid #000", padding: "6px" }}>
-                GAJI BERSIH DITERIMA
+            <tr style={{ fontWeight: "bold", fontSize: "10px" }}>
+              <td style={{ borderRight: "1px solid #000", padding: "6px", textAlign: "right" }} colSpan={6}>
+                Jumlah Gaji
               </td>
-              <td style={{ border: "1px solid #000", padding: "6px", textAlign: "right", color: "#1C3D3F" }}>
+              <td style={{ padding: "6px", textAlign: "right", fontWeight: "bold" }}>
                 {formatRupiah(slip.gaji_bersih)}
               </td>
             </tr>
@@ -448,20 +504,20 @@ export default function UserPayslipDetail({ slip, onBack }: UserPayslipDetailPro
         </table>
 
         {/* Tanda Tangan */}
-        <div style={{ marginTop: "40px" }}>
-          <p style={{ textAlign: "right", fontWeight: "bold", fontSize: "10px", marginBottom: "30px" }}>Cimahi, {displayCetakDate}</p>
+        <div style={{ marginTop: "30px", fontFamily: "Arial, sans-serif" }}>
+          <p style={{ textAlign: "right", fontWeight: "bold", fontSize: "10px", marginBottom: "24px" }}>Cimahi, {displayCetakDate}</p>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px" }}>
-            <div style={{ display: "flex", flexDirection: "column", width: "40%" }}>
+            <div style={{ display: "flex", flexDirection: "column", width: "45%", textAlign: "left" }}>
               <p style={{ fontWeight: "bold" }}>Disetujui oleh,</p>
-              <div style={{ height: "50px" }} />
+              <div style={{ height: "45px" }} />
               <p style={{ fontWeight: "900", textDecoration: "underline" }}>{approver.name}</p>
-              <p style={{ fontSize: "9px", color: "#666" }}>{approver.role}</p>
+              <p style={{ fontSize: "9px", color: "#666", fontWeight: "bold" }}>{approver.role}</p>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", width: "40%", alignItems: "flex-end", textAlign: "right" }}>
+            <div style={{ display: "flex", flexDirection: "column", width: "45%", alignItems: "flex-end", textAlign: "right" }}>
               <p style={{ fontWeight: "bold" }}>Diterima oleh,</p>
-              <div style={{ height: "50px" }} />
+              <div style={{ height: "45px" }} />
               <p style={{ fontWeight: "900", textDecoration: "underline" }}>{slip.nama_lengkap}</p>
-              <p style={{ fontSize: "9px", color: "#666" }}>{slip.jabatan}</p>
+              <p style={{ fontSize: "9px", color: "#666", fontWeight: "bold" }}>{slip.jabatan}</p>
             </div>
           </div>
         </div>

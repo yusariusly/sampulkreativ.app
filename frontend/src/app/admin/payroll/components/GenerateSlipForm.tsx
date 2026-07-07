@@ -47,6 +47,7 @@ export default function GenerateSlipForm({
 
   // Editable earnings/deductions
   const [gajiPokok, setGajiPokok] = useState(0);
+  const [generatedSlipNo, setGeneratedSlipNo] = useState("");
   const [tunjanganMakan, setTunjanganMakan] = useState(0);
   const [tunjanganTransport, setTunjanganTransport] = useState(0);
   const [bonus, setBonus] = useState(0);
@@ -102,18 +103,31 @@ export default function GenerateSlipForm({
 
       // Pre-fill calculation values based on user configuration and formulas
       const gp = (kantor + remote + sakit + izin) * Number(employee.gaji_pokok);
-      const makan = (kantor + remote + sakit) * Number(employee.tunjangan_makan);
-      const transport = (kantor + remote + sakit) * Number(employee.tunjangan_transport);
+      const makan = (kantor + remote + sakit + izin) * Number(employee.tunjangan_makan);
+      const transport = (kantor + remote + sakit + izin) * Number(employee.tunjangan_transport);
       const bns = Number(employee.bonus || 0);
-      const alphaDed = alpa * Number(employee.potongan_alpha);
+      const alphaDed = alpa * Number(employee.gaji_pokok);
+      const sakitDed = sakit * (Number(employee.tunjangan_makan) + Number(employee.tunjangan_transport));
+      const izinDed = izin * (Number(employee.tunjangan_makan) + Number(employee.tunjangan_transport));
 
       setGajiPokok(gp);
       setTunjanganMakan(makan);
       setTunjanganTransport(transport);
       setBonus(bns);
       setPotonganAlpha(alphaDed);
-      setPotonganSakit(0);
-      setPotonganIzin(0);
+      setPotonganSakit(sakitDed);
+      setPotonganIzin(izinDed);
+
+      // Fetch next slip number sequence from backend
+      try {
+        const slipNoRes = await fetch(`/api/payroll/next-slip-no?month=${selectedMonth + 1}&year=${selectedYear}`);
+        if (slipNoRes.ok) {
+          const { nextSlipNo } = await slipNoRes.json();
+          setGeneratedSlipNo(nextSlipNo);
+        }
+      } catch (err) {
+        console.error("Gagal mengambil nomor slip berikutnya:", err);
+      }
 
       setCalculated(true);
     } catch (err) {
@@ -133,6 +147,7 @@ export default function GenerateSlipForm({
     const slipDetails = {
       user_id: employee.user_id,
       nama_lengkap: employee.nama_lengkap,
+      slip_no: generatedSlipNo,
       jabatan: employee.jabatan || "Karyawan",
       periode: `${formattedMonth} ${selectedYear}`,
       periode_month: selectedMonth + 1,
@@ -277,12 +292,12 @@ export default function GenerateSlipForm({
                   <span className="text-gray-500 font-semibold">Gaji Pokok ({hariKantor + hariRemote + hariSakit + hariIzin} Hari):</span>
                   <span className="font-bold text-slate-800">{formatRupiah(gajiPokok)}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500 font-semibold">Tunjangan Makan ({hariKantor + hariRemote + hariSakit} Hari):</span>
+                 <div className="flex justify-between items-center">
+                  <span className="text-gray-500 font-semibold">Tunjangan Makan ({hariKantor + hariRemote + hariSakit + hariIzin} Hari):</span>
                   <span className="font-bold text-slate-800">{formatRupiah(tunjanganMakan)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-500 font-semibold">Tunjangan Transport ({hariKantor + hariRemote + hariSakit} Hari):</span>
+                  <span className="text-gray-500 font-semibold">Tunjangan Transport ({hariKantor + hariRemote + hariSakit + hariIzin} Hari):</span>
                   <span className="font-bold text-slate-800">{formatRupiah(tunjanganTransport)}</span>
                 </div>
                 

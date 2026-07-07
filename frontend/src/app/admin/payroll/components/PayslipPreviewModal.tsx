@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Printer, Download, Save, X } from "lucide-react";
-import html2canvas from "html2canvas";
+import { Printer, Download, Save, X, Upload } from "lucide-react";
+import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 
 interface SlipDetails {
@@ -31,6 +31,7 @@ interface SlipDetails {
   slip_no?: string;
   tanggal_cetak?: string;
   status?: string;
+  transfer_proof?: string;
 }
 
 interface PayslipPreviewModalProps {
@@ -49,6 +50,8 @@ export default function PayslipPreviewModal({
   onSaveSuccess,
 }: PayslipPreviewModalProps) {
   const [saving, setSaving] = useState(false);
+  const [transferProofBase64, setTransferProofBase64] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string>("");
 
   const formatRupiah = (val: number) =>
     new Intl.NumberFormat("id-ID", {
@@ -66,6 +69,27 @@ export default function PayslipPreviewModal({
     month: "long",
     year: "numeric"
   });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Ukuran berkas maksimal 5MB");
+        return;
+      }
+      setFileName(file.name);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTransferProofBase64(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setFileName("");
+    setTransferProofBase64(null);
+  };
 
   const handleSaveSlip = async () => {
     setSaving(true);
@@ -94,6 +118,7 @@ export default function PayslipPreviewModal({
           gaji_bersih: slip.gaji_bersih,
           status: "Dibayar",
           bonus: slip.bonus,
+          transfer_proof_base64: transferProofBase64,
         }),
       });
 
@@ -121,6 +146,26 @@ export default function PayslipPreviewModal({
         scale: 2,
         useCORS: true,
         logging: false,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+        onclone: (clonedDoc) => {
+          const clonedEl = clonedDoc.getElementById("payslip-print-area");
+          if (clonedEl) {
+            clonedEl.style.display = "block";
+            clonedEl.style.position = "relative";
+            clonedEl.style.visibility = "visible";
+            clonedEl.style.maxHeight = "none";
+            clonedEl.style.height = "auto";
+
+            let parent = clonedEl.parentElement;
+            while (parent && parent !== clonedDoc.body) {
+              parent.style.overflow = "visible";
+              parent.style.maxHeight = "none";
+              parent.style.height = "auto";
+              parent = parent.parentElement;
+            }
+          }
+        }
       });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
@@ -181,104 +226,105 @@ export default function PayslipPreviewModal({
             style={{ fontFamily: "Arial, sans-serif" }}
           >
             {/* Kop Surat */}
-            <div className="text-center mb-2">
-              <h1 className="text-lg font-black tracking-wider text-black uppercase">SAMPUL KREATIV</h1>
-              <p className="text-[9px] font-bold text-gray-800 mt-0.5">Gd. BITC Lt.3, Jl. HMS Mintareja Sarjana Hukum, Baros</p>
-              <p className="text-[9px] font-bold text-gray-800">Kec. Cimahi Tengah, Kota Cimahi, Jawa Barat 40521</p>
-              <p className="text-[9px] font-bold text-gray-800">
-                Email: <span className="underline text-blue-800">contact@sampulkreativ.id</span>, Web: <span className="underline text-blue-800">sampulkreativ.id</span>
+            <div className="text-left mb-6 text-[10px] leading-relaxed font-sans text-black print:text-black">
+              <p className="font-semibold">Gd. BITC Lt.3, Jl. HMS Mintareja Sarjana Hukum, Baros</p>
+              <p className="font-semibold">Kec. Cimahi Tengah, Kota Cimahi, Jawa Barat 40521</p>
+              <p className="font-semibold text-blue-800">
+                Email : <span className="underline">contact@sampulkreativ.id</span>, Web : <span className="underline">sampulkreativ.id</span>
               </p>
             </div>
-            <div className="h-[2px] bg-black w-full mb-4" />
 
             {/* Title */}
-            <div className="border border-black bg-amber-50/20 py-2 text-center mb-4">
-              <h3 className="text-xs font-black tracking-wider text-black underline uppercase">
+            <div className="border border-black bg-[#D2E4F4] py-1.5 text-center mb-4">
+              <h3 className="text-[11px] font-black tracking-wider text-black underline uppercase">
                 SLIP GAJI KARYAWAN
               </h3>
             </div>
 
             {/* Meta Table */}
-            <table className="w-full border-collapse text-[10px] mb-4">
+            <table className="w-full border border-black border-collapse text-[10px] mb-4">
               <tbody>
                 <tr>
-                  <td className="py-1 font-bold text-black w-[18%]">Nama Karyawan</td>
-                  <td className="py-1 text-black w-[32%]">: {slip.nama_lengkap}</td>
-                  <td className="py-1 font-bold text-black w-[18%] pl-6">Slip No</td>
-                  <td className="py-1 text-black w-[32%]">: {slipNo}</td>
+                  <td className="p-1.5 font-semibold text-black w-[18%]">Nama Karyawan</td>
+                  <td className="p-1.5 text-black w-[32%]">: {slip.nama_lengkap}</td>
+                  <td className="p-1.5 font-semibold text-black w-[18%]">Slip No</td>
+                  <td className="p-1.5 text-black w-[32%]">: {slipNo}</td>
                 </tr>
                 <tr>
-                  <td className="py-1 font-bold text-black">Jabatan</td>
-                  <td className="py-1 text-black">: {slip.jabatan}</td>
-                  <td className="py-1 font-bold text-black pl-6">Tanggal Cetak</td>
-                  <td className="py-1 text-black">: {displayCetakDate}</td>
+                  <td className="p-1.5 font-semibold text-black">Jabatan</td>
+                  <td className="p-1.5 text-black">: {slip.jabatan}</td>
+                  <td className="p-1.5 font-semibold text-black">Dicetak tgl</td>
+                  <td className="p-1.5 text-black">: {displayCetakDate}</td>
                 </tr>
                 <tr>
-                  <td className="py-1 font-bold text-black">Periode</td>
-                  <td className="py-1 text-black">: {slip.periode}</td>
-                  <td className="py-1 text-black pl-6"></td>
-                  <td className="py-1 text-black"></td>
+                  <td className="p-1.5 font-semibold text-black">Periode</td>
+                  <td className="p-1.5 text-black">: {slip.periode}</td>
+                  <td className="p-1.5 text-black"></td>
+                  <td className="p-1.5 text-black"></td>
                 </tr>
               </tbody>
             </table>
 
             {/* Main Details Grid */}
-            <table className="w-full border-collapse border border-black text-[9px] mb-6">
+            <table className="w-full border-collapse border border-black text-[9px] mb-4">
               <thead>
-                <tr className="bg-amber-50/20 border-b border-black">
-                  <th className="border-r border-black p-2 font-bold text-center" colSpan={2}>DATA ABSENSI</th>
-                  <th className="border-r border-black p-2 font-bold text-center" colSpan={2}>PENDAPATAN</th>
-                  <th className="p-2 font-bold text-center" colSpan={2}>POTONGAN</th>
+                <tr className="bg-[#D2E4F4] border-b border-black">
+                  <th className="border-r border-black p-1.5 font-bold text-center" colSpan={2}>DATA ABSENSI</th>
+                  <th className="border-r border-black p-1.5 font-bold text-center" colSpan={2}>PENDAPATAN</th>
+                  <th className="p-1.5 font-bold text-center" colSpan={3}>POTONGAN</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-gray-300">
-                  <td className="border-r border-black p-2 text-left w-[20%]">Hari Masuk Kantor</td>
-                  <td className="border-r border-black p-2 text-center w-[10%] font-bold">{slip.hari_kantor}</td>
-                  <td className="border-r border-black p-2 text-left w-[22%]">Gaji Pokok</td>
-                  <td className="border-r border-black p-2 text-right w-[13%]">{formatRupiah(slip.gaji_pokok)}</td>
-                  <td className="border-r border-black p-2 text-left w-[22%]">Tanpa Keterangan</td>
-                  <td className="p-2 text-right w-[13%]">{formatRupiah(slip.potongan_alpha)}</td>
-                </tr>
-                <tr className="border-b border-gray-300">
-                  <td className="border-r border-black p-2 text-left">Hari Masuk Remote</td>
-                  <td className="border-r border-black p-2 text-center font-bold">{slip.hari_remote}</td>
-                  <td className="border-r border-black p-2 text-left">Tunjangan Makan</td>
-                  <td className="border-r border-black p-2 text-right">{formatRupiah(slip.tunjangan_makan)}</td>
-                  <td className="border-r border-black p-2 text-left">Sakit</td>
-                  <td className="p-2 text-right">{formatRupiah(slip.potongan_sakit)}</td>
-                </tr>
-                <tr className="border-b border-gray-300">
-                  <td className="border-r border-black p-2 text-left">Total Hari Bekerja</td>
-                  <td className="border-r border-black p-2 text-center font-bold">{slip.hari_kantor + slip.hari_remote}</td>
-                  <td className="border-r border-black p-2 text-left">Tunjangan Transport</td>
-                  <td className="border-r border-black p-2 text-right">{formatRupiah(slip.tunjangan_transport)}</td>
-                  <td className="border-r border-black p-2 text-left">Izin</td>
-                  <td className="p-2 text-right">{formatRupiah(slip.potongan_izin)}</td>
+                <tr className="border-b border-black">
+                  <td className="border-r border-black p-1.5 text-left w-[18%]">Hari Masuk Kantor</td>
+                  <td className="border-r border-black p-1.5 text-center w-[6%] font-bold">{slip.hari_kantor}</td>
+                  <td className="border-r border-black p-1.5 text-left w-[24%]">Gaji Pokok</td>
+                  <td className="border-r border-black p-1.5 text-right w-[12%]">{formatRupiah(slip.gaji_pokok)}</td>
+                  <td className="border-r border-black p-1.5 text-left w-[20%]">Tanpa Keterangan</td>
+                  <td className="border-r border-black p-1.5 text-center w-[8%] font-semibold">{slip.hari_alpha}</td>
+                  <td className="p-1.5 text-right w-[12%]">{formatRupiah(slip.potongan_alpha)}</td>
                 </tr>
                 <tr className="border-b border-black">
-                  <td className="border-r border-black p-2 text-left"></td>
-                  <td className="border-r border-black p-2 text-center font-bold"></td>
-                  <td className="border-r border-black p-2 text-left">Bonus Kinerja</td>
-                  <td className="border-r border-black p-2 text-right text-emerald-700 font-bold">{formatRupiah(slip.bonus)}</td>
-                  <td className="border-r border-black p-2 text-left"></td>
-                  <td className="p-2 text-right"></td>
+                  <td className="border-r border-black p-1.5 text-left">Hari Masuk Remote</td>
+                  <td className="border-r border-black p-1.5 text-center font-bold">{slip.hari_remote}</td>
+                  <td className="border-r border-black p-1.5 text-left">Tunjangan makan</td>
+                  <td className="border-r border-black p-1.5 text-right">{formatRupiah(slip.tunjangan_makan)}</td>
+                  <td className="border-r border-black p-1.5 text-left">Sakit</td>
+                  <td className="border-r border-black p-1.5 text-center font-semibold">{slip.hari_sakit}</td>
+                  <td className="p-1.5 text-right">{formatRupiah(slip.potongan_sakit)}</td>
+                </tr>
+                <tr className="border-b border-black">
+                  <td className="border-r border-black p-1.5 text-left">Total Masuk Kerja</td>
+                  <td className="border-r border-black p-1.5 text-center font-bold">{slip.hari_kantor + slip.hari_remote}</td>
+                  <td className="border-r border-black p-1.5 text-left">Tunjangan transport</td>
+                  <td className="border-r border-black p-1.5 text-right">{formatRupiah(slip.tunjangan_transport)}</td>
+                  <td className="border-r border-black p-1.5 text-left">Izin</td>
+                  <td className="border-r border-black p-1.5 text-center font-semibold">{slip.hari_izin}</td>
+                  <td className="p-1.5 text-right">{formatRupiah(slip.potongan_izin)}</td>
+                </tr>
+                <tr className="border-b border-black">
+                  <td className="border-r border-black p-1.5 text-left"></td>
+                  <td className="border-r border-black p-1.5 text-center"></td>
+                  <td className="border-r border-black p-1.5 text-left">Bonus Kinerja</td>
+                  <td className="border-r border-black p-1.5 text-right font-bold">{formatRupiah(slip.bonus)}</td>
+                  <td className="border-r border-black p-1.5 text-left"></td>
+                  <td className="border-r border-black p-1.5 text-center"></td>
+                  <td className="p-1.5 text-right"></td>
                 </tr>
                 {/* Subtotals Row */}
-                <tr className="border-b border-black font-bold bg-slate-50/50">
-                  <td className="border-r border-black p-2" colSpan={2}></td>
-                  <td className="border-r border-black p-2 text-right">Total Pendapatan</td>
-                  <td className="border-r border-black p-2 text-right">{formatRupiah(slip.total_pendapatan)}</td>
-                  <td className="border-r border-black p-2 text-right">Total Potongan</td>
-                  <td className="p-2 text-right text-rose-600">-{formatRupiah(slip.total_potongan)}</td>
+                <tr className="border-b border-black font-bold">
+                  <td className="border-r border-black p-1.5" colSpan={2}></td>
+                  <td className="border-r border-black p-1.5 text-right">Total</td>
+                  <td className="border-r border-black p-1.5 text-right">{formatRupiah(slip.total_pendapatan)}</td>
+                  <td className="border-r border-black p-1.5 text-right" colSpan={2}>Total</td>
+                  <td className="p-1.5 text-right">{formatRupiah(slip.total_potongan)}</td>
                 </tr>
                 {/* Net Salary Row */}
-                <tr className="font-extrabold text-[10px] bg-slate-100/50">
-                  <td className="p-2" colSpan={2}></td>
-                  <td className="border border-black p-2 text-right bg-amber-50/10" colSpan={2}>
-                    GAJI BERSIH DITERIMA
+                <tr className="font-extrabold text-[10px]">
+                  <td className="border-r border-black p-1.5 text-right" colSpan={6}>
+                    Jumlah Gaji
                   </td>
-                  <td className="border border-black p-2 text-right text-[#1C3D3F] bg-amber-50/20" colSpan={2}>
+                  <td className="p-1.5 text-right">
                     {formatRupiah(slip.gaji_bersih)}
                   </td>
                 </tr>
@@ -286,18 +332,18 @@ export default function PayslipPreviewModal({
             </table>
 
             {/* Signature Box */}
-            <div className="mt-8">
-              <p className="text-right font-semibold mb-8 text-[10px]">Cimahi, {displayCetakDate}</p>
+            <div className="mt-6">
+              <p className="text-right font-semibold mb-6 text-[10px]">Cimahi, {displayCetakDate}</p>
               <div className="flex justify-between text-[10px]">
-                <div className="flex flex-col w-[40%]">
-                  <p className="font-bold text-black">Disetujui oleh,</p>
-                  <div className="h-16" />
+                <div className="flex flex-col w-[45%] text-left">
+                  <p className="font-bold">Disetujui oleh,</p>
+                  <div className="h-14" />
                   <p className="font-black text-black underline">{approverName}</p>
                   <p className="text-[9px] text-gray-500 font-bold">{approverRole}</p>
                 </div>
-                <div className="flex flex-col w-[40%] items-end text-right">
-                  <p className="font-bold text-black">Diterima oleh,</p>
-                  <div className="h-16" />
+                <div className="flex flex-col w-[45%] text-right items-end">
+                  <p className="font-bold">Diterima oleh,</p>
+                  <div className="h-14" />
                   <p className="font-black text-black underline">{slip.nama_lengkap}</p>
                   <p className="text-[9px] text-gray-500 font-bold">{slip.jabatan}</p>
                 </div>
@@ -307,23 +353,78 @@ export default function PayslipPreviewModal({
         </div>
 
         {/* Modal Footer Controls */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 flex-shrink-0 print:hidden">
-          <button
-            onClick={onClose}
-            className="px-4 py-2.5 bg-slate-150 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-97"
-          >
-            Tutup
-          </button>
-          {!isSaved && (
-            <button
-              onClick={handleSaveSlip}
-              disabled={saving}
-              className="px-5 py-2.5 bg-[#2AB0B2] hover:bg-[#209092] text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-xs disabled:opacity-50 active:scale-97"
-            >
-              <Save size={14} />
-              {saving ? "Menyimpan..." : "Simpan & Diterbitkan"}
-            </button>
+        <div className="flex flex-col gap-3 p-4 border-t border-gray-100 flex-shrink-0 bg-slate-50/50 print:hidden">
+          {/* Row 1: Bukti Transfer Upload / Status */}
+          {!isSaved ? (
+            <div className="flex items-center justify-between gap-4 bg-white p-3 rounded-2xl border border-gray-200/80 shadow-2xs">
+              <div className="flex-1 min-w-0">
+                <h5 className="font-bold text-[#1C3D3F] text-[11px] mb-0.5">Bukti Transfer (Opsional)</h5>
+                <p className="text-[9px] text-gray-500 font-semibold truncate">
+                  {fileName ? fileName : "Upload bukti transfer (Format: JPG, PNG, PDF. Maks 5MB)"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {fileName && (
+                  <button
+                    onClick={handleRemoveFile}
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                  >
+                    Hapus
+                  </button>
+                )}
+                <label className="px-3 py-1.5 bg-[#2AB0B2]/10 hover:bg-[#2AB0B2]/20 text-[#209092] rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95">
+                  <Upload size={12} />
+                  {fileName ? "Ubah" : "Pilih Berkas"}
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                </label>
+              </div>
+            </div>
+          ) : (
+            slip.transfer_proof && (
+              <div className="flex items-center justify-between gap-4 bg-white p-3 rounded-2xl border border-gray-200/80 shadow-2xs">
+                <div className="flex-1 min-w-0">
+                  <h5 className="font-bold text-[#1C3D3F] text-[11px] mb-0.5">Bukti Transfer</h5>
+                  <p className="text-[9px] text-gray-500 font-semibold truncate">
+                    Bukti transfer pembayaran gaji periode ini telah diunggah.
+                  </p>
+                </div>
+                <a
+                  href={slip.transfer_proof}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1 active:scale-95"
+                >
+                  <Download size={12} />
+                  Unduh / Lihat
+                </a>
+              </div>
+            )
           )}
+
+          {/* Row 2: Action Buttons */}
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 bg-slate-150 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-97"
+            >
+              Tutup
+            </button>
+            {!isSaved && (
+              <button
+                onClick={handleSaveSlip}
+                disabled={saving}
+                className="px-5 py-2.5 bg-[#2AB0B2] hover:bg-[#209092] text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-xs disabled:opacity-50 active:scale-97"
+              >
+                <Save size={14} />
+                {saving ? "Menyimpan..." : "Simpan & Diterbitkan"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

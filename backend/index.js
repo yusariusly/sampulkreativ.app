@@ -943,6 +943,10 @@ async function initDb() {
       await pool.query("ALTER TABLE payroll_slips ADD COLUMN bonus DECIMAL(12, 2) DEFAULT 0.00");
     } catch (err) {}
 
+    try {
+      await pool.query("ALTER TABLE payroll_slips ADD COLUMN transfer_proof VARCHAR(255) DEFAULT NULL");
+    } catch (err) {}
+
     // Migrate any existing 'pkl' roles to 'student'
     try {
       await pool.query("UPDATE users SET role = 'student' WHERE role = 'pkl'");
@@ -2564,7 +2568,11 @@ app.get('/api/settings', async (req, res) => {
       smtp_sender: '',
       payroll_approver_name: 'M. Firas Faisal',
       payroll_approver_role: 'Direktur Utama',
-      show_pkl_scoreboard: '1'
+      show_pkl_scoreboard: '1',
+      payroll_notice_text: '',
+      payroll_notice_active: '0',
+      payroll_notice_date: '',
+      payroll_notice_template_id: '1'
     };
     rows.forEach(row => {
       settings[row.key_name] = row.key_value;
@@ -2594,7 +2602,11 @@ app.post('/api/settings', async (req, res) => {
       smtp_sender,
       payroll_approver_name,
       payroll_approver_role,
-      show_pkl_scoreboard
+      show_pkl_scoreboard,
+      payroll_notice_text,
+      payroll_notice_active,
+      payroll_notice_date,
+      payroll_notice_template_id
     } = req.body;
     
     if (deadline_time) {
@@ -2765,6 +2777,38 @@ app.post('/api/settings', async (req, res) => {
       );
     }
 
+    if (payroll_notice_text !== undefined) {
+      const val = payroll_notice_text.toString().trim();
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('payroll_notice_text', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [val, val]
+      );
+    }
+
+    if (payroll_notice_active !== undefined) {
+      const val = payroll_notice_active.toString().trim();
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('payroll_notice_active', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [val, val]
+      );
+    }
+
+    if (payroll_notice_date !== undefined) {
+      const val = payroll_notice_date.toString().trim();
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('payroll_notice_date', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [val, val]
+      );
+    }
+
+    if (payroll_notice_template_id !== undefined) {
+      const val = payroll_notice_template_id.toString().trim();
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('payroll_notice_template_id', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [val, val]
+      );
+    }
+
     res.json({ 
       success: true, 
       settings: { 
@@ -2781,7 +2825,11 @@ app.post('/api/settings', async (req, res) => {
         smtp_to,
         payroll_approver_name,
         payroll_approver_role,
-        show_pkl_scoreboard
+        show_pkl_scoreboard,
+        payroll_notice_text,
+        payroll_notice_active,
+        payroll_notice_date,
+        payroll_notice_template_id
       } 
     });
   } catch (error) {
@@ -3567,6 +3615,39 @@ app.post('/api/payroll/config', async (req, res) => {
   }
 });
 
+// Get next slip number sequence
+app.get('/api/payroll/next-slip-no', async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    if (!month || !year) {
+      return res.status(400).json({ error: 'Bulan dan Tahun wajib disertakan' });
+    }
+
+    const [rows] = await pool.query('SELECT slip_no FROM payroll_slips');
+    let maxIncrement = 37; // Start sequence at 38 if no existing higher sequence is found
+
+    rows.forEach(r => {
+      // Format: SLIP/X<number>/<month>/<year>
+      const match = r.slip_no.match(/SLIP\/X(\d+)/i);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        if (!isNaN(val) && val > maxIncrement) {
+          maxIncrement = val;
+        }
+      }
+    });
+
+    const nextIncrement = maxIncrement + 1;
+    const formattedMonth = String(month).padStart(2, '0');
+    const nextSlipNo = `SLIP/X${nextIncrement}/${formattedMonth}/${year}`;
+
+    res.json({ nextSlipNo });
+  } catch (error) {
+    console.error('Gagal mendapatkan nomor slip berikutnya:', error);
+    res.status(500).json({ error: 'Gagal mendapatkan nomor slip berikutnya' });
+  }
+});
+
 // Get payroll slips (can filter by user_id)
 app.get('/api/payroll/slips', async (req, res) => {
   try {
@@ -3650,19 +3731,37 @@ app.post('/api/payroll/slips', async (req, res) => {
 
     const slipId = `slip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+    let transferProofUrl = null;
+    if (req.body.transfer_proof_base64) {
+      try {
+        const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        transferProofUrl = await uploadFileToSupabase(
+          req.body.transfer_proof_base64,
+          'transfer-proofs',
+          `transfer-${user_id}-${periode.replace(/\s+/g, '-')}`,
+          allowedMimes,
+          maxSize
+        );
+      } catch (uploadErr) {
+        console.error("Gagal mengunggah bukti transfer:", uploadErr);
+        return res.status(400).json({ error: `Gagal mengunggah bukti transfer: ${uploadErr.message}` });
+      }
+    }
+
     await pool.query(`
       INSERT INTO payroll_slips (
         id, user_id, username, nama_lengkap, periode, slip_no, tanggal_cetak,
         hari_kantor, hari_remote, hari_sakit, hari_izin, hari_alpha,
         gaji_pokok, tunjangan_makan, tunjangan_transport, potongan_alpha,
-        potongan_sakit, potongan_izin, total_pendapatan, total_potongan, gaji_bersih, status, jabatan, bonus
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        potongan_sakit, potongan_izin, total_pendapatan, total_potongan, gaji_bersih, status, jabatan, bonus, transfer_proof
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       slipId, user_id, username, nama_lengkap, periode, slip_no, tanggal_cetak,
       hari_kantor || 0, hari_remote || 0, hari_sakit || 0, hari_izin || 0, hari_alpha || 0,
       gaji_pokok || 0, tunjangan_makan || 0, tunjangan_transport || 0, potongan_alpha || 0,
       potongan_sakit || 0, potongan_izin || 0, total_pendapatan || 0, total_potongan || 0, gaji_bersih || 0,
-      status || 'Dibayar', jabatan, bonus || 0
+      status || 'Dibayar', jabatan, bonus || 0, transferProofUrl
     ]);
 
     res.json({ success: true, message: 'Slip gaji berhasil digenerate', id: slipId });
