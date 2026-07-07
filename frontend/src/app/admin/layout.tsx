@@ -18,6 +18,7 @@ import {
   PiggyBank,
   Tablet,
   Key,
+  Wallet,
 } from "lucide-react";
 
 function AppLogo({ size = 80 }: { size?: number }) {
@@ -102,6 +103,7 @@ export default function AdminLayout({
     { href: "/admin/qr", label: "Generate QR", Icon: QrCode },
     { href: "/admin/users", label: "Pengguna", Icon: Users },
     { href: "/admin/kie", label: "API KIE", Icon: Key },
+    { href: "/admin/payroll", label: "Sistem Payroll", Icon: Wallet },
   ];
 
   if (!authorized) {

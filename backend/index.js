@@ -1418,8 +1418,9 @@ const fillAlpaForUser = async (userId) => {
     let current = new Date(signupDate);
     while (current.getTime() <= yesterday.getTime()) {
       const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+      const dayOfWeek = current.getDay();
       
-      if (!existingDates.has(dateStr)) {
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !existingDates.has(dateStr)) {
         const recordId = `alpa-${userId}-${dateStr}`;
         const waktuAbsen = new Date(current);
         waktuAbsen.setHours(9, 0, 0, 0);

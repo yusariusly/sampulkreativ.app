@@ -8,6 +8,7 @@ import { compressImage, IMAGE_PRESETS } from "../utils/image";
 import { useStudentDashboard, StudentDashboardView, SkeletonCard, ErrorState, savingsService, QUERY_KEYS, StudentSavingsData, BaseResponse } from "@/features/pkl-activity";
 import { useQuery } from "@tanstack/react-query";
 import KieSubmissionView from "./components/KieSubmissionView";
+import UserPayslipDetail from "./components/UserPayslipDetail";
 
 
 const REPORT_UPLOAD_CONFIG = {
@@ -1570,9 +1571,9 @@ function UserDashboardContent() {
 
       {activeTab === "payroll" && (
         <div className="flex-1 flex flex-col min-h-0 pt-0">
-
-          {/* Content */}
-          {loadingPayroll ? (
+          {selectedSlip ? (
+            <UserPayslipDetail slip={selectedSlip} onBack={() => setSelectedSlip(null)} />
+          ) : loadingPayroll ? (
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-slate-400 text-xs font-medium">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2AB0B2] border-t-transparent mb-2" />
               Memuat data slip gaji...
@@ -1867,150 +1868,7 @@ function UserDashboardContent() {
         </div>
       )}
 
-      {/* Selected Payroll Slip Modal */}
-      {selectedSlip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 select-none animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-xl border border-slate-200 flex flex-col max-h-[85vh] text-[#1C3D3F]">
-            {/* Header */}
-            <div className="text-center pb-4 border-b border-dashed border-gray-150 flex-shrink-0">
-              <h4 className="text-xs font-black text-[#2AB0B2] uppercase tracking-widest">SAMPUL KREATIV</h4>
-              <p className="text-[10px] font-bold text-gray-400 mt-0.5">SLIP GAJI RESMI KARYAWAN</p>
-              <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-[#1C3D3F] text-white">
-                Periode: {selectedSlip.periode}
-              </div>
-            </div>
 
-            {/* Info Karyawan */}
-            <div className="py-3 grid grid-cols-2 gap-y-2 text-[11px] border-b border-gray-100 flex-shrink-0">
-              <div>
-                <p className="text-gray-400 font-bold">NAMA KARYAWAN</p>
-                <p className="font-extrabold text-slate-800 mt-0.5">{selectedSlip.nama_lengkap}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 font-bold">JABATAN</p>
-                <p className="font-extrabold text-slate-800 mt-0.5">{selectedSlip.jabatan}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 font-bold">NOMOR SLIP</p>
-                <p className="font-semibold text-slate-500 mt-0.5">{selectedSlip.slip_no}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 font-bold">TANGGAL CETAK</p>
-                <p className="font-semibold text-slate-500 mt-0.5">
-                  {selectedSlip.tanggal_cetak ? new Date(selectedSlip.tanggal_cetak).toLocaleDateString("id-ID", {
-                    day: "2-digit",
-                    month: "long",
-                    year: "numeric"
-                  }) : "-"}
-                </p>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto py-3 space-y-4 pr-1 text-[11px] min-h-0">
-              {/* Pendapatan */}
-              <div>
-                <h5 className="font-extrabold text-[#2AB0B2] mb-1.5 uppercase tracking-wider text-[10px]">Detail Pendapatan</h5>
-                <div className="space-y-1.5 bg-slate-50/50 p-2.5 rounded-xl border border-gray-150/50">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Gaji Pokok</span>
-                    <span className="font-semibold text-slate-850">{formatRupiah(selectedSlip.gaji_pokok)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Tunjangan Makan</span>
-                    <span className="font-semibold text-slate-850">{formatRupiah(selectedSlip.tunjangan_makan)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Tunjangan Transport</span>
-                    <span className="font-semibold text-slate-850">{formatRupiah(selectedSlip.tunjangan_transport)}</span>
-                  </div>
-                  {selectedSlip.bonus > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Bonus Kinerja</span>
-                      <span className="font-semibold text-emerald-600">{formatRupiah(selectedSlip.bonus)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between pt-1.5 border-t border-gray-150 font-bold text-slate-850">
-                    <span>Total Pendapatan</span>
-                    <span>{formatRupiah(selectedSlip.total_pendapatan)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Potongan */}
-              <div>
-                <h5 className="font-extrabold text-rose-500 mb-1.5 uppercase tracking-wider text-[10px]">Detail Potongan</h5>
-                <div className="space-y-1.5 bg-slate-50/50 p-2.5 rounded-xl border border-gray-150/50">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Potongan Sakit</span>
-                    <span className="font-semibold text-slate-850">{formatRupiah(selectedSlip.potongan_sakit)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Potongan Izin</span>
-                    <span className="font-semibold text-slate-850">{formatRupiah(selectedSlip.potongan_izin)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Potongan Mangkir (Alpha)</span>
-                    <span className="font-semibold text-slate-850">{formatRupiah(selectedSlip.potongan_alpha)}</span>
-                  </div>
-                  <div className="flex justify-between pt-1.5 border-t border-gray-150 font-bold text-slate-850">
-                    <span>Total Potongan</span>
-                    <span className="text-rose-500">-{formatRupiah(selectedSlip.total_potongan)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Kehadiran Ringkas */}
-              <div>
-                <h5 className="font-extrabold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Ringkasan Kehadiran</h5>
-                <div className="grid grid-cols-5 gap-1.5 text-center text-[10px] font-bold">
-                  <div className="bg-slate-50 border border-gray-150 p-1.5 rounded-lg">
-                    <p className="text-gray-400 text-[8px] uppercase">Kantor</p>
-                    <p className="text-[#1C3D3F] mt-0.5">{selectedSlip.hari_kantor}H</p>
-                  </div>
-                  <div className="bg-slate-50 border border-gray-150 p-1.5 rounded-lg">
-                    <p className="text-gray-400 text-[8px] uppercase">WFH</p>
-                    <p className="text-[#1C3D3F] mt-0.5">{selectedSlip.hari_remote}H</p>
-                  </div>
-                  <div className="bg-slate-50 border border-gray-150 p-1.5 rounded-lg">
-                    <p className="text-gray-400 text-[8px] uppercase">Sakit</p>
-                    <p className="text-rose-600 mt-0.5">{selectedSlip.hari_sakit}H</p>
-                  </div>
-                  <div className="bg-slate-50 border border-gray-150 p-1.5 rounded-lg">
-                    <p className="text-gray-400 text-[8px] uppercase">Izin</p>
-                    <p className="text-amber-600 mt-0.5">{selectedSlip.hari_izin}H</p>
-                  </div>
-                  <div className="bg-slate-50 border border-gray-150 p-1.5 rounded-lg">
-                    <p className="text-gray-400 text-[8px] uppercase">Alpha</p>
-                    <p className="text-red-500 mt-0.5">{selectedSlip.hari_alpha}H</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Total Gaji Bersih */}
-            <div className="bg-[#1C3D3F] text-white p-4 rounded-2xl flex justify-between items-center shadow-xs mt-3 flex-shrink-0">
-              <div>
-                <p className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Gaji Bersih Diterima</p>
-                <p className="text-base font-black text-[#2AB0B2] mt-0.5">{formatRupiah(selectedSlip.gaji_bersih)}</p>
-              </div>
-              <div className="text-right">
-                <span className="inline-flex px-2.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-500 text-white uppercase tracking-wider">
-                  {selectedSlip.status}
-                </span>
-              </div>
-            </div>
-
-            {/* Action */}
-            <button
-              onClick={() => setSelectedSlip(null)}
-              className="mt-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs transition-colors cursor-pointer text-center flex-shrink-0 active:scale-97"
-            >
-              Tutup Slip Gaji
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Toast Alert Notification */}
       {notification && (() => {
