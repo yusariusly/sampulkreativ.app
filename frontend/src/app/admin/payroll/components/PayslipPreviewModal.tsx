@@ -186,7 +186,7 @@ export default function PayslipPreviewModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none animate-fadeIn overflow-y-auto print:static print:bg-white print:p-0 print:m-0">
-      <div className="bg-white rounded-3xl w-full max-w-2xl p-6 shadow-2xl border border-gray-100 flex flex-col max-h-[90vh] text-[#1C3D3F] print:shadow-none print:border-none print:max-h-full print:p-0 print:w-full print:static">
+      <div className="bg-white rounded-3xl w-full max-w-4xl p-6 shadow-2xl border border-gray-100 flex flex-col max-h-[90vh] text-[#1C3D3F] print:shadow-none print:border-none print:max-h-full print:p-0 print:w-full print:static">
         
         {/* Actions Header Bar */}
         <div className="flex items-center justify-between pb-4 border-b border-gray-100 flex-shrink-0 print:hidden">
@@ -218,11 +218,11 @@ export default function PayslipPreviewModal({
         </div>
 
         {/* Scrollable Receipt Area */}
-        <div className="flex-1 overflow-y-auto py-6 flex justify-center min-h-0 bg-slate-50/50 print:overflow-visible print:bg-white print:py-0 print:static">
+        <div className="flex-1 overflow-y-auto overflow-x-auto py-6 flex justify-start md:justify-center min-h-0 bg-slate-50/50 print:overflow-visible print:bg-white print:py-0 print:static">
           {/* Printable A4 Paper */}
           <div
             id="payslip-print-area"
-            className="w-full max-w-[620px] bg-white border border-gray-200 shadow-xs p-8 text-[11px] font-sans text-black leading-relaxed print:border-none print:shadow-none print:p-0 print:w-full"
+            className="w-[794px] min-w-[794px] bg-white border border-gray-200 shadow-sm p-10 text-[11px] font-sans text-black leading-relaxed print:border-none print:shadow-none print:p-0 print:w-full print:min-w-0"
             style={{ fontFamily: "Arial, sans-serif" }}
           >
             {/* Kop Surat */}
