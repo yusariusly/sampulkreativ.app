@@ -172,6 +172,7 @@ async function generateNoKaryawan() {
 }
 
 const app = express();
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
@@ -2664,7 +2665,7 @@ app.post('/api/settings', async (req, res) => {
       );
 
       // Auto-register Telegram webhook on settings change if not localhost
-      const host = req.get('host');
+      const host = req.headers['x-forwarded-host'] || req.get('host');
       if (tokenVal !== "" && host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
         registerTelegramWebhook(tokenVal, host).catch(err => {
           console.error("Gagal registrasi Telegram Webhook secara otomatis saat save settings:", err);
@@ -3006,12 +3007,25 @@ function parseJakartaDate(dateInput) {
   return new Date(Date.UTC(y, m - 1, d));
 }
 
-// Helper to calculate and synchronize student KIE API submission debt
+// Helper to count weekdays (Monday-Friday) between two dates
+function getWeekdaysCount(startDate, endDate) {
+  let count = 0;
+  let cur = new Date(startDate.getTime());
+  while (cur.getTime() <= endDate.getTime()) {
+    const day = cur.getUTCDay();
+    if (day !== 0 && day !== 6) { // Not Sunday or Saturday
+      count++;
+    }
+    cur.setTime(cur.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return count;
+}
+
 // Helper to calculate and synchronize student KIE API submission debt
 async function syncUserKieDebt(userId) {
   try {
     const [userRows] = await pool.query(
-      "SELECT id, role, kie_debt, last_kie_debt_date, created_at FROM users WHERE id = ?",
+      "SELECT id, role, created_at FROM users WHERE id = ?",
       [userId]
     );
     if (userRows.length === 0) return;
@@ -3020,78 +3034,38 @@ async function syncUserKieDebt(userId) {
     if (user.role !== 'student') return;
 
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
-
-    let lastDate;
-    if (!user.last_kie_debt_date) {
-      // If user has no last_kie_debt_date, check their registration date.
-      // If they registered before KIE system start date (2026-07-02), start checking from 2026-07-02 (so last_kie_debt_date = '2026-07-01').
-      // Otherwise, start checking from the day after registration.
-      const regDate = parseJakartaDate(user.created_at || new Date());
-      const systemStartDate = parseJakartaDate('2026-07-02');
-      let initialDateStr = todayStr;
-      
-      if (regDate.getTime() < systemStartDate.getTime()) {
-        initialDateStr = '2026-07-01';
-      } else {
-        initialDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(regDate);
-      }
-
-      await pool.query(
-        "UPDATE users SET last_kie_debt_date = ?, kie_debt = 0 WHERE id = ?",
-        [initialDateStr, userId]
-      );
-      lastDate = parseJakartaDate(initialDateStr);
-    } else {
-      lastDate = parseJakartaDate(user.last_kie_debt_date);
-    }
-
     const todayDate = parseJakartaDate(todayStr);
 
-    if (lastDate.getTime() >= todayDate.getTime()) {
-      return; // Already processed up to today (or past it)
+    // Determine calculation start date
+    const regDate = parseJakartaDate(user.created_at || new Date());
+    const systemStartDate = parseJakartaDate('2026-07-02');
+    const startDate = regDate.getTime() < systemStartDate.getTime() ? systemStartDate : regDate;
+
+    // Yesterday is the day before todayDate
+    const yesterdayDate = new Date(todayDate.getTime() - 24 * 60 * 60 * 1000);
+
+    let completedWeekdays = 0;
+    if (startDate.getTime() <= yesterdayDate.getTime()) {
+      completedWeekdays = getWeekdaysCount(startDate, yesterdayDate);
     }
 
-    // Start checking from the day after last_kie_debt_date
-    let currentDate = new Date(lastDate.getTime() + 24 * 60 * 60 * 1000);
-    let currentKieDebt = !user.last_kie_debt_date ? 0 : (user.kie_debt || 0);
-    let daysCount = 0;
-    let lastProcessedDateStr = lastDate.toISOString().split('T')[0];
+    const totalTarget = completedWeekdays * 4;
 
-    while (currentDate.getTime() < todayDate.getTime()) {
-      const dateString = currentDate.toISOString().split('T')[0];
-      const dayOfWeek = currentDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
-      
-      const [rows] = await pool.query(
-        "SELECT COUNT(*) AS count_on_date FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = ?",
-        [userId, dateString]
-      );
-      const countOnDate = rows[0].count_on_date || 0;
-      
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
-        // Saturday/Sunday: no daily target, but any submissions reduce the debt
-        if (countOnDate > 0) {
-          currentKieDebt = Math.max(0, currentKieDebt - countOnDate);
-        }
-      } else {
-        // Weekday (Monday-Friday): target is 4
-        if (countOnDate < 4) {
-          currentKieDebt += (4 - countOnDate);
-        } else if (countOnDate > 4) {
-          currentKieDebt = Math.max(0, currentKieDebt - (countOnDate - 4));
-        }
-      }
-      
-      lastProcessedDateStr = dateString;
-      daysCount++;
-      currentDate.setTime(currentDate.getTime() + 24 * 60 * 60 * 1000);
-    }
+    // Count all submissions from startDate up to now
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const [subCountRows] = await pool.query(
+      "SELECT COUNT(*) AS total_submissions FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ?",
+      [userId, startDateStr]
+    );
+    const totalSubmissions = subCountRows[0].total_submissions || 0;
 
-    if (daysCount > 0) {
-      await pool.query(
-        "UPDATE users SET kie_debt = ?, last_kie_debt_date = ? WHERE id = ?",
-        [currentKieDebt, lastProcessedDateStr, userId]
-      );
-    }
+    const currentKieDebt = Math.max(0, totalTarget - totalSubmissions);
+
+    const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+    await pool.query(
+      "UPDATE users SET kie_debt = ?, last_kie_debt_date = ? WHERE id = ?",
+      [currentKieDebt, yesterdayStr, userId]
+    );
   } catch (err) {
     console.error("Gagal sinkronisasi hutang KIE untuk user:", userId, err);
   }
@@ -3112,50 +3086,28 @@ app.post('/api/kie/submit', validateDeviceSession, async (req, res) => {
       return res.status(400).json({ error: 'API key harus memiliki panjang tepat 32 karakter' });
     }
 
-    // 1. Sync user's KIE debt first
-    await syncUserKieDebt(user.id);
-
-    // 2. Fetch user's current debt and role
-    const [userRowsBefore] = await pool.query(
-      "SELECT role, kie_debt FROM users WHERE id = ?",
-      [user.id]
-    );
-    const userBefore = userRowsBefore[0];
-    const currentDebt = userBefore?.kie_debt || 0;
-
-    // 3. Count today's submissions before inserting
-    const [countRowsBefore] = await pool.query(
-      "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date",
-      [user.id]
-    );
-    const countTodayBefore = countRowsBefore[0].count_today || 0;
-
-    // 4. Insert into database
+    // 1. Insert into database
     await pool.query(
       'INSERT INTO kie_submissions (user_id, api_key) VALUES (?, ?)',
       [user.id, keyVal]
     );
 
-    // 5. Calculate new today's count
-    const countToday = countTodayBefore + 1;
+    // 2. Sync user's KIE debt
+    await syncUserKieDebt(user.id);
 
-    // 6. If user is student, and today's count is > threshold, and they have a debt: decrease their debt by 1
-    let newDebtVal = currentDebt;
-    const localDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
-    const localDate = parseJakartaDate(localDateStr);
-    const dayOfWeek = localDate.getUTCDay();
-    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-    const threshold = isWeekend ? 0 : 4;
+    // 3. Fetch updated stats
+    const [finalRows] = await pool.query(
+      "SELECT kie_debt FROM users WHERE id = ?",
+      [user.id]
+    );
+    const [finalCountRows] = await pool.query(
+      "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date",
+      [user.id]
+    );
+    const finalCountToday = finalCountRows[0].count_today || 0;
+    const finalDebt = finalRows[0]?.kie_debt || 0;
 
-    if (userBefore.role === 'student' && countToday > threshold && currentDebt > 0) {
-      newDebtVal = currentDebt - 1;
-      await pool.query(
-        "UPDATE users SET kie_debt = ? WHERE id = ?",
-        [newDebtVal, user.id]
-      );
-    }
-
-    // 7. Send Telegram Notification in background if configured (do not await to keep API response instant)
+    // 4. Send Telegram Notification in background if configured (do not await to keep API response instant)
     try {
       const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
       const [chatIdKieSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_kie'");
@@ -3179,8 +3131,8 @@ app.post('/api/kie/submit', validateDeviceSession, async (req, res) => {
     res.json({ 
       success: true, 
       message: 'KIE API key berhasil disetor', 
-      count_today: countToday,
-      kie_debt: newDebtVal
+      count_today: finalCountToday,
+      kie_debt: finalDebt
     });
   } catch (error) {
     console.error('Gagal menyetor KIE API key:', error);
@@ -3342,13 +3294,6 @@ app.post('/api/telegram/webhook', async (req, res) => {
         continue;
       }
 
-      // Fetch today's count before insert
-      const [countRowsBefore] = await pool.query(
-        "SELECT COUNT(*) AS count_today FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')::date",
-        [targetUser.id]
-      );
-      const countTodayBefore = countRowsBefore[0].count_today || 0;
-
       // Insert KIE submission
       await pool.query(
         'INSERT INTO kie_submissions (user_id, api_key) VALUES (?, ?)',
@@ -3356,25 +3301,19 @@ app.post('/api/telegram/webhook', async (req, res) => {
       );
 
       successCount++;
-      const countToday = countTodayBefore + 1;
-
-      // Decrease debt if threshold reached
-      const localDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
-      const localDate = parseJakartaDate(localDateStr);
-      const dayOfWeek = localDate.getUTCDay();
-      const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-      const threshold = isWeekend ? 0 : 4;
-
-      if (refreshedUser.role === 'student' && countToday > threshold && currentDebt > 0) {
-        currentDebt = currentDebt - 1;
-        await pool.query(
-          "UPDATE users SET kie_debt = ? WHERE id = ?",
-          [currentDebt, targetUser.id]
-        );
-      }
-
       reportLines.push(`✅ \`${keyVal.slice(0, 8)}...${keyVal.slice(-4)}\` - Sukses`);
     }
+
+    // Sync user KIE debt after inserting all new keys
+    await syncUserKieDebt(targetUser.id);
+
+    // Fetch refreshed user info
+    const [refreshedRowsAfter] = await pool.query(
+      "SELECT role, kie_debt FROM users WHERE id = ?",
+      [targetUser.id]
+    );
+    const refreshedUserAfter = refreshedRowsAfter[0];
+    const currentDebtAfter = refreshedUserAfter?.kie_debt || 0;
 
     // Get final stats
     const [finalCountRows] = await pool.query(
@@ -3390,7 +3329,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
 ${reportLines.join('\n')}
 
 📈 Total setoran hari ini: *${finalCountToday}/5*
-💳 Sisa hutang KIE: *${refreshedUser.role === 'student' ? currentDebt : 0}*`;
+💳 Sisa hutang KIE: *${refreshedUserAfter.role === 'student' ? currentDebtAfter : 0}*`;
 
     await sendTelegramReply(botToken, chat.id, reportText, message_id);
 
@@ -3407,7 +3346,7 @@ app.post('/api/telegram/register-webhook', async (req, res) => {
     if (!botToken || botToken.trim() === '') {
       return res.status(400).json({ error: 'Telegram Bot Token belum diset di pengaturan.' });
     }
-    const host = req.get('host');
+    const host = req.headers['x-forwarded-host'] || req.get('host');
     const result = await registerTelegramWebhook(botToken, host);
     if (result.success) {
       res.json({ success: true, message: `Webhook berhasil didaftarkan ke https://${host}/api/telegram/webhook: ${result.message}` });
@@ -3538,7 +3477,12 @@ app.put('/api/kie/admin/submissions/:id', async (req, res) => {
     if (!api_key || api_key.trim().length !== 32) {
       return res.status(400).json({ error: 'Kunci API harus tepat 32 karakter' });
     }
-    await pool.query('UPDATE kie_submissions SET api_key = ? WHERE id = ?', [api_key.trim(), id]);
+    const [subRows] = await pool.query('SELECT user_id FROM kie_submissions WHERE id = ?', [id]);
+    if (subRows.length > 0) {
+      const userId = subRows[0].user_id;
+      await pool.query('UPDATE kie_submissions SET api_key = ? WHERE id = ?', [api_key.trim(), id]);
+      await syncUserKieDebt(userId);
+    }
     res.json({ success: true, message: 'API KIE berhasil diperbarui' });
   } catch (error) {
     console.error('Gagal memperbarui KIE submission:', error);
@@ -3550,7 +3494,12 @@ app.put('/api/kie/admin/submissions/:id', async (req, res) => {
 app.delete('/api/kie/admin/submissions/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM kie_submissions WHERE id = ?', [id]);
+    const [subRows] = await pool.query('SELECT user_id FROM kie_submissions WHERE id = ?', [id]);
+    if (subRows.length > 0) {
+      const userId = subRows[0].user_id;
+      await pool.query('DELETE FROM kie_submissions WHERE id = ?', [id]);
+      await syncUserKieDebt(userId);
+    }
     res.json({ success: true, message: 'API KIE berhasil dihapus' });
   } catch (error) {
     console.error('Gagal menghapus KIE submission:', error);

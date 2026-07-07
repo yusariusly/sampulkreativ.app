@@ -79,20 +79,64 @@ const getDailyAuditList = (subs: KieSubmission[], userCreatedAt?: string) => {
   const [ty, tm, td] = todayFormatted.split('-').map(Number);
   const todayDate = new Date(Date.UTC(ty, tm - 1, td));
 
-  const auditList = [];
-  let current = new Date(todayDate);
-  while (current.getTime() >= startDate.getTime()) {
-    const dateStr = current.toISOString().split('T')[0];
+  // Build list of dates chronologically (oldest to newest)
+  const chronologicalDates: Date[] = [];
+  let current = new Date(startDate);
+  while (current.getTime() <= todayDate.getTime()) {
+    chronologicalDates.push(new Date(current));
+    current.setTime(current.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  // Calculate surplus and initial deficits
+  let poolOfSurplus = 0;
+  const dailyDeficits: Record<string, number> = {};
+
+  chronologicalDates.forEach((date) => {
+    const dateStr = date.toISOString().split('T')[0];
     const items = groups[dateStr] || [];
-    const dayOfWeek = current.getUTCDay(); // 0 = Sunday, 6 = Saturday
+    const count = items.length;
+    const dayOfWeek = date.getUTCDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    
+    const target = isWeekend ? 0 : 4;
+
+    if (count > target) {
+      poolOfSurplus += (count - target);
+    } else if (count < target) {
+      dailyDeficits[dateStr] = target - count;
+    }
+  });
+
+  // Distribute surplus chronologically (FIFO) to cover deficits
+  const dailyRemainingDeficits: Record<string, number> = {};
+  chronologicalDates.forEach((date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    const deficit = dailyDeficits[dateStr] || 0;
+    if (deficit > 0) {
+      const covered = Math.min(deficit, poolOfSurplus);
+      poolOfSurplus -= covered;
+      const remaining = deficit - covered;
+      if (remaining > 0) {
+        dailyRemainingDeficits[dateStr] = remaining;
+      }
+    }
+  });
+
+  // Build the final audit list backwards (newest first)
+  const auditList = [];
+  for (let i = chronologicalDates.length - 1; i >= 0; i--) {
+    const date = chronologicalDates[i];
+    const dateStr = date.toISOString().split('T')[0];
+    const items = groups[dateStr] || [];
+    const count = items.length;
+    const dayOfWeek = date.getUTCDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isToday = dateStr === todayFormatted;
+
     let statusLabel = "";
     let statusColor = "";
-    
-    const count = items.length;
-    const isToday = dateStr === todayFormatted;
-    
+
+    const remainingDeficit = dailyRemainingDeficits[dateStr] || 0;
+
     if (isWeekend) {
       if (count === 0) {
         statusLabel = "Hari Libur (Rest Day)";
@@ -102,17 +146,17 @@ const getDailyAuditList = (subs: KieSubmission[], userCreatedAt?: string) => {
         statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
       }
     } else {
-      if (count < 4) {
-        if (isToday) {
-          statusLabel = `Belum Lengkap (Kurang ${4 - count} Key)`;
-          statusColor = "text-amber-600 bg-amber-50 border-amber-200/60";
-        } else {
-          statusLabel = `Hutang +${4 - count} KIE`;
-          statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
-        }
-      } else {
+      if (remainingDeficit === 0) {
         statusLabel = "Target Tercapai";
         statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
+      } else {
+        if (isToday) {
+          statusLabel = `Belum Lengkap (Kurang ${remainingDeficit} Key)`;
+          statusColor = "text-amber-600 bg-amber-50 border-amber-200/60";
+        } else {
+          statusLabel = `Hutang +${remainingDeficit} KIE`;
+          statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
+        }
       }
     }
 
@@ -121,10 +165,8 @@ const getDailyAuditList = (subs: KieSubmission[], userCreatedAt?: string) => {
       items,
       statusLabel,
       statusColor,
-      isToday
+      isToday,
     });
-
-    current.setTime(current.getTime() - 24 * 60 * 60 * 1000);
   }
 
   return auditList;
