@@ -3142,15 +3142,16 @@ app.post('/api/kie/submit', validateDeviceSession, async (req, res) => {
 
 // Webhook endpoint to receive Telegram Bot messages
 app.post('/api/telegram/webhook', async (req, res) => {
-  // 1. Send 200 OK immediately to Telegram
-  res.sendStatus(200);
-
   try {
     const update = req.body;
-    if (!update || !update.message) return;
+    if (!update || !update.message) {
+      return res.sendStatus(200);
+    }
 
     const { chat, text, from, message_id } = update.message;
-    if (!chat || !chat.id || !text) return;
+    if (!chat || !chat.id || !text) {
+      return res.sendStatus(200);
+    }
 
     const chatIdStr = chat.id.toString();
     const messageText = text.trim();
@@ -3167,7 +3168,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
     const botToken = botTokenSetting[0]?.key_value;
     if (!botToken || botToken.trim() === '') {
       console.warn("Telegram webhook received message but telegram_bot_token is not set.");
-      return;
+      return res.sendStatus(200);
     }
 
     // 2. Check if it's a registration command
@@ -3175,7 +3176,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
       const match = messageText.match(/^\/register\s+(.+)$/i);
       if (!match) {
         await sendTelegramReply(botToken, chat.id, "⚠️ Format salah. Gunakan: /register [username_aplikasi]", message_id);
-        return;
+        return res.sendStatus(200);
       }
       const targetUsername = match[1].trim();
 
@@ -3192,7 +3193,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
           `❌ Username "${targetUsername}" tidak ditemukan di sistem absensi.`, 
           message_id
         );
-        return;
+        return res.sendStatus(200);
       }
 
       const targetUser = userRows[0];
@@ -3208,7 +3209,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
         `✅ Berhasil! Grup ini sekarang terdaftar untuk siswa:\n👤 Nama: *${targetUser.nama_lengkap}*\n🏷️ Username: @${targetUser.username}`, 
         message_id
       );
-      return;
+      return res.sendStatus(200);
     }
 
     // 3. Extract candidate keys (32 characters, alphanumeric)
@@ -3221,7 +3222,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
 
     // If no candidate keys, simply ignore the message (could be a general discussion in the group chat)
     if (candidateKeys.length === 0) {
-      return;
+      return res.sendStatus(200);
     }
 
     // 4. Identify user by telegram_chat_id or fallback to sender's Telegram username
@@ -3254,7 +3255,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
         `⚠️ Pengirim${senderInfo} belum terdaftar di sistem absensi.\nSilakan hubungi admin atau gunakan perintah \`/register [username_aplikasi]\` di grup ini.`,
         message_id
       );
-      return;
+      return res.sendStatus(200);
     }
 
     const targetUser = userRows[0];
@@ -3332,9 +3333,11 @@ ${reportLines.join('\n')}
 💳 Sisa hutang KIE: *${refreshedUserAfter.role === 'student' ? currentDebtAfter : 0}*`;
 
     await sendTelegramReply(botToken, chat.id, reportText, message_id);
+    res.sendStatus(200);
 
   } catch (err) {
     console.error("Gagal memproses Telegram Webhook:", err);
+    res.sendStatus(200);
   }
 });
 
