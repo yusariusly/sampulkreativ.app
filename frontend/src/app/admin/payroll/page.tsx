@@ -149,7 +149,7 @@ export default function AdminPayrollPage() {
         <div className={`lg:col-span-8 h-full space-y-4 lg:space-y-6 ${
           selectedEmployee 
             ? "flex flex-col" 
-            : (mobileSection === "settings" ? "flex flex-col lg:flex" : "hidden lg:flex")
+            : (mobileSection === "settings" ? "flex flex-col lg:flex lg:flex-col" : "hidden lg:flex lg:flex-col")
         }`}>
           {selectedEmployee ? (
             <>
