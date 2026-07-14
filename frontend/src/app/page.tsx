@@ -542,8 +542,7 @@ export default function LoginPage() {
                     <div className="absolute top-4 right-4 w-8 h-8 border-t-3 border-r-3 border-[#2AB0B2] rounded-tr-lg" style={{ borderTopWidth: 3, borderRightWidth: 3 }} />
                     <div className="absolute bottom-4 left-4 w-8 h-8 border-b-3 border-l-3 border-[#2AB0B2] rounded-bl-lg" style={{ borderBottomWidth: 3, borderLeftWidth: 3 }} />
                     <div className="absolute bottom-4 right-4 w-8 h-8 border-b-3 border-r-3 border-[#2AB0B2] rounded-br-lg" style={{ borderBottomWidth: 3, borderRightWidth: 3 }} />
-                    {/* Animated scan line */}
-                    <div className="absolute left-6 right-6 h-0.5 bg-gradient-to-r from-transparent via-[#2AB0B2] to-transparent animate-scan-line" />
+                    
                   </>
                 )}
 
