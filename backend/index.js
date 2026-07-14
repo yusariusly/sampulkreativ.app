@@ -152,7 +152,7 @@ async function deleteFileFromSupabaseUrl(url, bucketName) {
   }
 }
 
-// Helper to generate employee number (yyyymmdd0200)
+// Helper to generate employee number (yyyymmdd02nourutbergabung)
 async function generateNoKaryawan() {
   const now = new Date();
   const yyyy = now.getFullYear();
@@ -166,7 +166,7 @@ async function generateNoKaryawan() {
   );
   
   const count = rows[0]?.count || 0;
-  const suffix = String(count).padStart(2, '0');
+  const suffix = String(count + 1).padStart(2, '0');
   
   return `${prefix}${suffix}`;
 }
@@ -1248,6 +1248,88 @@ app.post('/api/auth/login-employee', async (req, res) => {
   }
 });
 
+// 2b. Auth QR Login — karyawan/student scan QR kartu untuk login (QR sama dengan QR absensi)
+app.post('/api/auth/qr-login', async (req, res) => {
+  try {
+    const { token, device_id, device_info } = req.body;
+    if (!token || !device_id) {
+      return res.status(400).json({ error: 'Token QR dan perangkat wajib disertakan' });
+    }
+
+    // Decrypt card_token to get username
+    let username;
+    try {
+      username = cryptoService.decrypt(token);
+    } catch (e) {
+      return res.status(401).json({ error: 'QR Code tidak valid atau tidak dikenali' });
+    }
+
+    if (!username) {
+      return res.status(401).json({ error: 'QR Code tidak valid' });
+    }
+
+    // Find the user (must be employee/student/mentor, not admin)
+    const [rows] = await pool.query(
+      "SELECT * FROM users WHERE LOWER(username) = ? AND role IN ('employee', 'student', 'mentor')",
+      [username.trim().toLowerCase()]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ error: 'QR Code tidak ditemukan atau bukan akun karyawan' });
+    }
+
+    const user = rows[0];
+
+    if (user.is_active !== 1) {
+      return res.status(403).json({ error: 'Akun Anda belum diaktifkan oleh Administrator' });
+    }
+
+    // Device binding — same atomic logic as login-employee
+    if (user.device_id && user.device_id.trim() !== '') {
+      if (user.device_id !== device_id) {
+        return res.status(403).json({
+          error: 'QR Code ini sudah terdaftar pada perangkat lain. Hubungi Administrator untuk melakukan Reset Perangkat.'
+        });
+      }
+    } else {
+      const [updateResult] = await pool.query(
+        "UPDATE users SET device_id = ?, device_info = ? WHERE id = ? AND (device_id IS NULL OR device_id = '' OR device_id = ?)",
+        [device_id, device_info, user.id, device_id]
+      );
+      if (updateResult.affectedRows === 0) {
+        return res.status(403).json({
+          error: 'QR Code ini sudah terdaftar pada perangkat lain. Hubungi Administrator untuk melakukan Reset Perangkat.'
+        });
+      }
+      user.device_id = device_id;
+      user.device_info = device_info;
+    }
+
+    res.json({
+      id: user.id,
+      username: user.username,
+      nama_lengkap: user.nama_lengkap,
+      role: user.role,
+      is_active: user.is_active,
+      foto_profile: user.foto_profile || '/uploads/placeholder.jpg',
+      device_id: user.device_id,
+      device_info: user.device_info,
+      tanggal_lahir: user.tanggal_lahir || '',
+      gender: user.gender || '',
+      alamat: user.alamat || '',
+      jabatan: user.jabatan || 'Karyawan',
+      email: user.email || '',
+      no_telp: user.no_telp || '',
+      kategori: user.kategori || 'Karyawan',
+      no_karyawan: user.no_karyawan || '',
+      card_token: cryptoService.encrypt(user.username)
+    });
+  } catch (error) {
+    console.error('Gagal melakukan QR login:', error);
+    res.status(500).json({ error: 'Terjadi kesalahan internal server' });
+  }
+});
+
 app.post('/api/auth/logout', validateDeviceSession, async (req, res) => {
   try {
     const user = req.user;
@@ -2219,7 +2301,8 @@ app.get('/api/users', async (req, res) => {
         ...u,
         is_active: u.is_active === 1,
         start_date,
-        end_date
+        end_date,
+        card_token: cryptoService.encrypt(u.username)
       };
     });
     res.json(mapped);

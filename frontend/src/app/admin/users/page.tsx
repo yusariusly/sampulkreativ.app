@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info, Bell, Unlock, Key } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info, Bell, Unlock, Key, CreditCard, Download, Globe, Mail, Phone } from "lucide-react";
+import html2canvas from "html2canvas-pro";
+import { jsPDF } from "jspdf";
 
 const ROLE_STYLE: Record<string, string> = {
   pengguna: "bg-gray-100 text-gray-600",
@@ -34,12 +36,52 @@ interface UserAccount {
   kie_submissions_count?: number;
   telegram_chat_id?: string;
   telegram_chat_name?: string;
+  card_token?: string;
 }
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  // Card print modal state
+  const [cardModalUser, setCardModalUser] = useState<UserAccount | null>(null);
+  const [cardDownloading, setCardDownloading] = useState(false);
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+
+  const downloadCardAsPDF = async (targetUser: UserAccount) => {
+    setCardDownloading(true);
+    try {
+      const frontEl = document.getElementById("admin-card-front");
+      const backEl = document.getElementById("admin-card-back");
+      if (!frontEl || !backEl) { alert("Elemen kartu tidak ditemukan."); return; }
+
+      const canvasFront = await html2canvas(frontEl, { scale: 4, useCORS: true, allowTaint: true, backgroundColor: null, logging: false });
+      const imgFront = canvasFront.toDataURL("image/png");
+      const canvasBack = await html2canvas(backEl, { scale: 4, useCORS: true, allowTaint: true, backgroundColor: null, logging: false });
+      const imgBack = canvasBack.toDataURL("image/png");
+
+      const cardWidthMm = 86;
+      const cardHeightMm = Math.round((canvasFront.height / canvasFront.width) * cardWidthMm);
+      const pageWidth = 210; const pageHeight = 297;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const gap = 10;
+      const totalW = cardWidthMm * 2 + gap;
+      const xStart = (pageWidth - totalW) / 2;
+      const yCenter = (pageHeight - cardHeightMm) / 2;
+      pdf.addImage(imgFront, "PNG", xStart, yCenter, cardWidthMm, cardHeightMm);
+      pdf.addImage(imgBack, "PNG", xStart + cardWidthMm + gap, yCenter, cardWidthMm, cardHeightMm);
+      pdf.setFontSize(6); pdf.setTextColor(150, 150, 150);
+      pdf.text("DEPAN", xStart + cardWidthMm / 2, yCenter + cardHeightMm + 3, { align: "center" });
+      pdf.text("BELAKANG", xStart + cardWidthMm + gap + cardWidthMm / 2, yCenter + cardHeightMm + 3, { align: "center" });
+      pdf.save(`Kartu_${targetUser.nama_lengkap.replace(/\s+/g, "_")}.pdf`);
+    } catch (err) {
+      console.error("Gagal mengunduh PDF kartu:", err);
+      alert("Gagal mengunduh PDF kartu.");
+    } finally {
+      setCardDownloading(false);
+    }
+  };
 
   // Form states
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -391,6 +433,7 @@ export default function AdminUsersPage() {
   const isAdminForm = effectiveRole === "admin";
 
   return (
+    <>
     <div className="flex-1 bg-[#F0F2F5] p-4 md:p-8 select-none relative">
       <datalist id="school-datalist">
         {uniqueSchools.map((sch) => (
@@ -508,6 +551,15 @@ export default function AdminUsersPage() {
                               title="Reset Perangkat HP"
                             >
                               <Smartphone size={16} />
+                            </button>
+                          )}
+                          {u.role !== "admin" && (
+                            <button
+                              onClick={() => setCardModalUser(u)}
+                              className="text-gray-300 hover:text-[#2AB0B2] transition-colors cursor-pointer"
+                              title="Cetak Kartu Karyawan"
+                            >
+                              <CreditCard size={16} />
                             </button>
                           )}
                           <button
@@ -847,5 +899,162 @@ export default function AdminUsersPage() {
         </div>
       </div>
     </div>
+
+      {/* Admin Card Print Modal */}
+      {cardModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) setCardModalUser(null); }}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[95vh] overflow-y-auto p-6">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="text-base font-bold text-gray-800">Pratinjau Kartu Karyawan</h3>
+                <p className="text-xs text-gray-400 mt-0.5">{cardModalUser.nama_lengkap}</p>
+              </div>
+              <button onClick={() => setCardModalUser(null)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors cursor-pointer"><X size={16} /></button>
+            </div>
+
+            {/* Cards Preview */}
+            <div className="flex flex-wrap gap-6 justify-center mb-6">
+
+              {/* FRONT CARD — identical to user profile */}
+              <div
+                id="admin-card-front"
+                className="w-[240px] h-[380px] rounded-2xl shadow-xl overflow-hidden flex flex-col relative bg-gradient-to-b from-[#FFFFFF] to-[#F5F7F8] border border-gray-200 flex-shrink-0"
+                style={{ fontFamily: "Arial, sans-serif" }}
+              >
+                {/* Circular patterns white section */}
+                <div className="absolute top-[-40px] left-[-40px] w-48 h-48 rounded-full border border-[#2AB0B2]/10 bg-transparent pointer-events-none z-0" />
+                <div className="absolute top-[-20px] left-[-20px] w-64 h-64 rounded-full border border-[#2AB0B2]/5 bg-transparent pointer-events-none z-0" />
+                <div className="absolute top-[140px] right-[-50px] w-52 h-52 rounded-full border border-[#2AB0B2]/10 bg-transparent pointer-events-none z-0" />
+
+                {/* Top Header */}
+                <div className="relative z-10 flex flex-col items-center pt-3.5 pb-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/logo.svg" alt="Logo" className="w-8 h-8 object-contain" />
+                  <div className="leading-none text-center mt-1">
+                    <div className="text-[8.5px] font-black text-[#1C3D3F] tracking-widest">SAMPULKREATIV</div>
+                    <div className="text-[5.5px] text-[#2AB0B2] tracking-widest font-black mt-0.5">TECHNOLOGY</div>
+                  </div>
+                </div>
+
+                {/* Profile Photo — 140px like user card */}
+                <div className="relative z-10 flex flex-col items-center mt-1 px-4">
+                  <div
+                    className="w-[140px] h-[140px] rounded-full overflow-hidden flex items-center justify-center shadow-lg"
+                    style={{ border: "3px solid white", background: "#E5E7EB" }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={cardModalUser.foto_profile || "/uploads/placeholder.jpg"}
+                      alt="Foto"
+                      className="w-full h-full object-cover"
+                      crossOrigin="anonymous"
+                    />
+                  </div>
+                </div>
+
+                {/* Bottom diagonal green section */}
+                <div
+                  className="w-full bg-[#1C3D3F] text-center pt-8 pb-5 px-3 mt-auto relative z-10 flex flex-col items-center justify-center min-h-[145px]"
+                  style={{ clipPath: "polygon(0 18px, 100% 0, 100% 100%, 0 100%)" }}
+                >
+                  <div className="absolute bottom-[-30px] left-[-30px] w-36 h-36 rounded-full border border-white/5 bg-transparent pointer-events-none" />
+                  <div className="absolute bottom-[-10px] left-[-10px] w-48 h-48 rounded-full border border-white/5 bg-transparent pointer-events-none" />
+                  <div className="absolute top-[-20px] right-[-20px] w-40 h-40 rounded-full border border-white/5 bg-transparent pointer-events-none" />
+
+                  <h5 className="font-extrabold text-[#F6C13B] text-[11px] tracking-wide uppercase leading-tight w-full max-w-[220px] mt-0.5">
+                    {cardModalUser.nama_lengkap}
+                  </h5>
+                  <div className="h-[1px] bg-[#F6C13B]/70 w-32 mx-auto my-1" />
+                  <span className="text-white text-[8px] font-bold tracking-widest uppercase block leading-none mb-1">
+                    {cardModalUser.jabatan || (cardModalUser.role === 'student' ? 'SISWA PKL' : 'Karyawan')}
+                  </span>
+                  {cardModalUser.role === "student" ? (
+                    cardModalUser.school_name && (
+                      <span className="text-[#F6C13B] text-[7.5px] font-bold tracking-wider block leading-none mb-1 uppercase truncate max-w-[200px]">
+                        {cardModalUser.school_name}
+                      </span>
+                    )
+                  ) : (
+                    cardModalUser.no_karyawan && (
+                      <span className="text-[#F6C13B] text-[7.5px] font-mono tracking-wider block leading-none mb-1">
+                        {cardModalUser.no_karyawan}
+                      </span>
+                    )
+                  )}
+                </div>
+              </div>
+
+              {/* BACK CARD — identical to user profile */}
+              <div
+                id="admin-card-back"
+                className="w-[240px] h-[380px] bg-[#1C3D3F] rounded-2xl shadow-lg border border-gray-900 overflow-hidden flex flex-col justify-between relative flex-shrink-0"
+                style={{ fontFamily: "Arial, sans-serif" }}
+              >
+                <div className="absolute top-[-50px] left-[-50px] w-48 h-48 rounded-full border border-white/5 bg-white/2" />
+                <div className="absolute top-[-20px] left-[-20px] w-64 h-64 rounded-full border border-white/5 bg-transparent" />
+                <div className="absolute bottom-[-100px] right-[-100px] w-72 h-72 rounded-full border border-white/5 bg-[#2AB0B2]/5" />
+
+                {/* QR Code */}
+                <div className="flex-1 flex flex-col items-center justify-center z-10 px-4 mt-2">
+                  <div className="relative w-40 h-40 bg-white p-2 rounded-xl flex items-center justify-center shadow-md">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=1c3d3f&ecc=H&data=${encodeURIComponent(
+                        cardModalUser.card_token && baseUrl
+                          ? `${baseUrl}/station?token=${encodeURIComponent(cardModalUser.card_token)}`
+                          : cardModalUser.username
+                      )}`}
+                      alt="QR Login & Absen"
+                      className="w-full h-full object-contain"
+                      crossOrigin="anonymous"
+                    />
+                    <div className="absolute w-7 h-7 bg-white rounded-md flex items-center justify-center p-0.5 shadow-sm border border-gray-100">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/logo.svg" alt="SK Logo" className="w-full h-full object-contain" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center leading-none mt-4">
+                    <span className="text-[7px] text-[#F6C13B] tracking-wider font-bold mt-1 flex items-center gap-1">
+                      <Globe size={8} className="text-[#F6C13B] flex-shrink-0" />
+                      <span>sampulkreativ.id</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="w-full text-center text-white px-3 pb-5 pt-2 bg-gradient-to-t from-black/40 to-transparent z-10">
+                  <p className="text-[7px] font-bold tracking-wider text-gray-200 uppercase">SAMPULKREATIV TECHNOLOGY</p>
+                  <div className="flex justify-center items-center gap-1.5 mt-2.5 text-[5.5px] font-mono text-gray-200 font-bold border-t border-white/10 pt-2">
+                    <span className="flex items-center gap-1 truncate max-w-[100px] leading-none">
+                      <Mail size={7} className="text-[#F6C13B] flex-shrink-0" strokeWidth={2.5} />
+                      <span>{cardModalUser.email || "-"}</span>
+                    </span>
+                    <span className="text-white/20">|</span>
+                    <span className="flex items-center gap-1 leading-none">
+                      <Phone size={7} className="text-[#F6C13B] flex-shrink-0" strokeWidth={2.5} />
+                      <span>{cardModalUser.no_telp || "-"}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Download Button */}
+            <div className="flex gap-3">
+              <button onClick={() => setCardModalUser(null)} className="flex-1 py-3 text-xs font-bold text-gray-500 bg-gray-50 hover:bg-gray-100 rounded-xl transition-all cursor-pointer border border-gray-200">Tutup</button>
+              <button
+                onClick={() => downloadCardAsPDF(cardModalUser)}
+                disabled={cardDownloading}
+                className="flex-2 py-3 text-xs font-bold text-white bg-[#2AB0B2] hover:bg-[#209092] rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5 disabled:opacity-60"
+              >
+                <Download size={13} />
+                {cardDownloading ? "Menyiapkan PDF..." : "Unduh PDF (Gambar)"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

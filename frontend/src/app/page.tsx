@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, User, Phone, Shield } from "lucide-react";
+import { Eye, EyeOff, Shield, QrCode, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
+import jsQR from "jsqr";
 
 function AppLogo({ size = 80 }: { size?: number }) {
   return (
@@ -21,12 +22,10 @@ function AppLogo({ size = 80 }: { size?: number }) {
 function getOrCreateDeviceId() {
   if (typeof window === "undefined") return "";
   
-  // 1. Core hardware attributes
   const screenSpec = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
   const userAgent = navigator.userAgent;
   const language = navigator.language || "";
   
-  // 2. Canvas Fingerprint (Highly unique to OS font rendering & GPU)
   let canvasHash = "";
   try {
     const canvas = document.createElement("canvas");
@@ -43,7 +42,6 @@ function getOrCreateDeviceId() {
       ctx.fillStyle = "rgba(102, 204, 0, 0.6)";
       ctx.fillText("Absensi_SK_FP_v2", 4, 12);
       const dataUrl = canvas.toDataURL();
-      
       let hash = 0;
       for (let i = 0; i < dataUrl.length; i++) {
         hash = (hash << 5) - hash + dataUrl.charCodeAt(i);
@@ -55,7 +53,6 @@ function getOrCreateDeviceId() {
     canvasHash = "canvas-err";
   }
 
-  // 3. WebGL GPU vendor & renderer
   let webglHash = "";
   try {
     const canvas = document.createElement("canvas");
@@ -73,8 +70,6 @@ function getOrCreateDeviceId() {
   }
 
   const rawSignature = `${screenSpec}|${userAgent}|${language}|${canvasHash}|${webglHash}`;
-  
-  // Hash the raw signature string
   let finalHash = 0;
   for (let i = 0; i < rawSignature.length; i++) {
     finalHash = (finalHash << 5) - finalHash + rawSignature.charCodeAt(i);
@@ -82,10 +77,7 @@ function getOrCreateDeviceId() {
   }
   
   const fingerprint = "hw-" + Math.abs(finalHash).toString(36);
-  
-  // Cache in localStorage
   localStorage.setItem("v2_device_id", fingerprint);
-  
   return fingerprint;
 }
 
@@ -93,7 +85,6 @@ function getDeviceInfo() {
   if (typeof window === "undefined") return "Unknown Device";
   const ua = navigator.userAgent;
   let deviceName = "Perangkat Tidak Dikenal";
-  
   if (/android/i.test(ua)) {
     const matches = ua.match(/Android\s+[^;]+;\s+([^;)]+)/);
     if (matches && matches[1]) {
@@ -115,27 +106,28 @@ function getDeviceInfo() {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"register" | "admin-login">("register");
+  const [mode, setMode] = useState<"qr-scan" | "admin-login">("qr-scan");
   const [isCheckingDevice, setIsCheckingDevice] = useState(true);
-  
-  const [isPendingApproval, setIsPendingApproval] = useState(false);
-  const [pendingUser, setPendingUser] = useState<{ nama_lengkap: string; username: string; device_info?: string } | null>(null);
-  const [dots, setDots] = useState(".");
 
-  // Registration/Login States
-  const [noHp, setNoHp] = useState("");
-  const [employeePassword, setEmployeePassword] = useState("");
-  const [showEmployeePassword, setShowEmployeePassword] = useState(false);
-  
+  // QR Scanner
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const activeStreamRef = useRef<MediaStream | null>(null);
+  const [scanning, setScanning] = useState(true);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraLoading, setCameraLoading] = useState(true);
+  const [isFrontCamera, setIsFrontCamera] = useState(false);
+  const [scanStatus, setScanStatus] = useState<"idle" | "success" | "error">("idle");
+  const [scanMessage, setScanMessage] = useState("");
+
   // Admin States
   const [adminUser, setAdminUser] = useState("");
   const [adminPw, setAdminPw] = useState("");
   const [showPw, setShowPw] = useState(false);
-  
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Check existing session and match device online on mount
+  // Check existing session on mount
   useEffect(() => {
     let active = true;
 
@@ -145,7 +137,6 @@ export default function LoginPage() {
       const deviceId = getOrCreateDeviceId();
       const stored = localStorage.getItem("v2_user");
 
-      // Extract and save token from URL query params
       const params = new URLSearchParams(window.location.search);
       const token = params.get("token");
       if (token) {
@@ -172,15 +163,12 @@ export default function LoginPage() {
                     const logs = await attnRes.json();
                     const todayStart = new Date();
                     todayStart.setHours(0, 0, 0, 0);
-
                     const todayLogs = logs.filter(
                       (log: any) => new Date(log.waktu_absen).getTime() >= todayStart.getTime()
                     );
-
                     const hasClockedOut = todayLogs.some((log: any) => log.status === "Pulang");
                     const hasClockedIn = todayLogs.some((log: any) => log.status === "Hadir" || log.status === "Terlambat");
                     const hasIzinSakit = todayLogs.some((log: any) => log.status === "Izin" || log.status === "Sakit");
-
                     if (hasIzinSakit || hasClockedOut) {
                       router.replace("/user");
                       return;
@@ -198,22 +186,14 @@ export default function LoginPage() {
                 } catch (e) {
                   console.error("Gagal memeriksa status absensi:", e);
                 }
-                router.replace("/user/selfie");
-              } else {
-                router.replace("/user");
               }
-              return;
-            } else {
-              setIsPendingApproval(true);
-              setPendingUser(data.user);
-              setIsCheckingDevice(false);
+              router.replace("/user");
               return;
             }
           }
         }
       } catch (err) {
         console.error("Gagal mencocokkan perangkat secara online:", err);
-        // Fallback to local storage session if offline
         if (stored) {
           try {
             const parsed = JSON.parse(stored);
@@ -222,29 +202,7 @@ export default function LoginPage() {
               return;
             }
             if (parsed.is_active === 1) {
-              const activeToken = token || sessionStorage.getItem("v2_scanned_token");
-              if (activeToken) {
-                const todayStr = new Date().toDateString();
-                const lastClockInDate = localStorage.getItem("v2_clockInDate");
-                const lastClockOutDate = localStorage.getItem("v2_clockOutDate");
-
-                if (lastClockOutDate === todayStr) {
-                  router.replace("/user");
-                } else if (lastClockInDate === todayStr) {
-                  sessionStorage.setItem("v2_absen_type", "pulang");
-                  router.replace("/user/selfie");
-                } else {
-                  sessionStorage.setItem("v2_absen_type", "masuk");
-                  router.replace("/user/selfie");
-                }
-              } else {
-                router.replace("/user");
-              }
-              return;
-            } else {
-              setIsPendingApproval(true);
-              setPendingUser(parsed);
-              setIsCheckingDevice(false);
+              router.replace("/user");
               return;
             }
           } catch (e) {}
@@ -257,108 +215,192 @@ export default function LoginPage() {
     };
 
     checkDeviceBinding();
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [router]);
 
-  // Handle dots animation & silent polling for approval
+  // Camera management
+  const stopCamera = () => {
+    if (activeStreamRef.current) {
+      activeStreamRef.current.getTracks().forEach((track) => track.stop());
+      activeStreamRef.current = null;
+    }
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      setCameraLoading(true);
+      setCameraError(null);
+      setScanning(true);
+      setScanStatus("idle");
+
+      if (typeof window !== "undefined" && !window.isSecureContext) {
+        setCameraError("Kamera diblokir karena koneksi tidak aman (HTTP). Gunakan HTTPS.");
+        setCameraLoading(false);
+        return;
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError("Kamera tidak didukung browser Anda atau diblokir karena HTTP.");
+        setCameraLoading(false);
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+
+      activeStreamRef.current = stream;
+
+      // Detect if front camera is being used (e.g. laptop falls back to front cam)
+      const track = stream.getVideoTracks()[0];
+      const settings = track?.getSettings();
+      const facing = settings?.facingMode;
+      // If facingMode is explicitly 'user' OR not available (common on laptops with only front cam), treat as front
+      setIsFrontCamera(facing === 'user' || !facing);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        await videoRef.current.play();
+      }
+      setCameraLoading(false);
+    } catch (err: any) {
+      console.error("Error accessing camera:", err);
+      setCameraError("Gagal mengakses kamera. Pastikan izin kamera diizinkan untuk situs ini.");
+      setCameraLoading(false);
+    }
+  };
+
+  // Start / stop camera with mode
   useEffect(() => {
-    let active = true;
-    let dotsInterval: NodeJS.Timeout;
-    let pollInterval: NodeJS.Timeout;
+    if (!isCheckingDevice && mode === "qr-scan") {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+    return () => { stopCamera(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, isCheckingDevice]);
 
-    if (isPendingApproval) {
-      // 1. Dots animation looping: . -> .. -> ... -> .
-      dotsInterval = setInterval(() => {
-        if (!active) return;
-        setDots((prev) => {
-          if (prev === ".") return "..";
-          if (prev === "..") return "...";
-          return ".";
-        });
-      }, 600);
+  // QR scan loop
+  useEffect(() => {
+    if (!scanning || cameraLoading || mode !== "qr-scan") return;
 
-      // 2. Background polling: check if approved every 3 seconds
-      const deviceId = getOrCreateDeviceId();
-      pollInterval = setInterval(async () => {
-        try {
-          const response = await fetch(`/api/auth/check-device?device_id=${deviceId}`);
-          const data = await response.json();
-          if (active && response.ok && data.registered && data.user.is_active === 1) {
-            localStorage.setItem("v2_user", JSON.stringify(data.user));
-            const activeToken = sessionStorage.getItem("v2_scanned_token");
-            if (activeToken) {
-              router.replace("/user/selfie");
-            } else {
-              router.replace("/user");
-            }
+    let timeoutId: any;
+
+    const scanLoop = () => {
+      if (!scanning) return;
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+
+      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (ctx) {
+          const maxDim = 480;
+          let scanWidth = video.videoWidth;
+          let scanHeight = video.videoHeight;
+          if (scanWidth > maxDim) {
+            scanHeight = Math.round((video.videoHeight / video.videoWidth) * maxDim);
+            scanWidth = maxDim;
           }
-        } catch (e) {
-          console.error("Gagal melakukan pencocokan latar belakang:", e);
+          canvas.width = scanWidth;
+          canvas.height = scanHeight;
+          ctx.drawImage(video, 0, 0, scanWidth, scanHeight);
+
+          const imageData = ctx.getImageData(0, 0, scanWidth, scanHeight);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
+          });
+
+          if (code) {
+            const scannedData = code.data.trim();
+            let token = scannedData;
+
+            // Extract token from URL format: /station?token=<token>
+            try {
+              if (scannedData.startsWith("http://") || scannedData.startsWith("https://")) {
+                const urlObj = new URL(scannedData);
+                const tokenParam = urlObj.searchParams.get("token");
+                if (tokenParam) token = tokenParam.trim();
+              }
+            } catch (e) {
+              console.error("Gagal parse URL QR:", e);
+            }
+
+            // Attempt QR login
+            setScanning(false);
+            stopCamera();
+            handleQRLogin(token);
+            return;
+          }
         }
-      }, 3000);
-    }
-
-    return () => {
-      active = false;
-      clearInterval(dotsInterval);
-      clearInterval(pollInterval);
+      }
+      timeoutId = setTimeout(scanLoop, 150);
     };
-  }, [isPendingApproval, router]);
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+    timeoutId = setTimeout(scanLoop, 150);
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanning, cameraLoading, mode]);
 
-    if (!noHp.trim() || !employeePassword.trim()) {
-      setError("Username dan password wajib diisi");
-      return;
-    }
-
+  const handleQRLogin = async (token: string) => {
+    setScanStatus("idle");
+    setScanMessage("Memverifikasi QR...");
     setLoading(true);
 
     try {
       const deviceId = getOrCreateDeviceId();
       const deviceInfo = getDeviceInfo();
 
-      const response = await fetch("/api/auth/login-employee", {
+      const response = await fetch("/api/auth/qr-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: noHp.trim(),
-          password: employeePassword.trim(),
-          device_id: deviceId,
-          device_info: deviceInfo
-        }),
+        body: JSON.stringify({ token, device_id: deviceId, device_info: deviceInfo }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Gagal masuk absensi");
+        setScanStatus("error");
+        setScanMessage(data.error || "QR Code tidak valid");
         setLoading(false);
+        // Restart camera after 2.5s
+        setTimeout(() => {
+          setScanStatus("idle");
+          setScanMessage("");
+          setScanning(true);
+          startCamera();
+        }, 2500);
         return;
       }
 
       localStorage.setItem("v2_user", JSON.stringify(data));
-      
-      if (data.is_active === 1) {
-        const activeToken = sessionStorage.getItem("v2_scanned_token");
-        if (activeToken) {
-          router.push("/user/selfie");
-        } else {
+      setScanStatus("success");
+      setScanMessage(`Selamat datang, ${data.nama_lengkap}!`);
+
+      if (navigator.vibrate) navigator.vibrate(200);
+
+      setTimeout(() => {
+        if (data.is_active === 1) {
           router.push("/user");
         }
-      } else {
-        setIsPendingApproval(true);
-        setPendingUser(data);
-        setLoading(false);
-      }
+      }, 1200);
     } catch (err) {
-      setError("Terjadi kesalahan koneksi internet");
+      setScanStatus("error");
+      setScanMessage("Terjadi kesalahan koneksi internet");
       setLoading(false);
+      setTimeout(() => {
+        setScanStatus("idle");
+        setScanMessage("");
+        setScanning(true);
+        startCamera();
+      }, 2500);
     }
   };
 
@@ -377,10 +419,7 @@ export default function LoginPage() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: adminUser.trim(),
-          password: adminPw
-        }),
+        body: JSON.stringify({ username: adminUser.trim(), password: adminPw }),
       });
 
       const data = await response.json();
@@ -399,6 +438,7 @@ export default function LoginPage() {
     }
   };
 
+  // Loading screen — checking device
   if (isCheckingDevice) {
     return (
       <div className="min-h-screen w-full bg-gradient-to-br from-[#1C3D3F] via-[#2AB0B2] to-[#209092] flex flex-col items-center justify-center text-white p-6">
@@ -408,9 +448,7 @@ export default function LoginPage() {
           </div>
           <div className="space-y-2">
             <h2 className="text-xl font-bold tracking-wide animate-pulse">Mencocokkan Perangkat...</h2>
-            <p className="text-xs text-white/70">
-              Sistem sedang memverifikasi HP Anda secara aman. Silakan tunggu sebentar.
-            </p>
+            <p className="text-xs text-white/70">Sistem sedang memverifikasi HP Anda secara aman.</p>
           </div>
           <div className="flex items-center gap-1.5 pt-4">
             <div className="w-2.5 h-2.5 rounded-full bg-white animate-bounce [animation-delay:-0.3s]" />
@@ -422,49 +460,14 @@ export default function LoginPage() {
     );
   }
 
-  if (isPendingApproval && pendingUser) {
-    return (
-      <div className="min-h-screen w-full bg-gradient-to-br from-[#1C3D3F] via-[#2AB0B2] to-[#209092] flex flex-col items-center justify-center text-white p-6">
-        <div className="w-full max-w-md bg-white/10 backdrop-blur-lg border border-white/20 p-8 rounded-3xl shadow-2xl text-center space-y-6 animate-fade-in">
-          <div className="mx-auto w-16 h-16 bg-amber-500/20 text-[#F6C13B] rounded-full flex items-center justify-center border border-amber-500/30">
-            <Shield size={32} className="animate-pulse" />
-          </div>
-
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold tracking-wide">Pendaftaran Berhasil!</h2>
-            <p className="text-sm text-white/80">
-              Halo, <span className="font-semibold text-white">{pendingUser.nama_lengkap}</span>. HP Anda telah berhasil terhubung di sistem absensi.
-            </p>
-          </div>
-
-          <div className="bg-black/10 rounded-2xl p-4 text-left space-y-2 border border-white/10 text-xs font-medium text-white/90">
-            <div>
-              <span className="text-white/60 block">Username</span>
-              <span>@{pendingUser.username}</span>
-            </div>
-            <div>
-              <span className="text-white/60 block">Perangkat HP</span>
-              <span>{pendingUser.device_info || "Perangkat Terikat"}</span>
-            </div>
-            <div>
-              <span className="text-white/60 block">Status Akun</span>
-              <span className="text-[#F6C13B] font-bold">Menunggu Persetujuan Admin{dots}</span>
-            </div>
-          </div>
-
-          <p className="text-xs text-white/70 italic">
-            Harap hubungi Administrator kantor untuk memberikan persetujuan akses pada akun Anda agar dapat melakukan absensi.
-          </p>
-        </div>
-      </div>
-    );
-  }
   return (
-    <main className="min-h-screen w-full flex bg-white lg:bg-[#F9FAFB]">
+    <main className="min-h-screen w-full flex bg-[#0A1A1B]">
+
+      {/* Left branding panel — desktop only */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#1C3D3F] via-[#2AB0B2] to-[#209092] p-12 text-white flex-col justify-between relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/5 rounded-full filter blur-3xl -mr-64 -mt-64 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[#F6C13B]/10 rounded-full filter blur-3xl -ml-48 -mb-48 pointer-events-none" />
-        
+
         <div className="flex items-center gap-3 relative z-10">
           <div className="bg-white/10 backdrop-blur-md p-2 rounded-2xl border border-white/20">
             <AppLogo size={48} />
@@ -475,13 +478,27 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="my-auto max-w-md space-y-4 relative z-10">
+        <div className="my-auto max-w-md space-y-6 relative z-10">
           <h1 className="text-4xl font-extrabold leading-tight">
             Satu Aplikasi untuk Semua <span className="text-[#F6C13B]">Kebutuhan Internal</span>
           </h1>
           <p className="text-white/80 text-sm leading-relaxed">
             Portal internal terintegrasi dari SampulKreativ. Cukup daftarkan perangkat Anda sekali untuk mengakses layanan absensi online, sistem payroll, dan program PKL secara aman dan praktis.
           </p>
+          <div className="flex flex-col gap-3">
+            {[
+              "Absensi online dengan QR Code kartu karyawan",
+              "Sistem payroll & laporan kehadiran terintegrasi",
+              "Program PKL & monitoring siswa magang",
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-2.5 text-sm text-white/90">
+                <div className="w-5 h-5 rounded-full bg-[#F6C13B]/20 border border-[#F6C13B]/40 flex items-center justify-center flex-shrink-0">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#F6C13B]" />
+                </div>
+                {item}
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="text-xs text-white/50 relative z-10 select-none">
@@ -489,155 +506,201 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right Column: Register/Login Card */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 md:p-12 relative">
-        <div className="w-full max-w-[420px] bg-transparent shadow-none p-6 sm:p-10 flex flex-col justify-center">
-          
+      {/* Right Column: QR Scanner or Admin Login */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 relative bg-[#0A1A1B]">
+        <div className="w-full max-w-[420px] flex flex-col items-center">
+
+          {/* Mobile logo */}
           <div className="lg:hidden mb-6 flex flex-col items-center select-none">
-            <AppLogo size={88} />
-            <div className="text-[10px] font-bold text-gray-400 mt-2.5 uppercase tracking-widest">by sampulkreativ</div>
+            <AppLogo size={72} />
+            <div className="text-[10px] font-bold text-white/40 mt-2 uppercase tracking-widest">by sampulkreativ</div>
           </div>
 
-          <div className="mb-6">
-            <h1 className="text-3xl font-extrabold text-[#1C3D3F] mb-1.5">
-              {mode === "register" ? "Portal Karyawan" : "Administrator"}
-            </h1>
-            <p className="text-gray-400 text-sm">
-              {mode === "register" 
-                ? "Silakan masuk menggunakan akun yang telah dibuatkan oleh Admin." 
-                : "Masukkan kredensial admin Anda untuk mengelola sistem."}
-            </p>
-          </div>
+          {mode === "qr-scan" ? (
+            <div className="w-full flex flex-col items-center">
+              <div className="mb-5 text-center">
+                <h1 className="text-2xl font-extrabold text-white mb-1">Scan Kartu Anda</h1>
+                <p className="text-white/50 text-sm">Arahkan kamera ke QR Code yang ada di kartu karyawan</p>
+              </div>
 
-          {error && (
-            <div className="w-full mb-4 p-3.5 bg-red-50 text-red-600 rounded-2xl text-xs font-semibold border border-red-100 text-center">
-              {error}
+              {/* Camera viewfinder */}
+              <div className="relative w-full max-w-[320px] aspect-square rounded-3xl overflow-hidden border-2 border-[#2AB0B2]/40 shadow-2xl bg-black">
+                <video
+                  ref={videoRef}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={isFrontCamera ? { transform: "scaleX(-1)" } : undefined}
+                  autoPlay
+                  muted
+                  playsInline
+                />
+                <canvas ref={canvasRef} className="hidden" />
+
+                {/* Scan frame corners */}
+                {scanStatus === "idle" && !cameraError && !cameraLoading && (
+                  <>
+                    <div className="absolute top-4 left-4 w-8 h-8 border-t-3 border-l-3 border-[#2AB0B2] rounded-tl-lg" style={{ borderTopWidth: 3, borderLeftWidth: 3 }} />
+                    <div className="absolute top-4 right-4 w-8 h-8 border-t-3 border-r-3 border-[#2AB0B2] rounded-tr-lg" style={{ borderTopWidth: 3, borderRightWidth: 3 }} />
+                    <div className="absolute bottom-4 left-4 w-8 h-8 border-b-3 border-l-3 border-[#2AB0B2] rounded-bl-lg" style={{ borderBottomWidth: 3, borderLeftWidth: 3 }} />
+                    <div className="absolute bottom-4 right-4 w-8 h-8 border-b-3 border-r-3 border-[#2AB0B2] rounded-br-lg" style={{ borderBottomWidth: 3, borderRightWidth: 3 }} />
+                    {/* Animated scan line */}
+                    <div className="absolute left-6 right-6 h-0.5 bg-gradient-to-r from-transparent via-[#2AB0B2] to-transparent animate-scan-line" />
+                  </>
+                )}
+
+                {/* Loading camera */}
+                {cameraLoading && !cameraError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white">
+                    <div className="w-10 h-10 border-2 border-[#2AB0B2] border-t-transparent rounded-full animate-spin mb-3" />
+                    <p className="text-xs text-white/70">Memuat kamera...</p>
+                  </div>
+                )}
+
+                {/* Camera error */}
+                {cameraError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white p-4 text-center">
+                    <AlertCircle size={32} className="text-red-400 mb-2" />
+                    <p className="text-xs text-white/80 leading-relaxed">{cameraError}</p>
+                    <button
+                      onClick={() => startCamera()}
+                      className="mt-3 flex items-center gap-1.5 px-4 py-2 bg-[#2AB0B2] hover:bg-[#209092] text-white text-xs font-bold rounded-xl cursor-pointer transition-colors"
+                    >
+                      <RefreshCw size={12} /> Coba Lagi
+                    </button>
+                  </div>
+                )}
+
+                {/* Scan success overlay */}
+                {scanStatus === "success" && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1C3D3F]/95 text-white">
+                    <div className="w-16 h-16 rounded-full bg-green-500/20 border border-green-500/40 flex items-center justify-center mb-3">
+                      <CheckCircle2 size={32} className="text-green-400" />
+                    </div>
+                    <p className="text-sm font-bold text-green-300">{scanMessage}</p>
+                    <p className="text-xs text-white/50 mt-1">Mengalihkan ke dashboard...</p>
+                  </div>
+                )}
+
+                {/* Scan error overlay */}
+                {scanStatus === "error" && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-950/90 text-white p-4 text-center">
+                    <div className="w-14 h-14 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center mb-3">
+                      <AlertCircle size={28} className="text-red-400" />
+                    </div>
+                    <p className="text-sm font-bold text-red-300">QR Tidak Valid</p>
+                    <p className="text-xs text-white/60 mt-1 leading-relaxed">{scanMessage}</p>
+                    <p className="text-[10px] text-white/40 mt-2">Kamera akan restart otomatis...</p>
+                  </div>
+                )}
+
+                {/* Processing overlay */}
+                {loading && scanStatus === "idle" && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white">
+                    <div className="w-10 h-10 border-2 border-[#F6C13B] border-t-transparent rounded-full animate-spin mb-3" />
+                    <p className="text-xs text-white/70">{scanMessage || "Memverifikasi..."}</p>
+                  </div>
+                )}
+              </div>
+
+
+              {/* Admin login link */}
+              <button
+                onClick={() => { setMode("admin-login"); setError(""); stopCamera(); }}
+                className="mt-6 flex items-center gap-1.5 text-xs text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+              >
+                <Shield size={11} />
+                Masuk sebagai Administrator
+              </button>
+            </div>
+          ) : (
+            /* Admin Login Form */
+            <div className="w-full">
+              <div className="mb-6 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mx-auto mb-3">
+                  <Shield size={24} className="text-[#F6C13B]" />
+                </div>
+                <h1 className="text-2xl font-extrabold text-white mb-1">Administrator</h1>
+                <p className="text-white/50 text-sm">Masukkan kredensial admin Anda</p>
+              </div>
+
+              {error && (
+                <div className="w-full mb-4 p-3.5 bg-red-500/10 text-red-400 rounded-2xl text-xs font-semibold border border-red-500/20 text-center">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleAdminLogin} className="w-full space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-white/40 mb-2 uppercase tracking-wider pl-1">Username Admin</label>
+                  <input
+                    type="text"
+                    placeholder="Masukkan username"
+                    value={adminUser}
+                    onChange={(e) => setAdminUser(e.target.value)}
+                    className="w-full px-4 py-3.5 rounded-2xl bg-white/5 border-2 border-white/10 focus:border-[#2AB0B2] outline-none text-white transition-colors placeholder:text-white/20"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-white/40 mb-2 uppercase tracking-wider pl-1">Password Admin</label>
+                  <div className="relative">
+                    <input
+                      type={showPw ? "text" : "password"}
+                      placeholder="Masukkan password"
+                      value={adminPw}
+                      onChange={(e) => setAdminPw(e.target.value)}
+                      className="w-full px-4 py-3.5 pr-12 rounded-2xl bg-white/5 border-2 border-white/10 focus:border-[#2AB0B2] outline-none text-white transition-colors placeholder:text-white/20"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((p) => !p)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 cursor-pointer hover:text-white/60"
+                    >
+                      {showPw ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 mt-2 rounded-2xl text-white font-bold text-base shadow-md active:scale-[0.98] transition-transform cursor-pointer flex items-center justify-center bg-[#2AB0B2] hover:bg-[#209092] disabled:opacity-50"
+                >
+                  {loading ? "Memproses..." : "Masuk sebagai Admin"}
+                </button>
+
+                <div className="pt-1 text-center">
+                  <button
+                    type="button"
+                    onClick={() => { setMode("qr-scan"); setError(""); }}
+                    className="text-xs text-[#2AB0B2] hover:underline font-bold flex items-center gap-1 mx-auto cursor-pointer"
+                  >
+                    ← Kembali ke Scan QR
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 
-          {mode === "register" ? (
-            <form onSubmit={handleRegister} className="w-full space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider pl-1 flex items-center gap-1.5">
-                  <User size={13} className="text-[#2AB0B2]" /> Username
-                </label>
-                <input
-                  type="text"
-                  placeholder="Masukkan username Anda"
-                  value={noHp}
-                  onChange={(e) => setNoHp(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-2xl bg-[#F3F4F6] border-2 border-transparent focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors placeholder:text-gray-400 font-mono"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider pl-1 flex items-center gap-1.5">
-                  <Shield size={13} className="text-[#2AB0B2]" /> Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showEmployeePassword ? "text" : "password"}
-                    placeholder="Masukkan password Anda"
-                    value={employeePassword}
-                    onChange={(e) => setEmployeePassword(e.target.value)}
-                    className="w-full px-4 py-3.5 pr-12 rounded-2xl bg-[#F3F4F6] border-2 border-transparent focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors placeholder:text-gray-400"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowEmployeePassword((p) => !p)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600"
-                  >
-                    {showEmployeePassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 mt-2 rounded-2xl text-white font-bold text-base shadow-md active:scale-[0.98] transition-transform cursor-pointer flex items-center justify-center bg-[#2AB0B2] hover:bg-[#209092] disabled:opacity-50"
-              >
-                {loading ? "Memproses..." : "Masuk Absensi"}
-              </button>
-              
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("admin-login");
-                    setError("");
-                  }}
-                  className="text-xs text-[#2AB0B2] hover:underline font-bold flex items-center gap-1 mx-auto cursor-pointer"
-                >
-                  <Shield size={12} /> Masuk sebagai Administrator
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleAdminLogin} className="w-full space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider pl-1">Username Admin</label>
-                <input
-                  type="text"
-                  placeholder="Masukkan username"
-                  value={adminUser}
-                  onChange={(e) => setAdminUser(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-2xl bg-[#F3F4F6] border-2 border-transparent focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors placeholder:text-gray-400"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider pl-1">Password Admin</label>
-                <div className="relative">
-                  <input
-                    type={showPw ? "text" : "password"}
-                    placeholder="Masukkan password"
-                    value={adminPw}
-                    onChange={(e) => setAdminPw(e.target.value)}
-                    className="w-full px-4 py-3.5 pr-12 rounded-2xl bg-[#F3F4F6] border-2 border-transparent focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors placeholder:text-gray-400"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPw((p) => !p)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600"
-                  >
-                    {showPw ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 mt-2 rounded-2xl text-white font-bold text-base shadow-md active:scale-[0.98] transition-transform cursor-pointer flex items-center justify-center bg-[#2AB0B2] hover:bg-[#209092] disabled:opacity-50"
-              >
-                {loading ? "Memproses..." : "Masuk sebagai Admin"}
-              </button>
-              
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("register");
-                    setError("");
-                  }}
-                  className="text-xs text-[#2AB0B2] hover:underline font-bold cursor-pointer"
-                >
-                  Kembali ke Portal Karyawan
-                </button>
-              </div>
-            </form>
-          )}
-
-          <p className="lg:hidden text-[11px] text-gray-400 mt-8 text-center select-none">
+          <p className="text-[11px] text-white/20 mt-8 text-center select-none">
             © 2026 sampulkreativ · sampulkreativ.app · All rights reserved
           </p>
         </div>
       </div>
+
+      {/* Scan line animation */}
+      <style>{`
+        @keyframes scan-line {
+          0% { top: 10%; }
+          50% { top: 85%; }
+          100% { top: 10%; }
+        }
+        .animate-scan-line {
+          animation: scan-line 2s ease-in-out infinite;
+          position: absolute;
+        }
+      `}</style>
     </main>
   );
 }

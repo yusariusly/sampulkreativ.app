@@ -2,12 +2,85 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { User, Camera, X, CreditCard, Download, LogOut, Mail, Phone, QrCode, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { User, Camera, X, CreditCard, Download, LogOut, Mail, Phone, QrCode, AlertCircle, CheckCircle2, Info, Globe } from "lucide-react";
+import html2canvas from "html2canvas-pro";
+import { jsPDF } from "jspdf";
 import { getDeviceId, clearSession } from "../../utils/session";
 import { compressImage, IMAGE_PRESETS } from "../../utils/image";
 
 export default function ProfilePage() {
   const router = useRouter();
+
+  const downloadCardAsPDF = async () => {
+    try {
+      const frontEl = document.getElementById("printable-id-card-front");
+      const backEl = document.getElementById("printable-id-card-back");
+      if (!frontEl || !backEl) {
+        alert("Elemen kartu tidak ditemukan.");
+        return;
+      }
+
+      // Capture Front card as image
+      const canvasFront = await html2canvas(frontEl, {
+        scale: 4,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: null,
+        logging: false,
+      });
+      const imgFront = canvasFront.toDataURL("image/png");
+
+      // Capture Back card as image
+      const canvasBack = await html2canvas(backEl, {
+        scale: 4,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: null,
+        logging: false,
+      });
+      const imgBack = canvasBack.toDataURL("image/png");
+
+      // A4 page: 210mm × 297mm portrait
+      // Place front & back cards side by side (matching standard nametag print sheet)
+      // Each card: 86mm wide, height auto-calculated from aspect ratio
+      const cardWidthMm = 86;
+      const cardHeightMm = Math.round((canvasFront.height / canvasFront.width) * cardWidthMm);
+
+      const pageWidth = 210;
+      const pageHeight = 297;
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      // Total width of both cards + 10mm gap: 86 + 10 + 86 = 182mm
+      // Horizontal margin: (210 - 182) / 2 = 14mm
+      const gap = 10;
+      const totalCardsWidth = cardWidthMm * 2 + gap;
+      const xStart = (pageWidth - totalCardsWidth) / 2;
+      const yCenter = (pageHeight - cardHeightMm) / 2;
+
+      // Front card — left side
+      pdf.addImage(imgFront, "PNG", xStart, yCenter, cardWidthMm, cardHeightMm);
+
+      // Back card — right side
+      pdf.addImage(imgBack, "PNG", xStart + cardWidthMm + gap, yCenter, cardWidthMm, cardHeightMm);
+
+      // Optional: add thin label below each card
+      pdf.setFontSize(6);
+      pdf.setTextColor(150, 150, 150);
+      pdf.text("DEPAN", xStart + cardWidthMm / 2, yCenter + cardHeightMm + 3, { align: "center" });
+      pdf.text("BELAKANG", xStart + cardWidthMm + gap + cardWidthMm / 2, yCenter + cardHeightMm + 3, { align: "center" });
+
+
+      pdf.save(`Kartu_Karyawan_${fullname.replace(/\s+/g, "_")}.pdf`);
+    } catch (err) {
+      console.error("Gagal mengunduh PDF kartu:", err);
+      alert("Gagal mengunduh PDF kartu. Pastikan koneksi internet stabil.");
+    }
+  };
   const [userId, setUserId] = useState("");
   const [fullname, setFullname] = useState("Karyawan");
   const [username, setUsername] = useState("username");
@@ -432,6 +505,11 @@ export default function ProfilePage() {
                 className="printable-card-side w-[240px] h-[380px] rounded-2xl shadow-xl overflow-hidden flex flex-col relative bg-gradient-to-b from-[#FFFFFF] to-[#F5F7F8] border border-gray-200 flex-shrink-0"
                 style={{ fontFamily: "Arial, sans-serif" }}
               >
+                {/* Subtle circular patterns for the white part */}
+                <div className="absolute top-[-40px] left-[-40px] w-48 h-48 rounded-full border border-[#2AB0B2]/10 bg-transparent pointer-events-none z-0" />
+                <div className="absolute top-[-20px] left-[-20px] w-64 h-64 rounded-full border border-[#2AB0B2]/5 bg-transparent pointer-events-none z-0" />
+                <div className="absolute top-[140px] right-[-50px] w-52 h-52 rounded-full border border-[#2AB0B2]/10 bg-transparent pointer-events-none z-0" />
+
                 {/* Top Header */}
                 <div className="relative z-10 flex flex-col items-center pt-3.5 pb-1">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -459,12 +537,17 @@ export default function ProfilePage() {
 
                 {/* Bottom Diagonal Block */}
                 <div
-                  className="w-full bg-[#1C3D3F] text-center pt-5 pb-2.5 px-3 mt-auto relative z-10 flex flex-col items-center"
+                  className="w-full bg-[#1C3D3F] text-center pt-8 pb-5 px-3 mt-auto relative z-10 flex flex-col items-center justify-center min-h-[145px]"
                   style={{
-                    clipPath: "polygon(0 12px, 100% 0, 100% 100%, 0 100%)",
+                    clipPath: "polygon(0 18px, 100% 0, 100% 100%, 0 100%)",
                   }}
                 >
-                  <h5 className="fullname-text font-extrabold text-[#F6C13B] text-[13px] tracking-wide uppercase leading-tight truncate w-full max-w-[210px] mt-0.5">
+                  {/* Subtle circular patterns for the green part */}
+                  <div className="absolute bottom-[-30px] left-[-30px] w-36 h-36 rounded-full border border-white/5 bg-transparent pointer-events-none" />
+                  <div className="absolute bottom-[-10px] left-[-10px] w-48 h-48 rounded-full border border-white/5 bg-transparent pointer-events-none" />
+                  <div className="absolute top-[-20px] right-[-20px] w-40 h-40 rounded-full border border-white/5 bg-transparent pointer-events-none" />
+
+                  <h5 className="fullname-text font-extrabold text-[#F6C13B] text-[11px] tracking-wide uppercase leading-tight w-full max-w-[220px] mt-0.5">
                     {fullname}
                   </h5>
                   
@@ -472,7 +555,7 @@ export default function ProfilePage() {
                   <div className="h-[1px] bg-[#F6C13B]/70 w-32 mx-auto my-1" />
                   
                   <span className="role-text text-white text-[8px] font-bold tracking-widest uppercase block leading-none mb-1">
-                    {userRole === 'student' ? 'SISWA PKL' : jabatan}
+                    {jabatan || (userRole === 'student' ? 'SISWA PKL' : 'Karyawan')}
                   </span>
 
                   {userRole === 'student' ? (
@@ -489,17 +572,7 @@ export default function ProfilePage() {
                     )
                   )}
 
-                  {/* Address & Contacts */}
-                  <div className="w-full mt-1 text-center text-white/95">
-                    <div className="flex flex-col items-center gap-0.5 border-t border-white/10 pt-2">
-                      <span className="address-band text-[6.5px] font-black tracking-widest text-[#F6C13B] uppercase">
-                        SAMPULKREATIV TECHNOLOGY
-                      </span>
-                      <span className="address-detail text-[5px] text-gray-300 font-medium leading-tight max-w-[200px] mx-auto">
-                        Gedung BITC, Jl. HMS Mintareja, Baros, Cimahi Tengah, Jawa Barat 40521
-                      </span>
-                    </div>
-                  </div>
+
                 </div>
               </div>
 
@@ -517,8 +590,7 @@ export default function ProfilePage() {
                   <div className="absolute top-[-20px] left-[-20px] w-64 h-64 rounded-full border border-white/5 bg-transparent" />
                   <div className="absolute bottom-[-100px] right-[-100px] w-72 h-72 rounded-full border border-white/5 bg-[#2AB0B2]/5" />
                   
-                  {/* Slot punch line at the top */}
-                  <div className="w-12 h-2.5 bg-black/30 rounded-full mx-auto mt-3 border border-white/10 z-10" />
+
 
                   {/* Center Content: QR Code with centered logo */}
                   <div className="flex-1 flex flex-col items-center justify-center z-10 px-4 mt-2">
@@ -530,6 +602,7 @@ export default function ProfilePage() {
                         )}`}
                         alt="QR Absen"
                         className="w-full h-full object-contain"
+                        crossOrigin="anonymous"
                       />
                       {/* Center Logo overlay */}
                       <div className="qr-logo-overlay absolute w-7 h-7 bg-white rounded-md flex items-center justify-center p-0.5 shadow-sm border border-gray-100">
@@ -543,23 +616,26 @@ export default function ProfilePage() {
                     </div>
                     
                     <div className="flex flex-col items-center leading-none mt-4">
-                      <span className="qr-title text-[10px] font-black text-white tracking-widest uppercase">QR CODE ABSENSI</span>
-                      <span className="qr-subtitle text-[7px] text-[#F6C13B] tracking-widest font-bold mt-1 uppercase">SAMPULKREATIV</span>
+                      
+                      <span className="qr-subtitle text-[7px] text-[#F6C13B] tracking-wider font-bold mt-1 flex items-center gap-1">
+                        <Globe size={8} className="text-[#F6C13B] flex-shrink-0" />
+                        <span>sampulkreativ.id</span>
+                      </span>
                     </div>
                   </div>
 
                   {/* Bottom Footer Band */}
                   <div className="w-full text-center text-white px-3 pb-5 pt-2 bg-gradient-to-t from-black/40 to-transparent z-10">
                     <p className="footer-brand-title text-[7px] font-bold tracking-wider text-gray-200 uppercase">SAMPULKREATIV TECHNOLOGY</p>
-                    <p className="footer-brand-sub text-[5px] text-gray-300 font-semibold leading-tight mt-0.5">Gedung BITC, Jl. HMS Mintareja, Baros, Cimahi Tengah, Jawa Barat 40521</p>
-                    <div className="footer-contact-wrapper flex justify-center items-center gap-1.5 mt-2.5 text-[5px] font-mono text-gray-200 font-bold border-t border-white/10 pt-2">
+                    
+                    <div className="footer-contact-wrapper flex justify-center items-center gap-1.5 mt-2.5 text-[5.5px] font-mono text-gray-200 font-bold border-t border-white/10 pt-2">
                       <span className="footer-contact-item flex items-center gap-1 truncate max-w-[100px] leading-none">
-                        <Mail size={6} className="text-[#F6C13B] flex-shrink-0" strokeWidth={2.5} />
+                        <Mail size={7} className="text-[#F6C13B] flex-shrink-0" strokeWidth={2.5} />
                         <span>{email || "-"}</span>
                       </span>
                       <span className="text-white/20">|</span>
                       <span className="footer-contact-item flex items-center gap-1 leading-none">
-                        <Phone size={6} className="text-[#F6C13B] flex-shrink-0" strokeWidth={2.5} />
+                        <Phone size={7} className="text-[#F6C13B] flex-shrink-0" strokeWidth={2.5} />
                         <span>{noTelp || "-"}</span>
                       </span>
                     </div>
@@ -578,8 +654,7 @@ export default function ProfilePage() {
                   <div className="absolute top-[-20px] left-[-20px] w-64 h-64 rounded-full border border-white/5 bg-transparent" />
                   <div className="absolute bottom-[-100px] right-[-100px] w-72 h-72 rounded-full border border-white/5 bg-[#2AB0B2]/5" />
                   
-                  {/* Slot punch line at the top */}
-                  <div className="w-12 h-2.5 bg-black/30 rounded-full mx-auto mt-3 border border-white/10 z-10" />
+
 
                   {/* Center Content: QR Code with centered logo */}
                   <div className="flex-1 flex flex-col items-center justify-center z-10 px-4 mt-2">
@@ -591,6 +666,7 @@ export default function ProfilePage() {
                         )}`}
                         alt="QR Absen"
                         className="w-full h-full object-contain"
+                        crossOrigin="anonymous"
                       />
                       {/* Center Logo overlay */}
                       <div className="qr-logo-overlay absolute w-7 h-7 bg-white rounded-md flex items-center justify-center p-0.5 shadow-sm border border-gray-100">
@@ -604,23 +680,26 @@ export default function ProfilePage() {
                     </div>
                     
                     <div className="flex flex-col items-center leading-none mt-4">
-                      <span className="qr-title text-[10px] font-black text-white tracking-widest uppercase">QR CODE ABSENSI</span>
-                      <span className="qr-subtitle text-[7px] text-[#F6C13B] tracking-widest font-bold mt-1 uppercase">SAMPULKREATIV</span>
+                      
+                      <span className="qr-subtitle text-[7px] text-[#F6C13B] tracking-wider font-bold mt-1 flex items-center gap-1">
+                        <Globe size={8} className="text-[#F6C13B] flex-shrink-0" />
+                        <span>sampulkreativ.id</span>
+                      </span>
                     </div>
                   </div>
 
                   {/* Bottom Footer Band */}
                   <div className="w-full text-center text-white px-3 pb-5 pt-2 bg-gradient-to-t from-black/40 to-transparent z-10">
                     <p className="footer-brand-title text-[7px] font-bold tracking-wider text-gray-200 uppercase">SAMPULKREATIV TECHNOLOGY</p>
-                    <p className="footer-brand-sub text-[5px] text-gray-300 font-semibold leading-tight mt-0.5">Gedung BITC, Jl. HMS Mintareja, Baros, Cimahi Tengah, Jawa Barat 40521</p>
-                    <div className="footer-contact-wrapper flex justify-center items-center gap-1.5 mt-2.5 text-[5px] font-mono text-gray-200 font-bold border-t border-white/10 pt-2">
+                    
+                    <div className="footer-contact-wrapper flex justify-center items-center gap-1.5 mt-2.5 text-[5.5px] font-mono text-gray-200 font-bold border-t border-white/10 pt-2">
                       <span className="footer-contact-item flex items-center gap-1 truncate max-w-[100px] leading-none">
-                        <Mail size={6} className="text-[#F6C13B] flex-shrink-0" strokeWidth={2.5} />
+                        <Mail size={7} className="text-[#F6C13B] flex-shrink-0" strokeWidth={2.5} />
                         <span>{email || "-"}</span>
                       </span>
                       <span className="text-white/20">|</span>
                       <span className="footer-contact-item flex items-center gap-1 leading-none">
-                        <Phone size={6} className="text-[#F6C13B] flex-shrink-0" strokeWidth={2.5} />
+                        <Phone size={7} className="text-[#F6C13B] flex-shrink-0" strokeWidth={2.5} />
                         <span>{noTelp || "-"}</span>
                       </span>
                     </div>
@@ -672,7 +751,6 @@ export default function ProfilePage() {
                 </button>
                 <button
                   onClick={async () => {
-                    // Save dynamically
                     if (!email || email.trim() === "" || !noTelp || noTelp.trim() === "") {
                       alert("Email dan No. Telepon wajib diisi untuk kartu!");
                       return;
@@ -702,28 +780,29 @@ export default function ProfilePage() {
                             localStorage.setItem("v2_user", JSON.stringify(userObj));
                           }
                         }
-                        window.print();
+                        await downloadCardAsPDF();
                       } else {
-                        alert("Gagal memperbarui biodata sebelum mencetak kartu.");
+                        alert("Gagal memperbarui biodata sebelum mengunduh kartu.");
                       }
                     } catch (e) {
-                      console.error("Gagal cetak:", e);
-                      alert("Gagal mencetak kartu.");
+                      console.error("Gagal unduh PDF:", e);
+                      alert("Gagal mengunduh PDF kartu.");
                     }
                   }}
                   className="flex-2 py-3 text-xs font-bold text-white bg-[#2AB0B2] hover:bg-[#209092] rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
                 >
                   <Download size={13} />
-                  Simpan & Cetak Kartu
+                  Unduh PDF (Gambar)
                 </button>
               </div>
               
               {/* Help/Tip under print button */}
               <p className="text-[9px] text-gray-400 text-center mt-3 leading-normal flex items-center justify-center gap-1">
                 <Info size={10} className="text-[#2AB0B2] flex-shrink-0" />
-                <span><b>Tips:</b> Pilih opsi <b>&quot;Simpan sebagai PDF&quot;</b> atau <b>&quot;Save as PDF&quot;</b> pada dialog cetak browser Anda untuk mengunduh file kartu karyawan.</span>
+                <span><b>Tips:</b> Klik <b>&quot;Unduh PDF (Gambar)&quot;</b> untuk mengunduh kartu karyawan dalam format PDF berisi gambar resolusi tinggi — kartu depan &amp; belakang masing-masing satu halaman.</span>
               </p>
             </div>
+
           </div>
         </div>
       )}
@@ -879,8 +958,8 @@ export default function ProfilePage() {
             height: 110px !important;
           }
           .printable-card-side h5.fullname-text {
-            font-size: 16px !important;
-            max-width: 250px !important;
+            font-size: 13px !important;
+            max-width: 260px !important;
           }
           .printable-card-side .role-text {
             font-size: 10px !important;
@@ -972,8 +1051,8 @@ export default function ProfilePage() {
                height: 100px !important;
              }
             .printable-card-side h5.fullname-text {
-              font-size: 17px !important;
-              max-width: 260px !important;
+              font-size: 14px !important;
+              max-width: 270px !important;
             }
             .printable-card-side .role-text {
               font-size: 11px !important;
@@ -1106,6 +1185,14 @@ export default function ProfilePage() {
           .printable-card-side .avatar-container {
             width: 32mm !important;
             height: 32mm !important;
+          }
+          .printable-card-side .footer-contact-item {
+            font-size: 6px !important;
+            max-width: 100px !important;
+          }
+          .printable-card-side .footer-contact-item svg {
+            width: 7.5px !important;
+            height: 7.5px !important;
           }
 
           /* Force backgrounds on print */
