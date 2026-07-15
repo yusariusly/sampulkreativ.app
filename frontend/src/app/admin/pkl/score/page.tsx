@@ -156,6 +156,7 @@ export default function PklScoreboardPage() {
   const [savingExtendedDays, setSavingExtendedDays] = useState<boolean>(false);
   const [progressOverrideInput, setProgressOverrideInput] = useState<number | null>(null);
   const [savingProgressOverride, setSavingProgressOverride] = useState<boolean>(false);
+  const [savingAll, setSavingAll] = useState(false);
 
   // Tag Presets
   const tagPresets = [
@@ -803,6 +804,100 @@ export default function PklScoreboardPage() {
     }
   };
 
+  // Handler: Save everything at once (weekly summary + progress override + reward/punishment)
+  const handleSaveAll = async () => {
+    if (!mentor) return;
+
+    setSavingAll(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      // 1. Save Weekly Summary & Progress (if student selected)
+      if (selectedStudentId) {
+        if (selectedTags.length === 0) {
+          throw new Error("Pilih setidaknya 1 Tag Apresiasi Cepat pada Rekap & Umpan Balik.");
+        }
+
+        const rekapRes = await fetch(`/api/v1/mentor/rekap-mingguan/${selectedStudentId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-id": mentor.id,
+            "x-device-id": mentor.device_id || "",
+          },
+          body: JSON.stringify({
+            week_number: selectedWeek,
+            tags: selectedTags,
+            comments: commentInput,
+            extended_days: extendedDaysInput,
+            progress_override: progressOverrideInput,
+          }),
+        });
+
+        const rekapData = await rekapRes.json();
+        if (!rekapRes.ok) {
+          throw new Error(rekapData.error?.message || "Gagal menyimpan rekap & progres");
+        }
+
+        // Update student list state locally
+        setStudents((prev) =>
+          prev.map((s) => {
+            if (s.student_id === selectedStudentId) {
+              return {
+                ...s,
+                tags: selectedTags,
+                comments: commentInput,
+                extended_days: extendedDaysInput,
+                progress_override: progressOverrideInput,
+              };
+            }
+            return s;
+          })
+        );
+      }
+
+      // 2. Save Notice Setting (Reward & Punishment) if filled
+      if (prizeName.trim() || consequence.trim()) {
+        if (!prizeName.trim()) {
+          throw new Error("Nama hadiah wajib diisi!");
+        }
+        if (!consequence.trim()) {
+          throw new Error("Konsekuensi wajib diisi!");
+        }
+
+        const noticeRes = await fetch("/api/v1/pkl/notices", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-id": mentor.id,
+            "x-device-id": mentor.device_id || "",
+          },
+          body: JSON.stringify({
+            week_number: selectedWeek,
+            prize_name: prizeName,
+            consequence: consequence,
+            show_recipients: showRecipients,
+            auto_show_recipients: autoShowRecipients,
+          }),
+        });
+
+        if (!noticeRes.ok) {
+          const json = await noticeRes.json();
+          throw new Error(json.error || "Gagal menyimpan pengaturan reward & punishment");
+        }
+
+        fetchAllNotices();
+      }
+
+      setSuccessMsg("Semua perubahan berhasil disimpan!");
+    } catch (err: any) {
+      setErrorMsg(err.message || "Gagal menyimpan data");
+    } finally {
+      setSavingAll(false);
+    }
+  };
+
   // Handler: Publish all summaries for current week
   const handlePublishAll = async () => {
     if (!mentor) return;
@@ -1198,7 +1293,7 @@ export default function PklScoreboardPage() {
                   Rekap & Umpan Balik: {currentStudent.student_name}
                 </h2>
 
-                <form onSubmit={handleSaveFeedback} className="space-y-4">
+                <div className="space-y-4">
                   {/* Tag Apresiasi Cepat */}
                   <div>
                     <label className="block text-[9px] font-extrabold text-slate-450 uppercase tracking-wider mb-2">
@@ -1243,23 +1338,7 @@ export default function PklScoreboardPage() {
                       </p>
                     )}
                   </div>
-
-
-
-                  {/* Submit Feedback */}
-                  <button
-                    type="submit"
-                    disabled={savingFeedback}
-                    className="w-full bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-350 text-white font-extrabold text-xs py-2.5 rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer"
-                  >
-                    {savingFeedback ? (
-                      <Loader2 className="animate-spin" size={13} />
-                    ) : (
-                      <Save size={13} />
-                    )}
-                    Simpan Draft Rekap Mingguan
-                  </button>
-                </form>
+                </div>
               </div>
             )}
           </div>
@@ -1267,10 +1346,32 @@ export default function PklScoreboardPage() {
           {/* Right Side: Daily Evaluations details */}
           <div className="lg:col-span-7">
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6">
-              <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
-                <ClipboardList size={16} className="text-[#2AB0B2]" />
-                Evaluasi Harian
-              </h2>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 mb-4 gap-2">
+                <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <ClipboardList size={16} className="text-[#2AB0B2]" />
+                  Evaluasi Harian
+                </h2>
+                
+                {selectedStudentId && (
+                  <button
+                    onClick={handleSaveAll}
+                    disabled={savingAll}
+                    className="bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-350 text-white font-extrabold text-xs px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer active:scale-95 shrink-0"
+                  >
+                    {savingAll ? (
+                      <>
+                        <Loader2 className="animate-spin" size={13} />
+                        <span>Menyimpan...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={13} />
+                        <span>Simpan Semua Perubahan</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
 
               {!selectedStudentId ? (
                 <div className="text-center py-12">
@@ -1485,20 +1586,12 @@ export default function PklScoreboardPage() {
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") {
                                   e.preventDefault();
-                                  handleSaveProgressOverride(progressOverrideInput);
+                                  handleSaveAll();
                                 }
                               }}
                               className="w-16 text-center text-xs font-black py-2 px-2 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-all bg-white text-slate-800"
                               placeholder="Auto"
                             />
-                            <button
-                              type="button"
-                              onClick={() => handleSaveProgressOverride(progressOverrideInput)}
-                              disabled={savingProgressOverride}
-                              className="px-3 py-2 bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-350 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all active:scale-[0.98] cursor-pointer shrink-0"
-                            >
-                              {savingProgressOverride ? "..." : "Simpan"}
-                            </button>
                           </div>
                           <p className="text-[9px] text-slate-400 font-bold leading-snug">
                             * Kosongkan untuk kembali ke hitungan otomatis.
@@ -1518,7 +1611,7 @@ export default function PklScoreboardPage() {
                 Pengaturan Reward & Punishment (Minggu {selectedWeek})
               </h2>
 
-              <form onSubmit={handleSaveNoticeSetting} className="space-y-4">
+              <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Reward Input */}
                   <div>
@@ -1571,22 +1664,7 @@ export default function PklScoreboardPage() {
                   </label>
                 </div>
 
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="submit"
-                    disabled={savingNotice || loadingNotice}
-                    className="bg-[#2AB0B2] hover:bg-[#1E8E90] text-white text-xs font-black py-2 px-5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
-                  >
-                    {savingNotice ? (
-                      <>
-                        <Loader2 className="animate-spin" size={14} /> Menyimpan...
-                      </>
-                    ) : (
-                      "Simpan Pengaturan"
-                    )}
-                  </button>
-                </div>
-              </form>
+              </div>
             </div>
           </div>
         </div>
