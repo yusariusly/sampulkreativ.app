@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Search, Calendar, ChevronDown, Download, CheckCircle2, XCircle, Send, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Search, Calendar, ChevronDown, Download, CheckCircle2, XCircle, Send, ChevronLeft, ChevronRight, AlertTriangle, Edit2 } from "lucide-react";
 
 const TEAL = "#2AB0B2";
 
@@ -49,6 +49,7 @@ export default function AdminDataPage() {
   const [overrideUser, setOverrideUser] = useState("");
   const [overrideStatus, setOverrideStatus] = useState("Hadir");
   const [notification, setNotification] = useState("");
+  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
 
   const getNotificationDetails = (msg: string) => {
     let icon = <CheckCircle2 size={16} className="text-[#2AB0B2]" />;
@@ -100,6 +101,7 @@ export default function AdminDataPage() {
         const employee = users.find((u) => u.username === overrideUser);
         showToast(`✅ Status absensi "${employee?.nama_lengkap || overrideUser}" berhasil diubah menjadi "${overrideStatus}"`);
         setOverrideUser("");
+        setIsOverrideModalOpen(false);
         fetchLogs();
       } else {
         showToast(`⚠️ ${data.error || "Gagal menerapkan override"}`);
@@ -254,6 +256,67 @@ export default function AdminDataPage() {
         </div>
       )}
 
+      {/* Override Status Modal Overlay */}
+      {isOverrideModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs" onClick={(e) => { if (e.target === e.currentTarget) setIsOverrideModalOpen(false); }}>
+          <div className="bg-white rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-[#1C3D3F] mb-1">Override Status Absensi</h3>
+            <p className="text-gray-400 text-xs mb-6 font-medium">Ubah status kehadiran karyawan secara manual</p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-black text-gray-500 mb-1.5 uppercase tracking-wider">Pilih Karyawan</label>
+                <select
+                  value={overrideUser}
+                  onChange={(e) => setOverrideUser(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-700 transition-colors cursor-pointer font-medium"
+                >
+                  <option value="">Pilih Karyawan</option>
+                  {users
+                    .filter((u) => u.role !== "admin")
+                    .map((u) => (
+                      <option key={u.username} value={u.username} className="font-medium text-gray-700">
+                        {u.nama_lengkap}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-gray-500 mb-1.5 uppercase tracking-wider">Status Kehadiran</label>
+                <select
+                  value={overrideStatus}
+                  onChange={(e) => setOverrideStatus(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-700 transition-colors cursor-pointer font-medium"
+                >
+                  <option>Hadir</option>
+                  <option>Izin</option>
+                  <option>Sakit</option>
+                  <option>Alpa</option>
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsOverrideModalOpen(false)}
+                  className="flex-1 py-3 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-xl font-bold transition-colors cursor-pointer text-sm"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOverrideStatus}
+                  className="flex-1 py-3 bg-[#2AB0B2] hover:bg-[#209092] text-white rounded-xl font-bold shadow-sm transition-colors cursor-pointer text-sm"
+                >
+                  Terapkan
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header bar with controls */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 md:mb-8">
         <div>
@@ -303,6 +366,15 @@ export default function AdminDataPage() {
             </button>
           </div>
           
+          {/* Override Status Button */}
+          <button
+            onClick={() => setIsOverrideModalOpen(true)}
+            className="flex items-center justify-center gap-2 border-2 border-[#F6C13B] hover:bg-[#F6C13B]/10 text-[#F6C13B] rounded-xl px-4 py-2.5 text-sm font-semibold shadow-xs transition-colors cursor-pointer w-full sm:w-auto shrink-0 active:scale-[0.98]"
+          >
+            <Edit2 size={16} />
+            <span>Override Status</span>
+          </button>
+          
           {/* Export CSV Button */}
           <button
             onClick={handleExportCSV}
@@ -315,10 +387,8 @@ export default function AdminDataPage() {
         </div>
       </div>
 
-      {/* Grid Layout for main content and override status */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
-        {/* Main Table card */}
-        <div className="lg:col-span-8 bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
+      {/* Main Table */}
+      <div className="bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[700px]">
               <thead>
@@ -398,47 +468,6 @@ export default function AdminDataPage() {
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* Sidebar Action card (Override Status) */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white rounded-2xl shadow-xs p-5 border border-gray-100/50 animate-in fade-in">
-            <h3 className="font-bold text-gray-800 mb-1 text-sm">Override Status</h3>
-            <p className="text-gray-450 text-xs mb-4">Ubah status absensi secara manual</p>
-            <div className="space-y-3">
-              <select
-                value={overrideUser}
-                onChange={(e) => setOverrideUser(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-600 transition-colors cursor-pointer"
-              >
-                <option value="">Pilih Karyawan</option>
-                {users
-                  .filter((u) => u.role !== "admin")
-                  .map((u) => (
-                    <option key={u.username} value={u.username}>
-                      {u.nama_lengkap}
-                    </option>
-                  ))}
-              </select>
-              <select
-                value={overrideStatus}
-                onChange={(e) => setOverrideStatus(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-600 transition-colors cursor-pointer"
-              >
-                <option>Hadir</option>
-                <option>Izin</option>
-                <option>Sakit</option>
-                <option>Alpa</option>
-              </select>
-              <button
-                onClick={handleOverrideStatus}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold border-2 transition-all hover:bg-[#F6C13B]/10 cursor-pointer text-[#F6C13B] border-[#F6C13B] active:scale-[0.98]"
-              >
-                Terapkan Override
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
