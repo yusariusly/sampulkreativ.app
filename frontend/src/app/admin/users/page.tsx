@@ -587,50 +587,57 @@ export default function AdminUsersPage() {
                 </button>
               </div>
 
-              {/* Role Selector - only when creating new user */}
-              {!editingUserId && (
-                <div className="flex flex-col gap-1.5 mb-4">
-                  <label className="text-[10px] font-bold text-gray-405 uppercase tracking-wider">Role / Status Kerja</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRole("employee")}
-                      className={`flex items-center justify-center gap-1.5 py-2 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
-                        role === "employee"
-                          ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
-                          : "bg-white text-gray-500 border-gray-200 hover:border-[#2AB0B2] hover:text-[#2AB0B2]"
-                      }`}
-                    >
-                      <Users size={13} />
-                      Karyawan
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRole("student")}
-                      className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
-                        role === "student"
-                          ? "bg-purple-600 text-white border-purple-600"
-                          : "bg-white text-gray-500 border-gray-200 hover:border-purple-600 hover:text-purple-600"
-                      }`}
-                    >
-                      <User size={13} />
-                      Siswa PKL
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRole("admin")}
-                      className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
-                        role === "admin"
-                          ? "bg-[#1C3D3F] text-white border-[#1C3D3F]"
-                          : "bg-white text-gray-500 border-gray-200 hover:border-[#1C3D3F] hover:text-[#1C3D3F]"
-                      }`}
-                    >
-                      <ShieldCheck size={13} />
-                      Admin
-                    </button>
-                  </div>
+              {/* Role Selector */}
+              <div className="flex flex-col gap-1.5 mb-4">
+                <label className="text-[10px] font-bold text-gray-405 uppercase tracking-wider">Role / Status Kerja</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRole("employee");
+                      setEditingUserRole("employee");
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                      effectiveRole === "employee"
+                        ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
+                        : "bg-white text-gray-500 border-gray-200 hover:border-[#2AB0B2] hover:text-[#2AB0B2]"
+                    }`}
+                  >
+                    <Users size={13} />
+                    Karyawan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRole("student");
+                      setEditingUserRole("student");
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                      effectiveRole === "student"
+                        ? "bg-purple-600 text-white border-purple-600"
+                        : "bg-white text-gray-500 border-gray-200 hover:border-purple-600 hover:text-purple-600"
+                    }`}
+                  >
+                    <User size={13} />
+                    Siswa PKL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRole("admin");
+                      setEditingUserRole("admin");
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                      effectiveRole === "admin"
+                        ? "bg-[#1C3D3F] text-white border-[#1C3D3F]"
+                        : "bg-white text-gray-500 border-gray-200 hover:border-[#1C3D3F] hover:text-[#1C3D3F]"
+                    }`}
+                  >
+                    <ShieldCheck size={13} />
+                    Admin
+                  </button>
                 </div>
-              )}
+              </div>
 
               <form onSubmit={handleSaveUser} className="space-y-3 overflow-y-auto pr-1 flex-1">
               {/* Nama Lengkap */}
