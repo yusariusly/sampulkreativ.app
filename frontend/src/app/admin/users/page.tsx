@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info, Bell, Unlock, Key, CreditCard, Download, Globe, Mail, Phone } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info, Bell, Unlock, Key, CreditCard, Download, Globe, Mail, Phone, UserPlus } from "lucide-react";
 import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 
@@ -101,6 +101,7 @@ export default function AdminUsersPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [pklTemplates, setPklTemplates] = useState<{ id: string; title: string }[]>([]);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
 
 
 
@@ -216,6 +217,7 @@ export default function AdminUsersPage() {
     setStartDate(u.start_date || "");
     setEndDate(u.end_date || "");
     setTelegramChatId(u.telegram_chat_id || "");
+    setIsUserModalOpen(true);
     showToast(`✏️ Mode edit untuk "${u.nama_lengkap}" aktif`);
   };
 
@@ -292,6 +294,7 @@ export default function AdminUsersPage() {
           showToast(`✅ Akun "${fullname}" berhasil diperbarui!`);
           fetchUsers();
           resetForm();
+          setIsUserModalOpen(false);
         } else {
           showToast(`⚠️ ${data.error || "Gagal menyimpan pengguna"}`);
         }
@@ -321,6 +324,7 @@ export default function AdminUsersPage() {
           showToast(`✅ Akun "${data.user.nama_lengkap}" berhasil dibuat!`);
           fetchUsers();
           resetForm();
+          setIsUserModalOpen(false);
         } else {
           showToast(`⚠️ ${data.error || "Gagal membuat akun"}`);
         }
@@ -431,11 +435,20 @@ export default function AdminUsersPage() {
       {/* Header section */}
       <div className="flex items-center justify-between mb-6 md:mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-[#1C3D3F]">Manajemen Pengguna</h1>
+        <button
+          onClick={() => {
+            resetForm();
+            setIsUserModalOpen(true);
+          }}
+          className="flex items-center justify-center gap-2 bg-[#2AB0B2] hover:bg-[#209092] text-white rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-all cursor-pointer active:scale-95 shrink-0"
+        >
+          <UserPlus size={16} />
+          <span>Buat Akun Baru</span>
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* User Account List Table Grid */}
-        <div className="xl:col-span-2 bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
+      {/* User Account List Table */}
+      <div className="bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[550px]">
               <thead>
@@ -561,83 +574,65 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
-        {/* Action Panel Sidebars */}
-        <div className="space-y-6">
-          {/* Add/Edit User Panel */}
-          <div className="bg-white rounded-2xl shadow-xs p-5 border border-gray-100/50">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-gray-800 text-sm">
-                {editingUserId ? `Edit Akun ${editingUserRole === "admin" ? "Admin" : "Karyawan"}` : "Tambah Akun Baru"}
-              </h3>
-              {editingUserId && (
-                <button onClick={resetForm} className="text-gray-400 hover:text-gray-600 cursor-pointer" title="Batalkan Edit">
+        {/* Create / Edit User Modal Overlay */}
+        {isUserModalOpen && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in" onClick={() => { resetForm(); setIsUserModalOpen(false); }}>
+            <div className="bg-white rounded-3xl overflow-hidden max-w-md w-full shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+                <h3 className="font-bold text-gray-800 text-base">
+                  {editingUserId ? `Edit Akun ${editingUserRole === "admin" ? "Admin" : editingUserRole === "student" ? "Siswa PKL" : "Karyawan"}` : "Tambah Akun Baru"}
+                </h3>
+                <button onClick={() => { resetForm(); setIsUserModalOpen(false); }} className="w-8 h-8 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer text-gray-400 hover:text-gray-650" title="Tutup">
                   <X size={16} />
                 </button>
-              )}
-            </div>
-
-            {/* Role Selector */}
-            <div className="flex flex-col gap-1.5 mb-4">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Role / Status Kerja</label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (editingUserId) {
-                      setEditingUserRole("employee");
-                    } else {
-                      setRole("employee");
-                    }
-                  }}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
-                    effectiveRole === "employee"
-                      ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
-                      : "bg-white text-gray-500 border-gray-200 hover:border-[#2AB0B2] hover:text-[#2AB0B2]"
-                  }`}
-                >
-                  <Users size={13} />
-                  Karyawan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (editingUserId) {
-                      setEditingUserRole("student");
-                    } else {
-                      setRole("student");
-                    }
-                  }}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
-                    effectiveRole === "student"
-                      ? "bg-purple-600 text-white border-purple-600"
-                      : "bg-white text-gray-500 border-gray-200 hover:border-purple-600 hover:text-purple-600"
-                  }`}
-                >
-                  <User size={13} />
-                  Siswa PKL
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (editingUserId) {
-                      setEditingUserRole("admin");
-                    } else {
-                      setRole("admin");
-                    }
-                  }}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
-                    effectiveRole === "admin"
-                      ? "bg-[#1C3D3F] text-white border-[#1C3D3F]"
-                      : "bg-white text-gray-500 border-gray-200 hover:border-[#1C3D3F] hover:text-[#1C3D3F]"
-                  }`}
-                >
-                  <ShieldCheck size={13} />
-                  Admin
-                </button>
               </div>
-            </div>
 
-            <form onSubmit={handleSaveUser} className="space-y-3">
+              {/* Role Selector - only when creating new user */}
+              {!editingUserId && (
+                <div className="flex flex-col gap-1.5 mb-4">
+                  <label className="text-[10px] font-bold text-gray-405 uppercase tracking-wider">Role / Status Kerja</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRole("employee")}
+                      className={`flex items-center justify-center gap-1.5 py-2 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                        role === "employee"
+                          ? "bg-[#2AB0B2] text-white border-[#2AB0B2]"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-[#2AB0B2] hover:text-[#2AB0B2]"
+                      }`}
+                    >
+                      <Users size={13} />
+                      Karyawan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRole("student")}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                        role === "student"
+                          ? "bg-purple-600 text-white border-purple-600"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-purple-600 hover:text-purple-600"
+                      }`}
+                    >
+                      <User size={13} />
+                      Siswa PKL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRole("admin")}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                        role === "admin"
+                          ? "bg-[#1C3D3F] text-white border-[#1C3D3F]"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-[#1C3D3F] hover:text-[#1C3D3F]"
+                      }`}
+                    >
+                      <ShieldCheck size={13} />
+                      Admin
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveUser} className="space-y-3 overflow-y-auto pr-1 flex-1">
               {/* Nama Lengkap */}
               <div>
                 <input
@@ -834,10 +829,8 @@ export default function AdminUsersPage() {
               </div>
             </form>
           </div>
-
-
         </div>
-      </div>
+      )}
     </div>
 
       {/* Admin Card Print Modal */}
