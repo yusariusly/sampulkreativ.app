@@ -4556,8 +4556,114 @@ app.put('/api/cert-settings/:curriculumId', async (req, res) => {
   }
 });
 
+// ── GET /api/cert-criteria ────────────────────────────────────────────────────
+app.get('/api/cert-criteria', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM cert_grade_criteria ORDER BY sort_order ASC, id ASC');
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/cert-criteria error:', err);
+    res.status(500).json({ error: 'Gagal mengambil kriteria penilaian' });
+  }
+});
+
+// ── POST /api/cert-criteria ───────────────────────────────────────────────────
+app.post('/api/cert-criteria', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'Nama kriteria wajib diisi' });
+    const [result] = await pool.query(
+      'INSERT INTO cert_grade_criteria (name, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order),0)+1 FROM cert_grade_criteria t2))',
+      [name.trim()]
+    );
+    res.json({ success: true, id: result.insertId, message: 'Kriteria berhasil ditambahkan' });
+  } catch (err) {
+    console.error('POST /api/cert-criteria error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan kriteria' });
+  }
+});
+
+// ── PUT /api/cert-criteria/:id ────────────────────────────────────────────────
+app.put('/api/cert-criteria/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, is_active } = req.body;
+    await pool.query(
+      'UPDATE cert_grade_criteria SET name = COALESCE(?, name), is_active = COALESCE(?, is_active) WHERE id = ?',
+      [name ?? null, is_active ?? null, id]
+    );
+    res.json({ success: true, message: 'Kriteria berhasil diperbarui' });
+  } catch (err) {
+    console.error('PUT /api/cert-criteria error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui kriteria' });
+  }
+});
+
+// ── DELETE /api/cert-criteria/:id ─────────────────────────────────────────────
+app.delete('/api/cert-criteria/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM cert_grade_criteria WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Kriteria berhasil dihapus' });
+  } catch (err) {
+    console.error('DELETE /api/cert-criteria error:', err);
+    res.status(500).json({ error: 'Gagal menghapus kriteria' });
+  }
+});
+
+// ── POST /api/cert-criterion-scores ──────────────────────────────────────────
+// Batch upsert criterion scores for one month
+// Body: { student_id, curriculum_id, month_number, notes, scores: { criterion_id: score } }
+app.post('/api/cert-criterion-scores', async (req, res) => {
+  try {
+    const { student_id, curriculum_id, month_number, notes, scores } = req.body;
+    if (!student_id || !curriculum_id || !month_number || !scores) {
+      return res.status(400).json({ error: 'student_id, curriculum_id, month_number, dan scores wajib diisi' });
+    }
+
+    // Upsert each criterion score
+    for (const [criterionId, score] of Object.entries(scores)) {
+      const numScore = parseFloat(String(score));
+      if (isNaN(numScore) || numScore < 0 || numScore > 100) continue;
+      await pool.query(
+        `INSERT INTO cert_criterion_scores (student_id, curriculum_id, month_number, criterion_id, score, updated_at)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT (student_id, curriculum_id, month_number, criterion_id) DO UPDATE SET
+           score = EXCLUDED.score,
+           updated_at = CURRENT_TIMESTAMP`,
+        [student_id, curriculum_id, month_number, parseInt(criterionId), numScore]
+      );
+    }
+
+    // Also upsert notes in cert_monthly_grades
+    if (notes !== undefined) {
+      // Compute avg score for that month to store as summary
+      const [avgRows] = await pool.query(
+        `SELECT AVG(score) as avg_score FROM cert_criterion_scores
+         WHERE student_id = ? AND curriculum_id = ? AND month_number = ?`,
+        [student_id, curriculum_id, month_number]
+      );
+      const avgScore = avgRows[0]?.avg_score ?? 0;
+      await pool.query(
+        `INSERT INTO cert_monthly_grades (student_id, curriculum_id, month_number, activity_score, notes, updated_at)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT (student_id, curriculum_id, month_number) DO UPDATE SET
+           activity_score = EXCLUDED.activity_score,
+           notes = EXCLUDED.notes,
+           updated_at = CURRENT_TIMESTAMP`,
+        [student_id, curriculum_id, month_number, avgScore, notes || null]
+      );
+    }
+
+    res.json({ success: true, message: `Nilai Bulan ${month_number} berhasil disimpan` });
+  } catch (err) {
+    console.error('POST /api/cert-criterion-scores error:', err);
+    res.status(500).json({ error: 'Gagal menyimpan nilai kriteria' });
+  }
+});
+
 // ── GET /api/cert-grades ─────────────────────────────────────────────────────
-// Returns monthly grades with KIE completion data per month
+// Returns monthly grades with multi-criteria scores and KIE completion data
 app.get('/api/cert-grades', async (req, res) => {
   try {
     const { student_id, curriculum_id } = req.query;
@@ -4586,25 +4692,41 @@ app.get('/api/cert-grades', async (req, res) => {
       'SELECT * FROM cert_curriculum_settings WHERE curriculum_id = ? LIMIT 1',
       [curriculum_id]
     );
-    const settings = settingsRows[0] || { activity_weight: 50, kie_weight: 50 };
+    const settings = settingsRows[0] || { activity_weight: 50, kie_weight: 50, aspect_label: 'Kedisiplinan' };
 
-    // Get existing manual grades
-    const [gradeRows] = await pool.query(
-      'SELECT * FROM cert_monthly_grades WHERE student_id = ? AND curriculum_id = ?',
+    // Get all active criteria
+    const [criteriaRows] = await pool.query(
+      'SELECT id, name, sort_order FROM cert_grade_criteria WHERE is_active = 1 ORDER BY sort_order ASC, id ASC'
+    );
+
+    // Get all criterion scores for this student+curriculum
+    const [scoreRows] = await pool.query(
+      'SELECT month_number, criterion_id, score FROM cert_criterion_scores WHERE student_id = ? AND curriculum_id = ?',
       [student_id, curriculum_id]
     );
-    const gradeMap = {};
-    gradeRows.forEach(g => { gradeMap[g.month_number] = g; });
+    // Build scoreMap: month_number → { criterion_id → score }
+    const scoreMap = {};
+    scoreRows.forEach(s => {
+      if (!scoreMap[s.month_number]) scoreMap[s.month_number] = {};
+      scoreMap[s.month_number][s.criterion_id] = parseFloat(s.score);
+    });
 
-    // Build monthly data with KIE calculation per month
+    // Get notes from cert_monthly_grades
+    const [gradeRows] = await pool.query(
+      'SELECT month_number, notes FROM cert_monthly_grades WHERE student_id = ? AND curriculum_id = ?',
+      [student_id, curriculum_id]
+    );
+    const notesMap = {};
+    gradeRows.forEach(g => { notesMap[g.month_number] = g.notes; });
+
+    // Build monthly data
     const months = [];
     for (let m = 1; m <= numMonths; m++) {
-      // Calculate the calendar date range for this month
       const monthStart = new Date(start.getFullYear(), start.getMonth() + (m - 1), 1);
-      const monthEnd = new Date(start.getFullYear(), start.getMonth() + m, 0); // last day of that month
+      const monthEnd = new Date(start.getFullYear(), start.getMonth() + m, 0);
       const actualEnd = monthEnd < end ? monthEnd : end;
 
-      // Count KIE submissions in this month range for this student
+      // KIE for this month
       const [kieCountRows] = await pool.query(
         `SELECT COUNT(*) as total FROM kie_submissions k
          JOIN users u ON u.id = k.user_id
@@ -4619,13 +4741,16 @@ app.get('/api/cert-grades', async (req, res) => {
       const kieTarget = workingDays * 4;
       const kiePct = kieTarget > 0 ? Math.min(100, (kieSubmitted / kieTarget) * 100) : 0;
 
-      const grade = gradeMap[m];
-      const activityScore = grade ? parseFloat(grade.activity_score) : null;
+      // Criterion scores for this month
+      const monthScores = scoreMap[m] || {};
+      const filledScores = criteriaRows.map(c => monthScores[c.id] ?? null).filter(v => v !== null);
+      const activityAvg = filledScores.length > 0
+        ? filledScores.reduce((s, v) => s + v, 0) / filledScores.length
+        : null;
 
-      // Calculate accumulation if activity score is entered
       let accumulation = null;
-      if (activityScore !== null) {
-        accumulation = (activityScore * settings.activity_weight / 100) + (kiePct * settings.kie_weight / 100);
+      if (activityAvg !== null) {
+        accumulation = (activityAvg * settings.activity_weight / 100) + (kiePct * settings.kie_weight / 100);
       }
 
       months.push({
@@ -4633,8 +4758,9 @@ app.get('/api/cert-grades', async (req, res) => {
         month_label: `Bulan ${m}`,
         month_start: monthStart.toISOString().split('T')[0],
         month_end: actualEnd.toISOString().split('T')[0],
-        activity_score: activityScore,
-        notes: grade?.notes || null,
+        criteria_scores: monthScores,   // { criterion_id: score }
+        activity_avg: activityAvg !== null ? Math.round(activityAvg * 100) / 100 : null,
+        notes: notesMap[m] || null,
         kie_submitted: kieSubmitted,
         kie_target: kieTarget,
         kie_pct: Math.round(kiePct * 100) / 100,
@@ -4643,10 +4769,19 @@ app.get('/api/cert-grades', async (req, res) => {
       });
     }
 
-    // Calculate final certificate grade (average of all months with activity_score filled)
+    // Per-criterion averages across all months (for summary row)
+    const criteriaAverages = {};
+    criteriaRows.forEach(c => {
+      const vals = months.map(m => m.criteria_scores[c.id] ?? null).filter(v => v !== null);
+      criteriaAverages[c.id] = vals.length > 0
+        ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 100) / 100
+        : null;
+    });
+
+    // Final certificate grade: average of monthly accumulations
     const filledMonths = months.filter(m => m.accumulation !== null);
     const finalGrade = filledMonths.length > 0
-      ? Math.round((filledMonths.reduce((sum, m) => sum + m.accumulation, 0) / filledMonths.length) * 100) / 100
+      ? Math.round((filledMonths.reduce((s, m) => s + m.accumulation, 0) / filledMonths.length) * 100) / 100
       : null;
 
     res.json({
@@ -4656,7 +4791,9 @@ app.get('/api/cert-grades', async (req, res) => {
       start_date: student.start_date,
       end_date: student.end_date,
       settings,
+      criteria: criteriaRows,
       months,
+      criteria_averages: criteriaAverages,
       final_grade: finalGrade,
     });
   } catch (err) {
@@ -4665,32 +4802,6 @@ app.get('/api/cert-grades', async (req, res) => {
   }
 });
 
-// ── POST /api/cert-grades ─────────────────────────────────────────────────────
-// Upsert a single month's activity score
-app.post('/api/cert-grades', async (req, res) => {
-  try {
-    const { student_id, curriculum_id, month_number, activity_score, notes } = req.body;
-    if (!student_id || !curriculum_id || !month_number) {
-      return res.status(400).json({ error: 'student_id, curriculum_id, dan month_number wajib diisi' });
-    }
-    if (activity_score < 0 || activity_score > 100) {
-      return res.status(400).json({ error: 'Nilai aktivitas harus antara 0–100' });
-    }
-    await pool.query(
-      `INSERT INTO cert_monthly_grades (student_id, curriculum_id, month_number, activity_score, notes, updated_at)
-       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-       ON CONFLICT (student_id, curriculum_id, month_number) DO UPDATE SET
-         activity_score = EXCLUDED.activity_score,
-         notes = EXCLUDED.notes,
-         updated_at = CURRENT_TIMESTAMP`,
-      [student_id, curriculum_id, month_number, activity_score, notes || null]
-    );
-    res.json({ success: true, message: `Nilai Bulan ${month_number} berhasil disimpan` });
-  } catch (err) {
-    console.error('POST /api/cert-grades error:', err);
-    res.status(500).json({ error: 'Gagal menyimpan nilai sertifikat' });
-  }
-});
 
 // ── GET /api/cert-tags ────────────────────────────────────────────────────────
 app.get('/api/cert-tags', async (req, res) => {

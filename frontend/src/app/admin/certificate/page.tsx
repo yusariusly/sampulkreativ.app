@@ -8,25 +8,26 @@ import {
 
 interface Curriculum { id: string; title: string; duration_months: number; student_count: number; }
 interface Student { student_id: string; student_name: string; start_date: string; end_date: string; }
+interface Criterion { id: number; name: string; sort_order: number; }
 interface MonthData {
   month_number: number; month_label: string; month_start: string; month_end: string;
-  activity_score: number | null; notes: string | null;
+  criteria_scores: Record<number, number>;
+  activity_avg: number | null; notes: string | null;
   kie_submitted: number; kie_target: number; kie_pct: number; working_days: number;
   accumulation: number | null;
 }
 interface CertGradeData {
   num_months: number; start_date: string; end_date: string;
   settings: { activity_weight: number; kie_weight: number; aspect_label: string };
-  months: MonthData[]; final_grade: number | null;
+  criteria: Criterion[];
+  months: MonthData[];
+  criteria_averages: Record<number, number | null>;
+  final_grade: number | null;
 }
 interface AppTag { id: number; label: string; is_active: number; }
 
 function LoadingSpinner() {
-  return (
-    <div className="flex justify-center py-16">
-      <Loader2 className="animate-spin text-[#2AB0B2]" size={28} />
-    </div>
-  );
+  return <div className="flex justify-center py-16"><Loader2 className="animate-spin text-[#2AB0B2]" size={28} /></div>;
 }
 function EmptyState({ message }: { message: string }) {
   return <div className="text-center py-12"><p className="text-sm text-slate-400 font-medium">{message}</p></div>;
@@ -42,39 +43,52 @@ export default function CertificatePage() {
   const [isStudentOpen, setIsStudentOpen] = useState(false);
   const [gradeData, setGradeData] = useState<CertGradeData | null>(null);
   const [loadingGrades, setLoadingGrades] = useState(false);
-  const [pendingScores, setPendingScores] = useState<Record<number, string>>({});
+
+  // pendingScores: { month_number: { criterion_id: string } }
+  const [pendingScores, setPendingScores] = useState<Record<number, Record<number, string>>>({});
+  const [pendingNotes, setPendingNotes] = useState<Record<number, string>>({});
   const [savingMonth, setSavingMonth] = useState<number | null>(null);
+
   const [allTags, setAllTags] = useState<AppTag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
   const [savingTags, setSavingTags] = useState(false);
-  const [globalNotes, setGlobalNotes] = useState("");
+
   const [settings, setSettings] = useState({ activity_weight: 50, kie_weight: 50, aspect_label: "Kedisiplinan" });
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Criteria master data management
+  const [criteria, setCriteria] = useState<Criterion[]>([]);
+  const [newCriterionName, setNewCriterionName] = useState("");
+  const [addingCriterion, setAddingCriterion] = useState(false);
+  const [editingCriterionId, setEditingCriterionId] = useState<number | null>(null);
+  const [editingCriterionName, setEditingCriterionName] = useState("");
+
+  // Tag management
   const [newTagLabel, setNewTagLabel] = useState("");
   const [addingTag, setAddingTag] = useState(false);
   const [editingTagId, setEditingTagId] = useState<number | null>(null);
   const [editingTagLabel, setEditingTagLabel] = useState("");
+
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-
-  const showSuccess = (msg: string) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(""), 3000); };
+  const showSuccess = (m: string) => { setSuccessMsg(m); setTimeout(() => setSuccessMsg(""), 3000); };
 
   const fetchCurricula = useCallback(async () => {
     try {
-      const res = await fetch("/api/pkl-templates");
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setCurricula(data);
-      if (data.length > 0) setSelectedCurriculumId(prev => prev || data[0].id);
+      const r = await fetch("/api/pkl-templates");
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      setCurricula(d);
+      if (d.length > 0) setSelectedCurriculumId(p => p || d[0].id);
     } catch { setErrorMsg("Gagal memuat kurikulum"); }
   }, []);
 
   const fetchStudents = useCallback(async (cid: string) => {
     try {
-      const res = await fetch("/api/pkl-templates/" + cid + "/students");
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      const mapped = data.map((s: any) => ({
+      const r = await fetch("/api/pkl-templates/" + cid + "/students");
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      const mapped = d.map((s: any) => ({
         student_id: s.student_id,
         student_name: s.nama_lengkap,
         start_date: s.start_date ? new Date(s.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
@@ -86,23 +100,37 @@ export default function CertificatePage() {
   }, []);
 
   const fetchGrades = useCallback(async (sid: string, cid: string) => {
-    setLoadingGrades(true); setPendingScores({});
+    setLoadingGrades(true); setPendingScores({}); setPendingNotes({});
     try {
-      const res = await fetch("/api/cert-grades?student_id=" + sid + "&curriculum_id=" + cid);
-      if (!res.ok) throw new Error();
-      const data: CertGradeData = await res.json();
-      setGradeData(data);
-      setSettings({ activity_weight: data.settings.activity_weight, kie_weight: data.settings.kie_weight, aspect_label: data.settings.aspect_label });
-      const init: Record<number, string> = {};
-      data.months.forEach(m => { if (m.activity_score !== null) init[m.month_number] = String(m.activity_score); });
-      setPendingScores(init);
+      const r = await fetch("/api/cert-grades?student_id=" + sid + "&curriculum_id=" + cid);
+      if (!r.ok) throw new Error();
+      const d: CertGradeData = await r.json();
+      setGradeData(d);
+      setSettings({ activity_weight: d.settings.activity_weight, kie_weight: d.settings.kie_weight, aspect_label: d.settings.aspect_label });
+      // Init pending from existing scores
+      const initScores: Record<number, Record<number, string>> = {};
+      const initNotes: Record<number, string> = {};
+      d.months.forEach(m => {
+        initScores[m.month_number] = {};
+        Object.entries(m.criteria_scores).forEach(([cid, val]) => {
+          initScores[m.month_number][parseInt(cid)] = String(val);
+        });
+        if (m.notes) initNotes[m.month_number] = m.notes;
+      });
+      setPendingScores(initScores);
+      setPendingNotes(initNotes);
     } catch { setErrorMsg("Gagal memuat nilai"); }
     finally { setLoadingGrades(false); }
   }, []);
 
+  const fetchCriteria = useCallback(async () => {
+    try { const r = await fetch("/api/cert-criteria"); if (!r.ok) throw new Error(); setCriteria(await r.json()); }
+    catch { setErrorMsg("Gagal memuat kriteria"); }
+  }, []);
+
   const fetchTags = useCallback(async () => {
     try { const r = await fetch("/api/cert-tags"); if (!r.ok) throw new Error(); setAllTags(await r.json()); }
-    catch { setErrorMsg("Gagal memuat tag"); }
+    catch {}
   }, []);
 
   const fetchStudentTags = useCallback(async (sid: string, cid: string) => {
@@ -110,7 +138,7 @@ export default function CertificatePage() {
     catch {}
   }, []);
 
-  useEffect(() => { fetchCurricula(); fetchTags(); }, [fetchCurricula, fetchTags]);
+  useEffect(() => { fetchCurricula(); fetchTags(); fetchCriteria(); }, [fetchCurricula, fetchTags, fetchCriteria]);
   useEffect(() => { if (selectedCurriculumId) fetchStudents(selectedCurriculumId); }, [selectedCurriculumId, fetchStudents]);
   useEffect(() => {
     if (selectedStudentId && selectedCurriculumId) {
@@ -119,31 +147,45 @@ export default function CertificatePage() {
     } else { setGradeData(null); }
   }, [selectedStudentId, selectedCurriculumId, fetchGrades, fetchStudentTags]);
 
-  const saveMonthGrade = async (mn: number) => {
+  // Save scores for a single month
+  const saveMonthScores = async (monthNumber: number) => {
     if (!selectedStudentId || !selectedCurriculumId) return;
-    const v = pendingScores[mn];
-    if (v === undefined || v === "") return;
-    const score = parseFloat(v);
-    if (isNaN(score) || score < 0 || score > 100) { setErrorMsg("Nilai harus 0–100"); return; }
-    setSavingMonth(mn);
+    const monthScores = pendingScores[monthNumber] || {};
+    const scores: Record<number, number> = {};
+    for (const [cid, val] of Object.entries(monthScores)) {
+      const n = parseFloat(val);
+      if (!isNaN(n) && n >= 0 && n <= 100) scores[parseInt(cid)] = n;
+    }
+    if (!Object.keys(scores).length) return;
+    setSavingMonth(monthNumber);
     try {
-      const r = await fetch("/api/cert-grades", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student_id: selectedStudentId, curriculum_id: selectedCurriculumId, month_number: mn, activity_score: score, notes: globalNotes || null }) });
+      const r = await fetch("/api/cert-criterion-scores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: selectedStudentId, curriculum_id: selectedCurriculumId, month_number: monthNumber, notes: pendingNotes[monthNumber] || null, scores }),
+      });
       if (!r.ok) throw new Error();
-      showSuccess("Nilai Bulan " + mn + " tersimpan!");
+      showSuccess("Nilai Bulan " + monthNumber + " tersimpan!");
       fetchGrades(selectedStudentId, selectedCurriculumId);
     } catch { setErrorMsg("Gagal menyimpan"); }
     finally { setSavingMonth(null); }
   };
 
+  // Save all months
   const saveAll = async () => {
-    if (!selectedStudentId || !selectedCurriculumId) return;
-    const entries = Object.entries(pendingScores).filter(([, v]) => v !== "");
-    if (!entries.length) return;
+    if (!selectedStudentId || !selectedCurriculumId || !gradeData) return;
     setSavingMonth(-1);
     try {
-      for (const [mn, v] of entries) {
-        const score = parseFloat(v);
-        if (!isNaN(score) && score >= 0 && score <= 100) await fetch("/api/cert-grades", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student_id: selectedStudentId, curriculum_id: selectedCurriculumId, month_number: parseInt(mn), activity_score: score, notes: globalNotes || null }) });
+      for (const month of gradeData.months) {
+        const monthScores = pendingScores[month.month_number] || {};
+        const scores: Record<number, number> = {};
+        for (const [cid, val] of Object.entries(monthScores)) {
+          const n = parseFloat(val);
+          if (!isNaN(n) && n >= 0 && n <= 100) scores[parseInt(cid)] = n;
+        }
+        if (Object.keys(scores).length) {
+          await fetch("/api/cert-criterion-scores", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student_id: selectedStudentId, curriculum_id: selectedCurriculumId, month_number: month.month_number, notes: pendingNotes[month.month_number] || null, scores }) });
+        }
       }
       showSuccess("Semua nilai tersimpan!");
       fetchGrades(selectedStudentId, selectedCurriculumId);
@@ -163,12 +205,29 @@ export default function CertificatePage() {
     if (!selectedCurriculumId) return;
     if (settings.activity_weight + settings.kie_weight !== 100) { setErrorMsg("Total bobot harus 100%"); return; }
     setSavingSettings(true);
-    try {
-      await fetch("/api/cert-settings/" + selectedCurriculumId, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(settings) });
-      showSuccess("Pengaturan tersimpan!");
-      if (selectedStudentId) fetchGrades(selectedStudentId, selectedCurriculumId);
-    } catch { setErrorMsg("Gagal menyimpan pengaturan"); }
+    try { await fetch("/api/cert-settings/" + selectedCurriculumId, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(settings) }); showSuccess("Pengaturan tersimpan!"); if (selectedStudentId) fetchGrades(selectedStudentId, selectedCurriculumId); }
+    catch { setErrorMsg("Gagal menyimpan pengaturan"); }
     finally { setSavingSettings(false); }
+  };
+
+  const addCriterion = async () => {
+    if (!newCriterionName.trim()) return;
+    setAddingCriterion(true);
+    try { await fetch("/api/cert-criteria", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newCriterionName.trim() }) }); setNewCriterionName(""); fetchCriteria(); if (selectedStudentId && selectedCurriculumId) fetchGrades(selectedStudentId, selectedCurriculumId); }
+    catch { setErrorMsg("Gagal menambah kriteria"); }
+    finally { setAddingCriterion(false); }
+  };
+
+  const updateCriterion = async (id: number) => {
+    if (!editingCriterionName.trim()) return;
+    try { await fetch("/api/cert-criteria/" + id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editingCriterionName.trim() }) }); setEditingCriterionId(null); fetchCriteria(); if (selectedStudentId && selectedCurriculumId) fetchGrades(selectedStudentId, selectedCurriculumId); }
+    catch { setErrorMsg("Gagal memperbarui kriteria"); }
+  };
+
+  const deleteCriterion = async (id: number) => {
+    if (!window.confirm("Hapus kriteria ini? Semua nilai terkait akan ikut terhapus.")) return;
+    try { await fetch("/api/cert-criteria/" + id, { method: "DELETE" }); fetchCriteria(); if (selectedStudentId && selectedCurriculumId) fetchGrades(selectedStudentId, selectedCurriculumId); }
+    catch { setErrorMsg("Gagal menghapus kriteria"); }
   };
 
   const addTag = async () => {
@@ -193,7 +252,24 @@ export default function CertificatePage() {
 
   const currentCurriculum = curricula.find(c => c.id === selectedCurriculumId);
   const currentStudent = students.find(s => s.student_id === selectedStudentId);
-  const gradeColor = (g: number | null) => !g ? "text-slate-400" : g >= 85 ? "text-emerald-600" : g >= 70 ? "text-amber-600" : "text-rose-600";
+  const gradeColor = (g: number | null) => !g && g !== 0 ? "text-slate-400" : g >= 85 ? "text-emerald-600" : g >= 70 ? "text-amber-600" : "text-rose-600";
+
+  // Helper: compute live activity_avg from pending scores for a month
+  const getLiveActivityAvg = (monthNumber: number, activeCriteria: Criterion[]) => {
+    if (!activeCriteria.length) return null;
+    const monthScores = pendingScores[monthNumber] || {};
+    const vals = activeCriteria.map(c => monthScores[c.id]).filter(v => v !== undefined && v !== "").map(v => parseFloat(v)).filter(v => !isNaN(v) && v >= 0);
+    return vals.length > 0 ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 100) / 100 : null;
+  };
+
+  const getLiveAccumulation = (monthNumber: number, activeCriteria: Criterion[], kiePct: number) => {
+    const avg = getLiveActivityAvg(monthNumber, activeCriteria);
+    if (avg === null) return null;
+    return Math.round(((avg * settings.activity_weight / 100) + (kiePct * settings.kie_weight / 100)) * 100) / 100;
+  };
+
+  // Active criteria (from gradeData if available, otherwise from criteria state)
+  const activeCriteria = gradeData?.criteria ?? criteria.filter(c => (c as any).is_active !== 0);
 
   return (
     <div className="flex-1 bg-[#F0F2F5] p-4 md:p-8 select-none">
@@ -217,10 +293,10 @@ export default function CertificatePage() {
       </div>
 
       {/* Banners */}
-      {errorMsg && <div className="mb-5 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-700 text-xs font-bold flex items-center gap-2 animate-in fade-in"><span>⚠️ {errorMsg}</span><button onClick={() => setErrorMsg("")} className="ml-auto text-rose-400 hover:text-rose-600 cursor-pointer">Tutup</button></div>}
-      {successMsg && <div className="mb-5 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-700 text-xs font-bold flex items-center gap-2 animate-in fade-in"><span>✅ {successMsg}</span><button onClick={() => setSuccessMsg("")} className="ml-auto text-emerald-400 hover:text-emerald-600 cursor-pointer">Tutup</button></div>}
+      {errorMsg && <div className="mb-5 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-700 text-xs font-bold flex items-center gap-2"><span>⚠️ {errorMsg}</span><button onClick={() => setErrorMsg("")} className="ml-auto text-rose-400 hover:text-rose-600 cursor-pointer">Tutup</button></div>}
+      {successMsg && <div className="mb-5 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-700 text-xs font-bold flex items-center gap-2"><span>✅ {successMsg}</span><button onClick={() => setSuccessMsg("")} className="ml-auto text-emerald-400 hover:text-emerald-600 cursor-pointer">Tutup</button></div>}
 
-      {/* TAB: INPUT NILAI */}
+      {/* ── TAB: INPUT NILAI ── */}
       {activeTab === "grades" && (
         <div className="space-y-6 animate-in fade-in duration-200">
           {/* Selectors */}
@@ -235,19 +311,7 @@ export default function CertificatePage() {
                     <span className="text-xs font-bold text-slate-700">{currentCurriculum?.title ?? "Pilih Kurikulum"}</span>
                     <ChevronDown size={12} className={`text-slate-400 transition-transform ${isCurriculumOpen ? "rotate-180" : ""}`} />
                   </button>
-                  {isCurriculumOpen && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setIsCurriculumOpen(false)} />
-                      <div className="absolute top-[40px] left-0 min-w-[240px] bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[280px] overflow-y-auto">
-                        {curricula.map(c => (
-                          <button key={c.id} type="button" onClick={() => { setSelectedCurriculumId(c.id); setIsCurriculumOpen(false); }} className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer ${c.id === selectedCurriculumId ? "bg-[#2AB0B2] text-white" : "text-slate-700 hover:bg-slate-50"}`}>
-                            <span>{c.title}</span>
-                            {c.id === selectedCurriculumId && <Check size={12} />}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
+                  {isCurriculumOpen && (<><div className="fixed inset-0 z-40" onClick={() => setIsCurriculumOpen(false)} /><div className="absolute top-[40px] left-0 min-w-[240px] bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[280px] overflow-y-auto">{curricula.map(c => (<button key={c.id} type="button" onClick={() => { setSelectedCurriculumId(c.id); setIsCurriculumOpen(false); }} className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer ${c.id === selectedCurriculumId ? "bg-[#2AB0B2] text-white" : "text-slate-700 hover:bg-slate-50"}`}><span>{c.title}</span>{c.id === selectedCurriculumId && <Check size={12} />}</button>))}</div></>)}
                 </div>
               </div>
 
@@ -261,44 +325,24 @@ export default function CertificatePage() {
                     <span className="text-xs font-bold text-slate-700">{currentStudent?.student_name ?? "—"}</span>
                     <ChevronDown size={12} className={`text-slate-400 transition-transform ${isStudentOpen ? "rotate-180" : ""}`} />
                   </button>
-                  {isStudentOpen && students.length > 0 && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setIsStudentOpen(false)} />
-                      <div className="absolute top-[40px] left-0 min-w-[260px] bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[280px] overflow-y-auto">
-                        {students.map(s => (
-                          <button key={s.student_id} type="button" onClick={() => { setSelectedStudentId(s.student_id); setIsStudentOpen(false); }} className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer ${s.student_id === selectedStudentId ? "bg-[#2AB0B2] text-white" : "text-slate-700 hover:bg-slate-50"}`}>
-                            <div className="flex flex-col min-w-0">
-                              <span className="truncate">{s.student_name}</span>
-                              <span className={`text-[9px] font-semibold mt-0.5 ${s.student_id === selectedStudentId ? "text-white/70" : "text-slate-400"}`}>{s.start_date} – {s.end_date}</span>
-                            </div>
-                            {s.student_id === selectedStudentId && <Check size={12} className="ml-2 flex-shrink-0" />}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
+                  {isStudentOpen && students.length > 0 && (<><div className="fixed inset-0 z-40" onClick={() => setIsStudentOpen(false)} /><div className="absolute top-[40px] left-0 min-w-[260px] bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[280px] overflow-y-auto">{students.map(s => (<button key={s.student_id} type="button" onClick={() => { setSelectedStudentId(s.student_id); setIsStudentOpen(false); }} className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer ${s.student_id === selectedStudentId ? "bg-[#2AB0B2] text-white" : "text-slate-700 hover:bg-slate-50"}`}><div className="flex flex-col min-w-0"><span className="truncate">{s.student_name}</span><span className={`text-[9px] font-semibold mt-0.5 ${s.student_id === selectedStudentId ? "text-white/70" : "text-slate-400"}`}>{s.start_date} – {s.end_date}</span></div>{s.student_id === selectedStudentId && <Check size={12} className="ml-2 flex-shrink-0" />}</button>))}</div></>)}
                 </div>
               </div>
 
-              {gradeData && Object.keys(pendingScores).length > 0 && (
-                <button onClick={saveAll} disabled={savingMonth === -1} className="ml-auto flex items-center gap-1.5 bg-[#2AB0B2] hover:bg-[#209092] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 disabled:opacity-60 shadow-sm">
-                  {savingMonth === -1 ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                  <span>Simpan Semua</span>
-                </button>
-              )}
+              <button onClick={saveAll} disabled={savingMonth === -1 || !gradeData} className="ml-auto flex items-center gap-1.5 bg-[#2AB0B2] hover:bg-[#209092] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 disabled:opacity-60 shadow-sm">
+                {savingMonth === -1 ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                <span>Simpan Semua</span>
+              </button>
             </div>
           </div>
 
-          {/* Content */}
           {!selectedStudentId || !selectedCurriculumId ? (
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-10 text-center">
-              <p className="text-slate-400 text-sm font-medium">Pilih kurikulum dan siswa untuk mulai menginput nilai.</p>
-            </div>
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-10 text-center"><p className="text-slate-400 text-sm font-medium">Pilih kurikulum dan siswa untuk mulai menginput nilai.</p></div>
           ) : loadingGrades ? (
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-8"><LoadingSpinner /></div>
           ) : gradeData ? (
             <>
-              {/* Grade Table */}
+              {/* Multi-Criteria Grade Table */}
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                   <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -313,43 +357,58 @@ export default function CertificatePage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-slate-50/70 border-b border-slate-100">
-                        {["Periode", "Nilai Aktivitas", "KIE Selesai", "KIE Target", "KIE %", "Akumulasi", "Simpan"].map(h => (
-                          <th key={h} className={`${h === "Periode" ? "text-left px-5" : "text-center px-4"} py-3 font-black text-slate-400 uppercase tracking-wider text-[9px]`}>{h}</th>
+                        <th className="text-left px-5 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap">Periode</th>
+                        {activeCriteria.map(c => (
+                          <th key={c.id} className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap min-w-[90px]">{c.name}</th>
                         ))}
+                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap bg-slate-100/60">Rata-rata</th>
+                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap">KIE %</th>
+                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap bg-[#2AB0B2]/5">Akumulasi</th>
+                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap">Simpan</th>
                       </tr>
                     </thead>
                     <tbody>
                       {gradeData.months.map(month => {
-                        const pv = pendingScores[month.month_number];
+                        const liveAvg = getLiveActivityAvg(month.month_number, activeCriteria);
+                        const liveAccum = getLiveAccumulation(month.month_number, activeCriteria, month.kie_pct);
                         return (
-                          <tr key={month.month_number} className="border-b border-slate-50 hover:bg-slate-50/40 transition-colors">
-                            <td className="px-5 py-3.5">
+                          <tr key={month.month_number} className="border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
+                            <td className="px-5 py-3.5 whitespace-nowrap">
                               <div className="font-bold text-slate-700">{month.month_label}</div>
                               <div className="text-[9px] text-slate-400 mt-0.5">{month.month_start} s/d {month.month_end}</div>
                             </td>
-                            <td className="px-4 py-3.5 text-center">
-                              <input type="number" min="0" max="100" step="0.01"
-                                value={pv ?? (month.activity_score !== null ? String(month.activity_score) : "")}
-                                onChange={e => setPendingScores(p => ({ ...p, [month.month_number]: e.target.value }))}
-                                placeholder="0–100"
-                                className="w-20 text-center text-xs font-bold border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2] bg-white transition-all"
-                              />
+                            {activeCriteria.map(c => (
+                              <td key={c.id} className="px-3 py-3.5 text-center">
+                                <input
+                                  type="number" min="0" max="100" step="0.5"
+                                  value={pendingScores[month.month_number]?.[c.id] ?? (month.criteria_scores[c.id] !== undefined ? String(month.criteria_scores[c.id]) : "")}
+                                  onChange={e => setPendingScores(p => ({
+                                    ...p,
+                                    [month.month_number]: { ...(p[month.month_number] || {}), [c.id]: e.target.value }
+                                  }))}
+                                  placeholder="0–100"
+                                  className="w-[80px] text-center text-xs font-bold border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2] bg-white transition-all"
+                                />
+                              </td>
+                            ))}
+                            <td className="px-3 py-3.5 text-center bg-slate-50/50">
+                              {liveAvg !== null
+                                ? <span className={`font-black text-sm ${gradeColor(liveAvg)}`}>{liveAvg.toFixed(2)}</span>
+                                : <span className="text-slate-300">—</span>}
                             </td>
-                            <td className="px-4 py-3.5 text-center font-bold text-slate-700">{month.kie_submitted}</td>
-                            <td className="px-4 py-3.5 text-center text-slate-500">{month.kie_target}</td>
-                            <td className="px-4 py-3.5 text-center">
+                            <td className="px-3 py-3.5 text-center">
                               <span className={`font-bold px-2 py-0.5 rounded-lg text-[10px] ${month.kie_pct >= 80 ? "bg-emerald-50 text-emerald-600" : month.kie_pct >= 50 ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"}`}>
                                 {month.kie_pct.toFixed(1)}%
                               </span>
                             </td>
-                            <td className="px-4 py-3.5 text-center">
-                              {month.accumulation !== null
-                                ? <span className={`font-black text-sm ${gradeColor(month.accumulation)}`}>{month.accumulation.toFixed(2)}</span>
+                            <td className="px-3 py-3.5 text-center bg-[#2AB0B2]/3">
+                              {liveAccum !== null
+                                ? <span className={`font-black text-sm ${gradeColor(liveAccum)}`}>{liveAccum.toFixed(2)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
-                            <td className="px-4 py-3.5 text-center">
-                              <button onClick={() => saveMonthGrade(month.month_number)} disabled={savingMonth === month.month_number || !pv}
-                                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer active:scale-95 disabled:opacity-40 mx-auto ${pv ? "bg-[#2AB0B2] text-white" : "bg-slate-100 text-slate-500"}`}>
+                            <td className="px-3 py-3.5 text-center">
+                              <button onClick={() => saveMonthScores(month.month_number)} disabled={savingMonth === month.month_number}
+                                className="flex items-center gap-1 bg-[#2AB0B2] text-white px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer active:scale-95 disabled:opacity-40 mx-auto hover:bg-[#209092] transition-colors">
                                 {savingMonth === month.month_number ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
                                 <span>Simpan</span>
                               </button>
@@ -357,10 +416,29 @@ export default function CertificatePage() {
                           </tr>
                         );
                       })}
+
+                      {/* Per-Criterion Average Summary Row */}
+                      {gradeData.months.some(m => Object.keys(m.criteria_scores).length > 0) && (
+                        <tr className="bg-slate-50 border-t-2 border-slate-200">
+                          <td className="px-5 py-3 font-black text-slate-500 text-[10px] uppercase tracking-wider whitespace-nowrap">Rata-rata Keseluruhan</td>
+                          {activeCriteria.map(c => (
+                            <td key={c.id} className="px-3 py-3 text-center">
+                              {gradeData.criteria_averages[c.id] !== null && gradeData.criteria_averages[c.id] !== undefined
+                                ? <span className={`font-black text-sm ${gradeColor(gradeData.criteria_averages[c.id])}`}>{gradeData.criteria_averages[c.id]?.toFixed(2)}</span>
+                                : <span className="text-slate-300 text-xs">—</span>}
+                            </td>
+                          ))}
+                          <td className="px-3 py-3 text-center bg-slate-100/60" />
+                          <td className="px-3 py-3 text-center" />
+                          <td className="px-3 py-3 text-center bg-[#2AB0B2]/5" />
+                          <td className="px-3 py-3 text-center" />
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
-                {/* Final grade */}
+
+                {/* Final Grade Footer */}
                 <div className="flex items-center justify-between px-5 py-4 border-t border-slate-100 bg-slate-50/50">
                   <div className="flex items-center gap-2">
                     <Star size={15} className="text-amber-500" />
@@ -368,16 +446,39 @@ export default function CertificatePage() {
                     <span className="text-[10px] text-slate-400">(rata-rata akumulasi semua bulan)</span>
                   </div>
                   {gradeData.final_grade !== null
-                    ? <span className={`text-xl font-black ${gradeColor(gradeData.final_grade)}`}>{gradeData.final_grade.toFixed(2)}</span>
+                    ? <span className={`text-2xl font-black ${gradeColor(gradeData.final_grade)}`}>{gradeData.final_grade.toFixed(2)}</span>
                     : <span className="text-slate-300 text-sm font-bold">Belum ada nilai</span>}
                 </div>
               </div>
 
-              {/* Tags + Notes */}
+              {/* Notes per Month + Tags */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Per-month notes */}
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+                    <MessageSquare size={15} className="text-[#2AB0B2]" />
+                    Catatan per Bulan
+                  </h3>
+                  <div className="space-y-3 max-h-[320px] overflow-y-auto">
+                    {gradeData.months.map(month => (
+                      <div key={month.month_number}>
+                        <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">{month.month_label}</label>
+                        <textarea
+                          value={pendingNotes[month.month_number] ?? (month.notes || "")}
+                          onChange={e => setPendingNotes(p => ({ ...p, [month.month_number]: e.target.value }))}
+                          placeholder={`Catatan Bulan ${month.month_number}...`}
+                          rows={2}
+                          className="w-full mt-1 text-xs text-slate-700 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2] resize-none transition-all placeholder:text-slate-300"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tags */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Tag size={15} className="text-[#2AB0B2]" />Tag Apresiasi Cepat</h3>
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Tag size={15} className="text-[#2AB0B2]" />Tag Apresiasi</h3>
                     <button onClick={saveTags} disabled={savingTags} className="flex items-center gap-1 bg-[#2AB0B2] text-white px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer active:scale-95 disabled:opacity-60">
                       {savingTags ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}<span>Simpan</span>
                     </button>
@@ -395,20 +496,55 @@ export default function CertificatePage() {
                     {!allTags.filter(t => t.is_active).length && <p className="text-xs text-slate-400">Tambahkan tag di Pengaturan.</p>}
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4"><MessageSquare size={15} className="text-[#2AB0B2]" />Catatan Pembimbing</h3>
-                  <textarea value={globalNotes} onChange={e => setGlobalNotes(e.target.value)} placeholder="Tulis catatan atau apresiasi untuk siswa ini..." rows={5}
-                    className="w-full text-xs text-slate-700 border border-slate-200 rounded-xl px-3.5 py-3 focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2] resize-none transition-all placeholder:text-slate-300" />
-                </div>
               </div>
             </>
           ) : null}
         </div>
       )}
 
-      {/* TAB: PENGATURAN */}
+      {/* ── TAB: PENGATURAN ── */}
       {activeTab === "settings" && (
         <div className="space-y-6 animate-in fade-in duration-200">
+
+          {/* Kriteria Penilaian */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6">
+            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-5">
+              <ClipboardList size={16} className="text-[#2AB0B2]" />
+              Kriteria Penilaian
+              <span className="ml-auto text-[10px] font-medium text-slate-400">Nama bisa diubah kapan saja tanpa mempengaruhi nilai</span>
+            </h2>
+            <div className="flex gap-2 mb-4">
+              <input type="text" value={newCriterionName} onChange={e => setNewCriterionName(e.target.value)} placeholder="Nama kriteria baru, cth: Kerapihan" onKeyDown={e => { if (e.key === "Enter") addCriterion(); }}
+                className="flex-1 text-sm font-medium px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-[#2AB0B2]/5 focus:border-[#2AB0B2] transition-all" />
+              <button onClick={addCriterion} disabled={addingCriterion || !newCriterionName.trim()} className="flex items-center gap-1.5 bg-[#2AB0B2] hover:bg-[#209092] text-white px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer active:scale-95 disabled:opacity-50 shrink-0">
+                {addingCriterion ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}<span>Tambah</span>
+              </button>
+            </div>
+            <div className="space-y-2">
+              {criteria.map(cr => (
+                <div key={cr.id} className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/40 hover:bg-slate-50 transition-colors">
+                  {editingCriterionId === cr.id ? (
+                    <input type="text" value={editingCriterionName} onChange={e => setEditingCriterionName(e.target.value)} autoFocus onKeyDown={e => { if (e.key === "Enter") updateCriterion(cr.id); if (e.key === "Escape") setEditingCriterionId(null); }}
+                      className="flex-1 text-xs font-semibold border border-[#2AB0B2] rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 bg-white mr-2" />
+                  ) : (
+                    <div className="flex items-center gap-2.5 flex-1">
+                      <span className="w-5 h-5 rounded-full bg-[#2AB0B2]/10 text-[#2AB0B2] text-[9px] font-black flex items-center justify-center flex-shrink-0">{cr.sort_order}</span>
+                      <span className="text-xs font-semibold text-slate-700">{cr.name}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1">
+                    {editingCriterionId === cr.id ? (
+                      <><button onClick={() => updateCriterion(cr.id)} className="p-1.5 text-emerald-500 hover:text-emerald-700 cursor-pointer rounded-lg hover:bg-emerald-50"><Check size={13} /></button><button onClick={() => setEditingCriterionId(null)} className="p-1.5 text-slate-400 hover:text-slate-600 cursor-pointer rounded-lg hover:bg-slate-100"><X size={13} /></button></>
+                    ) : (
+                      <><button onClick={() => { setEditingCriterionId(cr.id); setEditingCriterionName(cr.name); }} className="p-1.5 text-slate-400 hover:text-[#2AB0B2] cursor-pointer rounded-lg hover:bg-slate-100" title="Ubah Nama"><Edit size={13} /></button><button onClick={() => deleteCriterion(cr.id)} className="p-1.5 text-slate-400 hover:text-rose-500 cursor-pointer rounded-lg hover:bg-rose-50" title="Hapus"><Trash2 size={13} /></button></>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {!criteria.length && <EmptyState message="Belum ada kriteria penilaian." />}
+            </div>
+          </div>
+
           {/* Bobot */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6">
             <div className="flex items-center justify-between mb-5">
@@ -448,12 +584,11 @@ export default function CertificatePage() {
             )}
           </div>
 
-          {/* Tags Master Data */}
+          {/* Tag Master Data */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6">
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-5"><Tag size={16} className="text-[#2AB0B2]" />Pengaturan Tag Apresiasi</h2>
             <div className="flex gap-2 mb-5">
-              <input type="text" value={newTagLabel} onChange={e => setNewTagLabel(e.target.value)} placeholder="Label tag baru, cth: Tepat Waktu"
-                onKeyDown={e => { if (e.key === "Enter") addTag(); }}
+              <input type="text" value={newTagLabel} onChange={e => setNewTagLabel(e.target.value)} placeholder="Label tag baru" onKeyDown={e => { if (e.key === "Enter") addTag(); }}
                 className="flex-1 text-sm font-medium px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-[#2AB0B2]/5 focus:border-[#2AB0B2] transition-all" />
               <button onClick={addTag} disabled={addingTag || !newTagLabel.trim()} className="flex items-center gap-1.5 bg-[#2AB0B2] hover:bg-[#209092] text-white px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer active:scale-95 disabled:opacity-50 shrink-0">
                 {addingTag ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}<span>Tambah</span>
@@ -463,27 +598,13 @@ export default function CertificatePage() {
               {allTags.map(tag => (
                 <div key={tag.id} className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/40 hover:bg-slate-50 transition-colors">
                   {editingTagId === tag.id ? (
-                    <input type="text" value={editingTagLabel} onChange={e => setEditingTagLabel(e.target.value)} autoFocus
-                      onKeyDown={e => { if (e.key === "Enter") updateTag(tag.id); if (e.key === "Escape") setEditingTagId(null); }}
+                    <input type="text" value={editingTagLabel} onChange={e => setEditingTagLabel(e.target.value)} autoFocus onKeyDown={e => { if (e.key === "Enter") updateTag(tag.id); if (e.key === "Escape") setEditingTagId(null); }}
                       className="flex-1 text-xs font-semibold border border-[#2AB0B2] rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 bg-white mr-2" />
                   ) : (
-                    <div className="flex items-center gap-2.5 flex-1">
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${tag.is_active ? "bg-emerald-400" : "bg-slate-300"}`} />
-                      <span className="text-xs font-semibold text-slate-700">{tag.label}</span>
-                    </div>
+                    <div className="flex items-center gap-2.5 flex-1"><span className={`w-2 h-2 rounded-full flex-shrink-0 ${tag.is_active ? "bg-emerald-400" : "bg-slate-300"}`} /><span className="text-xs font-semibold text-slate-700">{tag.label}</span></div>
                   )}
                   <div className="flex items-center gap-1">
-                    {editingTagId === tag.id ? (
-                      <>
-                        <button onClick={() => updateTag(tag.id)} className="p-1.5 text-emerald-500 hover:text-emerald-700 cursor-pointer rounded-lg hover:bg-emerald-50"><Check size={13} /></button>
-                        <button onClick={() => setEditingTagId(null)} className="p-1.5 text-slate-400 hover:text-slate-600 cursor-pointer rounded-lg hover:bg-slate-100"><X size={13} /></button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => { setEditingTagId(tag.id); setEditingTagLabel(tag.label); }} className="p-1.5 text-slate-400 hover:text-[#2AB0B2] cursor-pointer rounded-lg hover:bg-slate-100" title="Edit"><Edit size={13} /></button>
-                        <button onClick={() => deleteTag(tag.id)} className="p-1.5 text-slate-400 hover:text-rose-500 cursor-pointer rounded-lg hover:bg-rose-50" title="Hapus"><Trash2 size={13} /></button>
-                      </>
-                    )}
+                    {editingTagId === tag.id ? (<><button onClick={() => updateTag(tag.id)} className="p-1.5 text-emerald-500 hover:text-emerald-700 cursor-pointer rounded-lg hover:bg-emerald-50"><Check size={13} /></button><button onClick={() => setEditingTagId(null)} className="p-1.5 text-slate-400 hover:text-slate-600 cursor-pointer rounded-lg hover:bg-slate-100"><X size={13} /></button></>) : (<><button onClick={() => { setEditingTagId(tag.id); setEditingTagLabel(tag.label); }} className="p-1.5 text-slate-400 hover:text-[#2AB0B2] cursor-pointer rounded-lg hover:bg-slate-100"><Edit size={13} /></button><button onClick={() => deleteTag(tag.id)} className="p-1.5 text-slate-400 hover:text-rose-500 cursor-pointer rounded-lg hover:bg-rose-50"><Trash2 size={13} /></button></>)}
                   </div>
                 </div>
               ))}
