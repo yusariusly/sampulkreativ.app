@@ -389,7 +389,6 @@ export default function CertificatePage() {
                           <th key={c.id} className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap min-w-[90px]">{c.name}</th>
                         ))}
                         <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap bg-slate-100/60">Rata-rata Nilai</th>
-                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap">KIE % (Syarat)</th>
                         <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap">Simpan</th>
                       </tr>
                     </thead>
@@ -422,11 +421,6 @@ export default function CertificatePage() {
                                 : <span className="text-slate-300">—</span>}
                             </td>
                             <td className="px-3 py-3.5 text-center">
-                              <span className={`font-bold px-2 py-0.5 rounded-lg text-[10px] ${month.kie_pct >= 80 ? "bg-emerald-50 text-emerald-600" : month.kie_pct >= 50 ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"}`}>
-                                {month.kie_pct.toFixed(1)}%
-                              </span>
-                            </td>
-                            <td className="px-3 py-3.5 text-center">
                               <button onClick={() => saveMonthScores(month.month_number)} disabled={savingMonth === month.month_number}
                                 className="flex items-center gap-1 bg-[#2AB0B2] text-white px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer active:scale-95 disabled:opacity-40 mx-auto hover:bg-[#209092] transition-colors">
                                 {savingMonth === month.month_number ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
@@ -450,7 +444,6 @@ export default function CertificatePage() {
                           ))}
                           <td className="px-3 py-3 text-center bg-slate-100/60" />
                           <td className="px-3 py-3 text-center" />
-                          <td className="px-3 py-3 text-center" />
                         </tr>
                       )}
                     </tbody>
@@ -464,9 +457,27 @@ export default function CertificatePage() {
                     <span className="text-xs font-bold text-slate-700">Nilai Sertifikat Rata-rata</span>
                     <span className="text-[10px] text-slate-400">(rata-rata nilai bulanan)</span>
                   </div>
-                  {gradeData.final_grade !== null
-                    ? <span className={`text-2xl font-black ${gradeColor(gradeData.final_grade)}`}>{gradeData.final_grade.toFixed(2)}</span>
-                    : <span className="text-slate-300 text-sm font-bold">Belum ada nilai</span>}
+                  <div className="flex items-center gap-4">
+                    {/* KIE Progress Pill next to grade */}
+                    {gradeData.kie_overall_pct !== undefined && (
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-extrabold ${
+                        gradeData.kie_overall_pct >= 100
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                          : "bg-rose-50 text-rose-600 border-rose-200"
+                      }`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                        <span>KIE: {gradeData.kie_overall_pct.toFixed(0)}%</span>
+                        {gradeData.kie_overall_pct >= 100 ? (
+                          <span className="text-[9px] font-bold opacity-80">(Lunas)</span>
+                        ) : (
+                          <span className="text-[9px] font-bold opacity-80">(Ada Hutang)</span>
+                        )}
+                      </div>
+                    )}
+                    {gradeData.final_grade !== null
+                      ? <span className={`text-2xl font-black ${gradeColor(gradeData.final_grade)}`}>{gradeData.final_grade.toFixed(2)}</span>
+                      : <span className="text-slate-300 text-sm font-bold">Belum ada nilai</span>}
+                  </div>
                 </div>
               </div>
 

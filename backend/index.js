@@ -4777,9 +4777,23 @@ app.get('/api/cert-grades', async (req, res) => {
         [student_id, curStart, actualEnd]
       );
       const kieSubmitted = parseInt(kieCountRows[0]?.total || 0);
+      // Get current date in Jakarta timezone (UTC+7)
+      const todayDate = new Date();
+      const jakartaOffset = 7 * 60 * 60 * 1000;
+      const todayJakarta = new Date(todayDate.getTime() + jakartaOffset);
+      const todayStr = todayJakarta.toISOString().split('T')[0]; // 'YYYY-MM-DD'
+
+      let targetEnd = actualEnd;
+      if (curStart > todayStr) {
+        targetEnd = null;
+      } else if (actualEnd >= todayStr) {
+        targetEnd = todayStr;
+      }
+
       const workingDays = countWorkingDays(new Date(curStart), new Date(actualEnd));
-      const kieTarget = workingDays * 4;
-      const kiePct = kieTarget > 0 ? Math.min(100, (kieSubmitted / kieTarget) * 100) : 0;
+      const targetWorkingDays = targetEnd ? countWorkingDays(new Date(curStart), new Date(targetEnd)) : 0;
+      const kieTarget = targetWorkingDays * 4;
+      const kiePct = kieTarget > 0 ? Math.min(100, (kieSubmitted / kieTarget) * 100) : 100;
 
       // Criterion scores for this month
       const monthScores = scoreMap[m] || {};
