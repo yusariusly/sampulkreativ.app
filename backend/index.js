@@ -4849,10 +4849,10 @@ app.get('/api/cert-grades', async (req, res) => {
       ? Math.round((filledMonths.reduce((s, mo) => s + mo.accumulation, 0) / filledMonths.length) * 100) / 100
       : null;
 
-    const totalKieSubmitted = months.reduce((sum, mo) => sum + mo.kie_submitted, 0);
-    const totalKieTarget = months.reduce((sum, mo) => sum + mo.kie_target, 0);
-    const autoKiePct = totalKieTarget > 0 ? Math.round((totalKieSubmitted / totalKieTarget) * 10000) / 100 : 0;
-    const kieOverallPct = student.kie_progress_override !== null ? parseFloat(student.kie_progress_override) : autoKiePct;
+     const totalKieSubmitted = months.reduce((sum, mo) => sum + mo.kie_submitted, 0);
+     const totalKieTarget = months.reduce((sum, mo) => sum + mo.kie_target, 0);
+     const autoKiePct = totalKieTarget > 0 ? Math.min(100, Math.round((totalKieSubmitted / totalKieTarget) * 10000) / 100) : 0;
+     const kieOverallPct = student.kie_progress_override !== null ? parseFloat(student.kie_progress_override) : autoKiePct;
 
     res.json({
       student_id,
