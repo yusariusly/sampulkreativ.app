@@ -136,8 +136,8 @@ export default function AdminLayout({
   const renderSidebarContent = (collapsed: boolean = false) => (
     <div className="flex flex-col h-full">
       {/* Brand Logo */}
-      <div className={`flex items-center ${collapsed ? "flex-col gap-4 justify-center" : "justify-between"} px-2 mb-8 select-none`}>
-        <div className={`flex items-center ${collapsed ? "flex-col justify-center text-center" : "gap-2.5"}`}>
+      <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between"} px-2 mb-8 select-none`}>
+        <div className="flex items-center gap-2.5">
           <AppLogo size={collapsed ? 30 : 34} />
           {!collapsed && (
             <div>
@@ -146,17 +146,6 @@ export default function AdminLayout({
             </div>
           )}
         </div>
-        
-        {/* Collapse Toggle for Desktop */}
-        {!isMobileMenuOpen && (
-          <button
-            onClick={toggleSidebar}
-            className="hidden md:flex p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-            title={collapsed ? "Buka Sidebar" : "Tutup Sidebar"}
-          >
-            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-          </button>
-        )}
 
         {/* Mobile Close Button Inside Sidebar */}
         <button
@@ -268,10 +257,19 @@ export default function AdminLayout({
 
       {/* Desktop Sidebar Panel */}
       <aside 
-        className={`hidden md:flex bg-white border-r border-gray-100 flex-col py-7 flex-shrink-0 print:hidden sticky top-0 h-screen transition-all duration-300 ease-in-out ${
+        className={`hidden md:flex bg-white border-r border-gray-100 flex-col py-7 flex-shrink-0 print:hidden sticky top-0 h-screen transition-all duration-300 ease-in-out relative z-30 ${
           isCollapsed ? "w-[76px] px-3" : "w-[240px] px-4"
         }`}
       >
+        {/* Floating Toggle Button on the Right Border */}
+        <button
+          onClick={toggleSidebar}
+          className="hidden md:flex absolute top-9 -right-3 w-6 h-6 rounded-full bg-white border border-gray-250 shadow-sm items-center justify-center text-gray-400 hover:text-[#2AB0B2] hover:border-[#2AB0B2] hover:bg-[#2AB0B2]/5 transition-all active:scale-90 cursor-pointer z-50"
+          title={isCollapsed ? "Buka Sidebar" : "Tutup Sidebar"}
+        >
+          {isCollapsed ? <ChevronRight size={12} strokeWidth={2.5} /> : <ChevronLeft size={12} strokeWidth={2.5} />}
+        </button>
+
         {renderSidebarContent(isCollapsed)}
       </aside>
 
