@@ -4788,9 +4788,10 @@ app.get('/api/cert-grades', async (req, res) => {
         ? filledScores.reduce((s, v) => s + v, 0) / filledScores.length
         : null;
 
+      // Monthly accumulation is now simply the activity average (excluding KIE)
       let accumulation = null;
       if (activityAvg !== null) {
-        accumulation = (activityAvg * settings.activity_weight / 100) + ((kiePct / 10) * settings.kie_weight / 100);
+        accumulation = activityAvg;
       }
 
       months.push({
@@ -4807,6 +4808,7 @@ app.get('/api/cert-grades', async (req, res) => {
         working_days: workingDays,
         accumulation: accumulation !== null ? Math.round(accumulation * 100) / 100 : null,
       });
+
       curStart = addOneDay(actualEnd);
       m++;
       if (curStart > endStr || m > 24) {
@@ -4818,18 +4820,21 @@ app.get('/api/cert-grades', async (req, res) => {
     // Per-criterion averages across all months (for summary row)
     const criteriaAverages = {};
     criteriaRows.forEach(c => {
-      const vals = months.map(m => m.criteria_scores[c.id] ?? null).filter(v => v !== null);
+      const vals = months.map(mo => mo.criteria_scores[c.id] ?? null).filter(v => v !== null);
       criteriaAverages[c.id] = vals.length > 0
         ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 100) / 100
         : null;
     });
 
     // Final certificate grade: average of monthly accumulations
-    const filledMonths = months.filter(m => m.accumulation !== null);
+    const filledMonths = months.filter(mo => mo.accumulation !== null);
     const finalGrade = filledMonths.length > 0
-      ? Math.round((filledMonths.reduce((s, m) => s + m.accumulation, 0) / filledMonths.length) * 100) / 100
+      ? Math.round((filledMonths.reduce((s, mo) => s + mo.accumulation, 0) / filledMonths.length) * 100) / 100
       : null;
 
+    const totalKieSubmitted = months.reduce((sum, mo) => sum + mo.kie_submitted, 0);
+    const totalKieTarget = months.reduce((sum, mo) => sum + mo.kie_target, 0);
+    const kieOverallPct = totalKieTarget > 0 ? Math.round((totalKieSubmitted / totalKieTarget) * 10000) / 100 : 0;
     res.json({
       student_id,
       curriculum_id,
@@ -4841,6 +4846,9 @@ app.get('/api/cert-grades', async (req, res) => {
       months,
       criteria_averages: criteriaAverages,
       final_grade: finalGrade,
+      total_kie_submitted: totalKieSubmitted,
+      total_kie_target: totalKieTarget,
+      kie_overall_pct: kieOverallPct,
     });
   } catch (err) {
     console.error('GET /api/cert-grades error:', err);

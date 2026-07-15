@@ -23,6 +23,9 @@ interface CertGradeData {
   months: MonthData[];
   criteria_averages: Record<number, number | null>;
   final_grade: number | null;
+  total_kie_submitted?: number;
+  total_kie_target?: number;
+  kie_overall_pct?: number;
 }
 interface AppTag { id: number; label: string; is_active: number; }
 
@@ -262,12 +265,6 @@ export default function CertificatePage() {
     return vals.length > 0 ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 100) / 100 : null;
   };
 
-  const getLiveAccumulation = (monthNumber: number, activeCriteria: Criterion[], kiePct: number) => {
-    const avg = getLiveActivityAvg(monthNumber, activeCriteria);
-    if (avg === null) return null;
-    return Math.round(((avg * settings.activity_weight / 100) + ((kiePct / 10) * settings.kie_weight / 100)) * 100) / 100;
-  };
-
   // Active criteria (from gradeData if available, otherwise from criteria state)
   const activeCriteria = gradeData?.criteria ?? criteria.filter(c => (c as any).is_active !== 0);
 
@@ -361,16 +358,14 @@ export default function CertificatePage() {
                         {activeCriteria.map(c => (
                           <th key={c.id} className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap min-w-[90px]">{c.name}</th>
                         ))}
-                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap bg-slate-100/60">Rata-rata</th>
-                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap">KIE %</th>
-                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap bg-[#2AB0B2]/5">Akumulasi</th>
+                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap bg-slate-100/60">Rata-rata Nilai</th>
+                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap">KIE % (Syarat)</th>
                         <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap">Simpan</th>
                       </tr>
                     </thead>
                     <tbody>
                       {gradeData.months.map(month => {
                         const liveAvg = getLiveActivityAvg(month.month_number, activeCriteria);
-                        const liveAccum = getLiveAccumulation(month.month_number, activeCriteria, month.kie_pct);
                         return (
                           <tr key={month.month_number} className="border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
                             <td className="px-5 py-3.5 whitespace-nowrap">
@@ -401,11 +396,6 @@ export default function CertificatePage() {
                                 {month.kie_pct.toFixed(1)}%
                               </span>
                             </td>
-                            <td className="px-3 py-3.5 text-center bg-[#2AB0B2]/3">
-                              {liveAccum !== null
-                                ? <span className={`font-black text-sm ${gradeColor(liveAccum)}`}>{liveAccum.toFixed(2)}</span>
-                                : <span className="text-slate-300">—</span>}
-                            </td>
                             <td className="px-3 py-3.5 text-center">
                               <button onClick={() => saveMonthScores(month.month_number)} disabled={savingMonth === month.month_number}
                                 className="flex items-center gap-1 bg-[#2AB0B2] text-white px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer active:scale-95 disabled:opacity-40 mx-auto hover:bg-[#209092] transition-colors">
@@ -430,7 +420,6 @@ export default function CertificatePage() {
                           ))}
                           <td className="px-3 py-3 text-center bg-slate-100/60" />
                           <td className="px-3 py-3 text-center" />
-                          <td className="px-3 py-3 text-center bg-[#2AB0B2]/5" />
                           <td className="px-3 py-3 text-center" />
                         </tr>
                       )}
@@ -442,8 +431,8 @@ export default function CertificatePage() {
                 <div className="flex items-center justify-between px-5 py-4 border-t border-slate-100 bg-slate-50/50">
                   <div className="flex items-center gap-2">
                     <Star size={15} className="text-amber-500" />
-                    <span className="text-xs font-bold text-slate-700">Nilai Sertifikat Final</span>
-                    <span className="text-[10px] text-slate-400">(rata-rata akumulasi semua bulan)</span>
+                    <span className="text-xs font-bold text-slate-700">Nilai Sertifikat Rata-rata</span>
+                    <span className="text-[10px] text-slate-400">(rata-rata nilai bulanan)</span>
                   </div>
                   {gradeData.final_grade !== null
                     ? <span className={`text-2xl font-black ${gradeColor(gradeData.final_grade)}`}>{gradeData.final_grade.toFixed(2)}</span>
@@ -451,15 +440,15 @@ export default function CertificatePage() {
                 </div>
               </div>
 
-              {/* Notes per Month + Tags */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Notes per Month + Tags + KIE Print Eligibility */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Per-month notes */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
                     <MessageSquare size={15} className="text-[#2AB0B2]" />
                     Catatan per Bulan
                   </h3>
-                  <div className="space-y-3 max-h-[320px] overflow-y-auto">
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
                     {gradeData.months.map(month => (
                       <div key={month.month_number}>
                         <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">{month.month_label}</label>
@@ -483,7 +472,7 @@ export default function CertificatePage() {
                       {savingTags ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}<span>Simpan</span>
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 max-h-[300px] overflow-y-auto">
                     {allTags.filter(t => t.is_active).map(tag => {
                       const on = selectedTagIds.includes(tag.id);
                       return (
@@ -495,6 +484,68 @@ export default function CertificatePage() {
                     })}
                     {!allTags.filter(t => t.is_active).length && <p className="text-xs text-slate-400">Tambahkan tag di Pengaturan.</p>}
                   </div>
+                </div>
+
+                {/* KIE & Cetak Sertifikat */}
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+                      <Award size={15} className="text-[#2AB0B2]" />
+                      Syarat Cetak Sertifikat
+                    </h3>
+                    <div className="space-y-4">
+                      {/* Overall KIE completion progress */}
+                      <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3.5">
+                        <div className="flex justify-between items-center text-xs mb-2">
+                          <span className="font-bold text-slate-600">Progres KIE PKL</span>
+                          <span className={`font-black ${((gradeData.kie_overall_pct ?? 0) >= 100) ? "text-emerald-600" : "text-amber-600"}`}>
+                            {(gradeData.kie_overall_pct ?? 0).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden mb-2.5">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${((gradeData.kie_overall_pct ?? 0) >= 100) ? "bg-emerald-500" : "bg-amber-500"}`}
+                            style={{ width: `${Math.min(100, gradeData.kie_overall_pct ?? 0)}%` }}
+                          />
+                        </div>
+                        <div className="text-[10px] text-slate-400 flex items-center justify-between font-semibold">
+                          <span>Total KIE: {gradeData.total_kie_submitted} KIE</span>
+                          <span>Target: {gradeData.total_kie_target} KIE</span>
+                        </div>
+                      </div>
+
+                      {/* Status Checkbox/Indicator */}
+                      <div className="flex items-start gap-2.5 p-3 rounded-xl border bg-slate-50/50">
+                        {((gradeData.kie_overall_pct ?? 0) >= 100) ? (
+                          <>
+                            <div className="p-1 bg-emerald-100 rounded-full text-emerald-600 flex-shrink-0 mt-0.5"><Check size={12} className="stroke-[3]" /></div>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs font-bold text-emerald-700">Syarat Terpenuhi</span>
+                              <span className="text-[10px] text-emerald-600/80">KIE sudah mencapai 100% target. Sertifikat siap dicetak.</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="p-1 bg-rose-100 rounded-full text-rose-600 flex-shrink-0 mt-0.5"><X size={12} className="stroke-[3]" /></div>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs font-bold text-rose-700">Belum Memenuhi Syarat</span>
+                              <span className="text-[10px] text-rose-600/80">KIE harus diselesaikan hingga 100% target untuk mengaktifkan cetak sertifikat.</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Print Button */}
+                  <button
+                    onClick={() => window.print()}
+                    disabled={(gradeData.kie_overall_pct ?? 0) < 100}
+                    className="w-full mt-5 bg-[#2AB0B2] text-white hover:bg-[#209092] disabled:bg-slate-200 disabled:text-slate-400 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
+                  >
+                    <Award size={14} />
+                    <span>Cetak Sertifikat</span>
+                  </button>
                 </div>
               </div>
             </>
