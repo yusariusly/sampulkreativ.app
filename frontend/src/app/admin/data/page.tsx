@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Search, Calendar, ChevronDown, Download, CheckCircle2, XCircle, Send, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Calendar, ChevronDown, Download, CheckCircle2, XCircle, Send, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 
 const TEAL = "#2AB0B2";
 
@@ -44,6 +44,71 @@ export default function AdminDataPage() {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [selectedLogName, setSelectedLogName] = useState("");
 
+  // Override states
+  const [users, setUsers] = useState<any[]>([]);
+  const [overrideUser, setOverrideUser] = useState("");
+  const [overrideStatus, setOverrideStatus] = useState("Hadir");
+  const [notification, setNotification] = useState("");
+
+  const getNotificationDetails = (msg: string) => {
+    let icon = <CheckCircle2 size={16} className="text-[#2AB0B2]" />;
+    let cleaned = msg;
+
+    if (msg.startsWith("⚠️")) {
+      icon = <AlertTriangle size={16} className="text-amber-500" />;
+      cleaned = msg.replace(/^⚠️\s*/, "");
+    } else if (msg.startsWith("✅")) {
+      icon = <CheckCircle2 size={16} className="text-emerald-500" />;
+      cleaned = msg.replace(/^✅\s*/, "");
+    }
+
+    return { icon, cleaned };
+  };
+
+  const showToast = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => {
+      setNotification("");
+    }, 3500);
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch("/api/users");
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } catch (err) {
+      console.error("Gagal memuat daftar pengguna:", err);
+    }
+  };
+
+  const handleOverrideStatus = async () => {
+    if (!overrideUser) {
+      showToast("⚠️ Silakan pilih karyawan terlebih dahulu");
+      return;
+    }
+    try {
+      const res = await fetch("/api/attendance/override", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: overrideUser, status: overrideStatus }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const employee = users.find((u) => u.username === overrideUser);
+        showToast(`✅ Status absensi "${employee?.nama_lengkap || overrideUser}" berhasil diubah menjadi "${overrideStatus}"`);
+        setOverrideUser("");
+        fetchLogs();
+      } else {
+        showToast(`⚠️ ${data.error || "Gagal menerapkan override"}`);
+      }
+    } catch (err) {
+      showToast("⚠️ Gagal menghubungi server");
+    }
+  };
+
   const fetchLogs = async () => {
     try {
       const res = await fetch("/api/attendance");
@@ -60,6 +125,7 @@ export default function AdminDataPage() {
 
   useEffect(() => {
     fetchLogs();
+    fetchUsers();
   }, []);
 
   const handlePrevDay = () => {
@@ -140,6 +206,17 @@ export default function AdminDataPage() {
 
   return (
     <div className="flex-1 bg-[#F0F2F5] p-4 md:p-8 select-none relative">
+      {/* Toast Alert Notification */}
+      {notification && (() => {
+        const { icon, cleaned } = getNotificationDetails(notification);
+        return (
+          <div className="fixed top-4 right-4 z-50 p-4 bg-[#1C3D3F] text-white rounded-xl shadow-lg border border-[#2AB0B2]/30 flex items-center gap-2 font-medium text-sm transition-all animate-bounce">
+            {icon}
+            <span>{cleaned}</span>
+          </div>
+        );
+      })()}
+
       {/* Photo View Modal Overlay */}
       {selectedPhoto && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
@@ -238,86 +315,129 @@ export default function AdminDataPage() {
         </div>
       </div>
 
-      {/* Main Table */}
-      <div className="bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px]">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                {["Waktu", "Nama", "Lokasi", "Foto", "Status"].map((h) => (
-                  <th key={h} className="text-left px-6 py-4 text-sm font-semibold text-gray-700">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-sm text-gray-400 font-medium">
-                    Memuat log absensi...
-                  </td>
+      {/* Grid Layout for main content and override status */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
+        {/* Main Table card */}
+        <div className="lg:col-span-8 bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px]">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/50">
+                  {["Waktu", "Nama", "Lokasi", "Foto", "Status"].map((h) => (
+                    <th key={h} className="text-left px-6 py-4 text-sm font-semibold text-gray-700">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ) : filteredRows.length > 0 ? (
-                filteredRows.map((r, i) => (
-                  <tr
-                    key={i}
-                    className="border-b border-gray-50 last:border-0 hover:bg-gray-50/35 transition-colors"
-                  >
-                    <td className="px-6 py-4 text-sm text-gray-500 font-mono">
-                      {formatDateTime(r.waktu_absen)}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-800">
-                      {r.nama_lengkap}
-                      {r.diubah_oleh_admin && (
-                        <span className="text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded ml-2 font-semibold text-[10px]">
-                          Manual Override
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {r.latitude ? `${r.latitude.toFixed(6)}, ${r.longitude.toFixed(6)}` : "Tanpa GPS"}
-                    </td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => {
-                          setSelectedPhoto(r.foto_url);
-                          setSelectedLogName(r.nama_lengkap);
-                        }}
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-xs select-none cursor-pointer overflow-hidden border border-gray-100 hover:scale-105 transition-transform"
-                        style={{ backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
-                        title="Lihat foto kehadiran"
-                      >
-                        {r.foto_url === "telegram" ? (
-                          <div className="w-full h-full bg-[#2AB0B2]/10 flex items-center justify-center text-[#2AB0B2]">
-                            <Send size={12} strokeWidth={2.5} />
-                          </div>
-                        ) : r.foto_url && r.foto_url !== "/uploads/placeholder.jpg" ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={r.foto_url} alt="Selfie preview" className="w-full h-full object-cover" />
-                        ) : (
-                          r.nama_lengkap
-                            .split(" ")
-                            .map((w: string) => w[0])
-                            .join("")
-                            .slice(0, 2)
-                        )}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4">
-                      <StatusBadge status={r.status} small />
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-8 text-sm text-gray-400 font-medium">
+                      Memuat log absensi...
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-sm text-gray-400 font-medium">
-                    Tidak ada log absensi yang cocok dengan kata kunci
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                ) : filteredRows.length > 0 ? (
+                  filteredRows.map((r, i) => (
+                    <tr
+                      key={i}
+                      className="border-b border-gray-55 last:border-0 hover:bg-gray-50/30 transition-colors"
+                    >
+                      <td className="px-6 py-4 text-sm text-gray-500 font-mono">
+                        {formatDateTime(r.waktu_absen)}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-800">
+                        {r.nama_lengkap}
+                        {r.diubah_oleh_admin && (
+                          <span className="text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded ml-2 font-semibold text-[10px]">
+                            Manual Override
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {r.latitude ? `${r.latitude.toFixed(6)}, ${r.longitude.toFixed(6)}` : "Tanpa GPS"}
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => {
+                            setSelectedPhoto(r.foto_url);
+                            setSelectedLogName(r.nama_lengkap);
+                          }}
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-xs select-none cursor-pointer overflow-hidden border border-gray-100 hover:scale-105 transition-transform"
+                          style={{ backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
+                          title="Lihat foto kehadiran"
+                        >
+                          {r.foto_url === "telegram" ? (
+                            <div className="w-full h-full bg-[#2AB0B2]/10 flex items-center justify-center text-[#2AB0B2]">
+                              <Send size={12} strokeWidth={2.5} />
+                            </div>
+                          ) : r.foto_url && r.foto_url !== "/uploads/placeholder.jpg" ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={r.foto_url} alt="Selfie preview" className="w-full h-full object-cover" />
+                          ) : (
+                            r.nama_lengkap
+                              .split(" ")
+                              .map((w: string) => w[0])
+                              .join("")
+                              .slice(0, 2)
+                          )}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge status={r.status} small />
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="text-center py-8 text-sm text-gray-400 font-medium">
+                      Tidak ada log absensi yang cocok dengan kata kunci
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Sidebar Action card (Override Status) */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-white rounded-2xl shadow-xs p-5 border border-gray-100/50 animate-in fade-in">
+            <h3 className="font-bold text-gray-800 mb-1 text-sm">Override Status</h3>
+            <p className="text-gray-450 text-xs mb-4">Ubah status absensi secara manual</p>
+            <div className="space-y-3">
+              <select
+                value={overrideUser}
+                onChange={(e) => setOverrideUser(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-600 transition-colors cursor-pointer"
+              >
+                <option value="">Pilih Karyawan</option>
+                {users
+                  .filter((u) => u.role !== "admin")
+                  .map((u) => (
+                    <option key={u.username} value={u.username}>
+                      {u.nama_lengkap}
+                    </option>
+                  ))}
+              </select>
+              <select
+                value={overrideStatus}
+                onChange={(e) => setOverrideStatus(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-600 transition-colors cursor-pointer"
+              >
+                <option>Hadir</option>
+                <option>Izin</option>
+                <option>Sakit</option>
+                <option>Alpa</option>
+              </select>
+              <button
+                onClick={handleOverrideStatus}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold border-2 transition-all hover:bg-[#F6C13B]/10 cursor-pointer text-[#F6C13B] border-[#F6C13B] active:scale-[0.98]"
+              >
+                Terapkan Override
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

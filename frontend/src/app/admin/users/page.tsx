@@ -102,9 +102,7 @@ export default function AdminUsersPage() {
   const [endDate, setEndDate] = useState("");
   const [pklTemplates, setPklTemplates] = useState<{ id: string; title: string }[]>([]);
 
-  // Override states
-  const [overrideUser, setOverrideUser] = useState("");
-  const [overrideStatus, setOverrideStatus] = useState("Hadir");
+
 
   // Notifications
   const [notification, setNotification] = useState("");
@@ -332,29 +330,7 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleOverrideStatus = async () => {
-    if (!overrideUser) {
-      showToast("⚠️ Silakan pilih karyawan terlebih dahulu");
-      return;
-    }
-    try {
-      const res = await fetch("/api/attendance/override", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: overrideUser, status: overrideStatus }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        const employee = users.find((u) => u.username === overrideUser);
-        showToast(`✅ Status absensi "${employee?.nama_lengkap || overrideUser}" berhasil diubah menjadi "${overrideStatus}"`);
-        setOverrideUser("");
-      } else {
-        showToast(`⚠️ ${data.error || "Gagal menerapkan override"}`);
-      }
-    } catch (err) {
-      showToast("⚠️ Gagal menghubungi server");
-    }
-  };
+
 
   const handleDeleteUser = async (usr: string) => {
     if (confirm(`Apakah Anda yakin ingin menghapus permanen akun pengguna @${usr}? (Catatan: Data absensi lama tidak akan terhapus dan tetap tersimpan di riwayat).`)) {
@@ -859,43 +835,7 @@ export default function AdminUsersPage() {
             </form>
           </div>
 
-          {/* Override Attendance Status Panel */}
-          <div className="bg-white rounded-2xl shadow-xs p-5 border border-gray-100/50">
-            <h3 className="font-bold text-gray-800 mb-1 text-sm">Override Status</h3>
-            <p className="text-gray-400 text-xs mb-4">Ubah status absensi secara manual</p>
-            <div className="space-y-3">
-              <select
-                value={overrideUser}
-                onChange={(e) => setOverrideUser(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-600 transition-colors cursor-pointer"
-              >
-                <option value="">Pilih Karyawan</option>
-                {users
-                  .filter((u) => u.role !== "admin")
-                  .map((u) => (
-                    <option key={u.username} value={u.username}>
-                      {u.nama_lengkap}
-                    </option>
-                  ))}
-              </select>
-              <select
-                value={overrideStatus}
-                onChange={(e) => setOverrideStatus(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-600 transition-colors cursor-pointer"
-              >
-                <option>Hadir</option>
-                <option>Izin</option>
-                <option>Sakit</option>
-                <option>Alpa</option>
-              </select>
-              <button
-                onClick={handleOverrideStatus}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold border-2 transition-all hover:bg-[#F6C13B]/10 cursor-pointer text-[#F6C13B] border-[#F6C13B]"
-              >
-                Terapkan Override
-              </button>
-            </div>
-          </div>
+
         </div>
       </div>
     </div>
