@@ -2259,7 +2259,7 @@ app.get('/api/pkl-templates/:templateId/students', async (req, res) => {
   try {
     const { templateId } = req.params;
     const [rows] = await pool.query(`
-      SELECT u.id, u.nama_lengkap, s.school_name 
+      SELECT u.id, s.id AS student_id, u.nama_lengkap, s.school_name, s.start_date, s.end_date
       FROM pkl_students s
       JOIN users u ON s.user_id = u.id
       WHERE s.program_template_id = ? AND s.status = 'ACTIVE'

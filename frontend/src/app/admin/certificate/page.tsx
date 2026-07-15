@@ -71,11 +71,17 @@ export default function CertificatePage() {
 
   const fetchStudents = useCallback(async (cid: string) => {
     try {
-      const res = await fetch("/api/pkl-students?template_id=" + cid);
+      const res = await fetch("/api/pkl-templates/" + cid + "/students");
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setStudents(data);
-      setSelectedStudentId(data.length > 0 ? data[0].student_id : null);
+      const mapped = data.map((s: any) => ({
+        student_id: s.student_id,
+        student_name: s.nama_lengkap,
+        start_date: s.start_date ? new Date(s.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+        end_date: s.end_date ? new Date(s.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+      }));
+      setStudents(mapped);
+      setSelectedStudentId(mapped.length > 0 ? mapped[0].student_id : null);
     } catch { setErrorMsg("Gagal memuat siswa"); }
   }, []);
 
