@@ -3109,7 +3109,7 @@ function getWeekdaysCount(startDate, endDate) {
 async function syncUserKieDebt(userId) {
   try {
     const [userRows] = await pool.query(
-      "SELECT id, role, created_at FROM users WHERE id = ?",
+      "SELECT id, role FROM users WHERE id = ?",
       [userId]
     );
     if (userRows.length === 0) return;
@@ -3131,22 +3131,41 @@ async function syncUserKieDebt(userId) {
     // Yesterday is the day before todayDate
     const yesterdayDate = new Date(todayDate.getTime() - 24 * 60 * 60 * 1000);
 
-    let completedWeekdays = 0;
-    if (startDate.getTime() <= yesterdayDate.getTime()) {
-      completedWeekdays = getWeekdaysCount(startDate, yesterdayDate);
+    // Fetch all submissions with Jakarta dates
+    const [submissions] = await pool.query(
+      `SELECT (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date as date_str, COUNT(*) as count
+       FROM kie_submissions
+       WHERE user_id = ?
+       GROUP BY (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date`,
+      [userId]
+    );
+
+    const subMap = {};
+    submissions.forEach(s => {
+      // Normalize date string (handling Date objects vs strings)
+      const dateStr = s.date_str instanceof Date ? s.date_str.toISOString().split('T')[0] : s.date_str;
+      subMap[dateStr] = (subMap[dateStr] || 0) + parseInt(s.count);
+    });
+
+    let C = 0;
+    let totalTarget = 0;
+    let cur = new Date(startDate.getTime());
+
+    while (cur.getTime() <= yesterdayDate.getTime()) {
+      const day = cur.getUTCDay();
+      const isWeekday = (day !== 0 && day !== 6);
+      const targetToday = isWeekday ? 4 : 0;
+      totalTarget += targetToday;
+
+      const dateStr = cur.toISOString().split('T')[0];
+      const subToday = subMap[dateStr] || 0;
+
+      C = Math.min(C + subToday, totalTarget);
+
+      cur.setTime(cur.getTime() + 24 * 60 * 60 * 1000);
     }
 
-    const totalTarget = completedWeekdays * 4;
-
-    // Count all submissions from startDate up to now
-    const startDateStr = startDate.toISOString().split('T')[0];
-    const [subCountRows] = await pool.query(
-      "SELECT COUNT(*) AS total_submissions FROM kie_submissions WHERE user_id = ? AND (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ?",
-      [userId, startDateStr]
-    );
-    const totalSubmissions = parseInt(subCountRows[0]?.total_submissions || 0);
-
-    const currentKieDebt = Math.max(0, totalTarget - totalSubmissions);
+    const currentKieDebt = Math.max(0, totalTarget - C);
 
     const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
     await pool.query(
@@ -4759,6 +4778,61 @@ app.get('/api/cert-grades', async (req, res) => {
     const notesMap = {};
     gradeRows.forEach(g => { notesMap[g.month_number] = g.notes; });
 
+    // Fetch all KIE submissions for this student to pre-calculate day-by-day capped progression
+    const [submissions] = await pool.query(
+      `SELECT (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date as date_str, COUNT(*) as count
+       FROM kie_submissions k
+       JOIN users u ON u.id = k.user_id
+       JOIN pkl_students ps ON ps.user_id = u.id
+       WHERE ps.id = ?
+       GROUP BY (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date`,
+      [student_id]
+    );
+
+    const subMap = {};
+    submissions.forEach(s => {
+      const dateStr = s.date_str instanceof Date ? s.date_str.toISOString().split('T')[0] : s.date_str;
+      subMap[dateStr] = (subMap[dateStr] || 0) + parseInt(s.count);
+    });
+
+    // Get current date in Jakarta timezone (UTC+7)
+    const todayDate = new Date();
+    const jakartaOffset = 7 * 60 * 60 * 1000;
+    const todayJakarta = new Date(todayDate.getTime() + jakartaOffset);
+    const todayStr = todayJakarta.toISOString().split('T')[0]; // 'YYYY-MM-DD'
+
+    // Pre-calculate day-by-day cumulative targets and counted submissions
+    const dailyRecords = {}; // dateStr -> { counted, cumulativeTarget }
+    let C_run = 0;
+    let cumulativeTarget = 0;
+    let cur_day = new Date(startStr);
+    const endLimitDate = new Date(endStr);
+    
+    const formatDateStr = (d) => d.toISOString().split('T')[0];
+
+    // Record state before startStr (t-1)
+    const dayBeforeStart = new Date(new Date(startStr).getTime() - 24 * 60 * 60 * 1000);
+    dailyRecords[formatDateStr(dayBeforeStart)] = { counted: 0, cumulativeTarget: 0 };
+
+    while (cur_day <= endLimitDate) {
+      const day = cur_day.getUTCDay();
+      const isWeekday = (day !== 0 && day !== 6);
+      const targetToday = isWeekday ? 4 : 0;
+      cumulativeTarget += targetToday;
+
+      const dateStr = formatDateStr(cur_day);
+      const subToday = subMap[dateStr] || 0;
+
+      C_run = Math.min(C_run + subToday, cumulativeTarget);
+
+      dailyRecords[dateStr] = {
+        counted: C_run,
+        cumulativeTarget: cumulativeTarget
+      };
+
+      cur_day.setDate(cur_day.getDate() + 1);
+    }
+
     // Build monthly intervals starting from start_date
     const months = [];
     let curStart = startStr;
@@ -4769,23 +4843,7 @@ app.get('/api/cert-grades', async (req, res) => {
       const curEnd = subtractOneDay(nextMonthStr);
       const actualEnd = curEnd < endStr ? curEnd : endStr;
 
-      // KIE for this month range (capped at 4 submissions max per day)
-       const [kieCountRows] = await pool.query(
-        `SELECT COUNT(*) as total FROM kie_submissions k
-         JOIN users u ON u.id = k.user_id
-         JOIN pkl_students ps ON ps.user_id = u.id
-         WHERE ps.id = ?
-           AND (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ?
-           AND (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ?`,
-        [student_id, curStart, actualEnd]
-      );
-      const kieSubmitted = parseInt(kieCountRows[0]?.total || 0);
-      // Get current date in Jakarta timezone (UTC+7)
-      const todayDate = new Date();
-      const jakartaOffset = 7 * 60 * 60 * 1000;
-      const todayJakarta = new Date(todayDate.getTime() + jakartaOffset);
-      const todayStr = todayJakarta.toISOString().split('T')[0]; // 'YYYY-MM-DD'
-
+      // Determine targetEnd boundary for this month
       let targetEnd = actualEnd;
       if (curStart > todayStr) {
         targetEnd = null;
@@ -4793,10 +4851,16 @@ app.get('/api/cert-grades', async (req, res) => {
         targetEnd = todayStr;
       }
 
-      const workingDays = countWorkingDays(new Date(curStart), new Date(actualEnd));
-      const targetWorkingDays = targetEnd ? countWorkingDays(new Date(curStart), new Date(targetEnd)) : 0;
-      const kieTarget = targetWorkingDays * 4;
+      // Calculate monthly KIE metrics using the difference between targetEnd and day before curStart
+      const dayBeforeStartStr = subtractOneDay(curStart);
+      const startRecord = dailyRecords[dayBeforeStartStr] || { counted: 0, cumulativeTarget: 0 };
+      const endRecord = targetEnd ? (dailyRecords[targetEnd] || { counted: 0, cumulativeTarget: 0 }) : null;
+
+      const kieTarget = endRecord ? (endRecord.cumulativeTarget - startRecord.cumulativeTarget) : 0;
+      const kieSubmitted = endRecord ? (endRecord.counted - startRecord.counted) : 0;
       const kiePct = kieTarget > 0 ? Math.min(100, (kieSubmitted / kieTarget) * 100) : 100;
+
+      const workingDays = countWorkingDays(new Date(curStart), new Date(actualEnd));
 
       // Criterion scores for this month
       const monthScores = scoreMap[m] || {};
@@ -4849,10 +4913,13 @@ app.get('/api/cert-grades', async (req, res) => {
       ? Math.round((filledMonths.reduce((s, mo) => s + mo.accumulation, 0) / filledMonths.length) * 100) / 100
       : null;
 
-     const totalKieSubmitted = months.reduce((sum, mo) => sum + mo.kie_submitted, 0);
-     const totalKieTarget = months.reduce((sum, mo) => sum + mo.kie_target, 0);
-     const autoKiePct = totalKieTarget > 0 ? Math.min(100, Math.round((totalKieSubmitted / totalKieTarget) * 10000) / 100) : 0;
-     const kieOverallPct = student.kie_progress_override !== null ? parseFloat(student.kie_progress_override) : autoKiePct;
+    // Overall KIE percentage: retrieve the final record on target boundary (todayStr or endStr)
+    const targetQueryDate = todayStr < endStr ? todayStr : endStr;
+    const overallRecord = dailyRecords[targetQueryDate] || { counted: 0, cumulativeTarget: 0 };
+    
+    const autoKiePct = overallRecord.cumulativeTarget > 0 ? Math.round((overallRecord.counted / overallRecord.cumulativeTarget) * 10000) / 100 : 100;
+    const cappedAutoKiePct = Math.min(100, autoKiePct);
+    const kieOverallPct = student.kie_progress_override !== null ? parseFloat(student.kie_progress_override) : cappedAutoKiePct;
 
     res.json({
       student_id,
