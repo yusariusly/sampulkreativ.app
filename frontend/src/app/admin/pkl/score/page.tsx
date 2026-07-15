@@ -6,6 +6,7 @@ import {
   Award,
   Calendar,
   Check,
+  ChevronDown,
   ChevronRight,
   ClipboardList,
   Clock,
@@ -157,6 +158,7 @@ export default function PklScoreboardPage() {
   const [progressOverrideInput, setProgressOverrideInput] = useState<number | null>(null);
   const [savingProgressOverride, setSavingProgressOverride] = useState<boolean>(false);
   const [savingAll, setSavingAll] = useState(false);
+  const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
 
   // Tag Presets
   const tagPresets = [
@@ -1058,34 +1060,58 @@ export default function PklScoreboardPage() {
           </button>
 
           {/* Week Selector */}
-          <div className="flex items-center gap-2.5 bg-white px-4 py-2 border border-slate-200 rounded-xl shadow-xs h-[42px]">
-            <Calendar size={14} className="text-slate-400" />
-            <div className="flex flex-col text-left">
-              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-0.5">
-                Minggu Ke
-              </span>
-              <select
-                value={selectedWeek}
-                onChange={(e) => setSelectedWeek(parseInt(e.target.value))}
-                className="text-xs font-bold text-slate-700 outline-none bg-transparent cursor-pointer pr-5 appearance-none focus:ring-0 border-0 p-0 leading-tight select-none"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml;utf8,<svg fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'><path d='m6 9 6 6 6-6'/></svg>")`,
-                  backgroundPosition: "right center",
-                  backgroundRepeat: "no-repeat",
-                  backgroundSize: "10px",
-                }}
-              >
-                {Array.from({ length: 16 }, (_, i) => {
-                  const wkNum = i + 1;
-                  const isCurrent = wkNum === cohortActiveWeek;
-                  return (
-                    <option key={wkNum} value={wkNum}>
-                      {getWeekRangeLabel(wkNum)}{isCurrent ? " (Minggu Berjalan)" : ""}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
+          <div className="relative">
+            <button
+              onClick={() => setIsWeekDropdownOpen(!isWeekDropdownOpen)}
+              className="flex items-center gap-2.5 bg-white px-4 py-2 border border-slate-200 rounded-xl shadow-xs h-[42px] cursor-pointer hover:border-slate-300 transition-colors select-none"
+            >
+              <Calendar size={14} className="text-slate-400" />
+              <div className="flex flex-col text-left">
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-0.5">
+                  Minggu Ke
+                </span>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 leading-tight">
+                  <span>{getWeekRangeLabel(selectedWeek)}{selectedWeek === cohortActiveWeek ? " (Minggu Berjalan)" : ""}</span>
+                  <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 ${isWeekDropdownOpen ? "rotate-180" : ""}`} />
+                </div>
+              </div>
+            </button>
+
+            {isWeekDropdownOpen && (
+              <>
+                {/* Backdrop overlay to close dropdown */}
+                <div className="fixed inset-0 z-40" onClick={() => setIsWeekDropdownOpen(false)} />
+                
+                {/* Dropdown Options List */}
+                <div className="absolute top-[48px] right-0 min-w-[280px] bg-white rounded-2xl shadow-xl border border-slate-150/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[320px] overflow-y-auto">
+                  {Array.from({ length: 16 }, (_, i) => {
+                    const wkNum = i + 1;
+                    const isCurrent = wkNum === cohortActiveWeek;
+                    const isSelected = wkNum === selectedWeek;
+                    return (
+                      <button
+                        key={wkNum}
+                        type="button"
+                        onClick={() => {
+                          setSelectedWeek(wkNum);
+                          setIsWeekDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer select-none ${
+                          isSelected
+                            ? "bg-[#2AB0B2] text-white"
+                            : isCurrent
+                            ? "bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-l-2 border-[#2AB0B2]/50 pl-2.5"
+                            : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
+                        }`}
+                      >
+                        <span>{getWeekRangeLabel(wkNum)}{isCurrent ? " (Minggu Berjalan)" : ""}</span>
+                        {isSelected && <Check size={12} className="text-white flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
