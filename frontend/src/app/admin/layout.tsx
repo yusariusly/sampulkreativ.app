@@ -19,6 +19,8 @@ import {
   Tablet,
   Key,
   Wallet,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 function AppLogo({ size = 80 }: { size?: number }) {
@@ -44,6 +46,23 @@ export default function AdminLayout({
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Load sidebar collapsed state on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("v2_admin_sidebar_collapsed");
+      setIsCollapsed(saved === "true");
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    const nextState = !isCollapsed;
+    setIsCollapsed(nextState);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("v2_admin_sidebar_collapsed", String(nextState));
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -114,17 +133,31 @@ export default function AdminLayout({
     );
   }
 
-  const renderSidebarContent = () => (
+  const renderSidebarContent = (collapsed: boolean = false) => (
     <div className="flex flex-col h-full">
       {/* Brand Logo */}
-      <div className="flex items-center justify-between px-2 mb-8 select-none">
-        <div className="flex items-center gap-2.5">
-          <AppLogo size={34} />
-          <div>
-            <p className="font-extrabold text-sm leading-none text-[#1C3D3F]">sampulkreativ.app</p>
-            <p className="text-[9px] font-semibold text-gray-400 mt-1 uppercase tracking-wider">by sampulkreativ</p>
-          </div>
+      <div className={`flex items-center ${collapsed ? "flex-col gap-4 justify-center" : "justify-between"} px-2 mb-8 select-none`}>
+        <div className={`flex items-center ${collapsed ? "flex-col justify-center text-center" : "gap-2.5"}`}>
+          <AppLogo size={collapsed ? 30 : 34} />
+          {!collapsed && (
+            <div>
+              <p className="font-extrabold text-sm leading-none text-[#1C3D3F]">sampulkreativ.app</p>
+              <p className="text-[9px] font-semibold text-gray-400 mt-1 uppercase tracking-wider">by sampulkreativ</p>
+            </div>
+          )}
         </div>
+        
+        {/* Collapse Toggle for Desktop */}
+        {!isMobileMenuOpen && (
+          <button
+            onClick={toggleSidebar}
+            className="hidden md:flex p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+            title={collapsed ? "Buka Sidebar" : "Tutup Sidebar"}
+          >
+            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
+        )}
+
         {/* Mobile Close Button Inside Sidebar */}
         <button
           onClick={() => setIsMobileMenuOpen(false)}
@@ -142,7 +175,8 @@ export default function AdminLayout({
             <Link
               key={label}
               href={href}
-              className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-all ${
+              title={collapsed ? label : undefined}
+              className={`w-full flex items-center ${collapsed ? "justify-center px-0 py-3" : "gap-3 px-3.5 py-3"} rounded-xl text-sm font-medium transition-all ${
                 isActive
                   ? "text-[#2AB0B2] bg-[#2AB0B2]/10 font-semibold"
                   : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
@@ -153,7 +187,7 @@ export default function AdminLayout({
                 className={isActive ? "text-[#2AB0B2]" : "text-gray-400"}
                 strokeWidth={isActive ? 2.5 : 2}
               />
-              {label}
+              {!collapsed && <span className="transition-opacity duration-300">{label}</span>}
             </Link>
           );
         })}
@@ -163,32 +197,36 @@ export default function AdminLayout({
       <div className="pt-4 border-t border-gray-100 space-y-1">
         <Link
           href="/admin/settings"
-          className={`flex items-center gap-3 px-3.5 py-3 text-sm rounded-xl transition-all w-full text-left cursor-pointer font-medium ${
+          title={collapsed ? "Pengaturan" : undefined}
+          className={`flex items-center ${collapsed ? "justify-center px-0 py-3" : "gap-3 px-3.5 py-3"} text-sm rounded-xl transition-all w-full text-left cursor-pointer font-medium ${
             pathname === "/admin/settings"
               ? "text-[#2AB0B2] bg-[#2AB0B2]/10 font-semibold"
               : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
           }`}
         >
           <Settings size={18} />
-          <span>Pengaturan</span>
+          {!collapsed && <span>Pengaturan</span>}
         </Link>
         
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3.5 py-3 text-sm text-red-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-all w-full text-left cursor-pointer font-medium"
+          title={collapsed ? "Log Out" : undefined}
+          className={`flex items-center ${collapsed ? "justify-center px-0 py-3" : "gap-3 px-3.5 py-3"} text-sm text-red-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-all w-full text-left cursor-pointer font-medium`}
         >
           <LogOut size={18} />
-          <span>Log Out</span>
+          {!collapsed && <span>Log Out</span>}
         </button>
 
-        <div className="pt-3.5 border-t border-gray-100/60 select-none">
-          <p className="text-[10px] font-bold leading-tight text-gray-400">
-            © 2026 sampulkreativ
-          </p>
-          <p className="text-[9px] text-gray-300 mt-0.5">
-            Absensi · All rights reserved
-          </p>
-        </div>
+        {!collapsed && (
+          <div className="pt-3.5 border-t border-gray-100/60 select-none">
+            <p className="text-[10px] font-bold leading-tight text-gray-400">
+              © 2026 sampulkreativ
+            </p>
+            <p className="text-[9px] text-gray-300 mt-0.5">
+              Absensi · All rights reserved
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -225,12 +263,16 @@ export default function AdminLayout({
           isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        {renderSidebarContent()}
+        {renderSidebarContent(false)}
       </aside>
 
       {/* Desktop Sidebar Panel */}
-      <aside className="hidden md:flex w-[240px] bg-white border-r border-gray-100 flex-col py-7 px-4 flex-shrink-0 print:hidden sticky top-0 h-screen overflow-y-auto">
-        {renderSidebarContent()}
+      <aside 
+        className={`hidden md:flex bg-white border-r border-gray-100 flex-col py-7 flex-shrink-0 print:hidden sticky top-0 h-screen transition-all duration-300 ease-in-out ${
+          isCollapsed ? "w-[76px] px-3" : "w-[240px] px-4"
+        }`}
+      >
+        {renderSidebarContent(isCollapsed)}
       </aside>
 
       {/* Main Administrative Dashboard Screen Area */}
