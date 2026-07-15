@@ -154,7 +154,7 @@ export default function CertificatePage() {
     const scores: Record<number, number> = {};
     for (const [cid, val] of Object.entries(monthScores)) {
       const n = parseFloat(val);
-      if (!isNaN(n) && n >= 0 && n <= 100) scores[parseInt(cid)] = n;
+      if (!isNaN(n) && n >= 0 && n <= 10) scores[parseInt(cid)] = n;
     }
     if (!Object.keys(scores).length) return;
     setSavingMonth(monthNumber);
@@ -181,7 +181,7 @@ export default function CertificatePage() {
         const scores: Record<number, number> = {};
         for (const [cid, val] of Object.entries(monthScores)) {
           const n = parseFloat(val);
-          if (!isNaN(n) && n >= 0 && n <= 100) scores[parseInt(cid)] = n;
+          if (!isNaN(n) && n >= 0 && n <= 10) scores[parseInt(cid)] = n;
         }
         if (Object.keys(scores).length) {
           await fetch("/api/cert-criterion-scores", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student_id: selectedStudentId, curriculum_id: selectedCurriculumId, month_number: month.month_number, notes: pendingNotes[month.month_number] || null, scores }) });
@@ -252,7 +252,7 @@ export default function CertificatePage() {
 
   const currentCurriculum = curricula.find(c => c.id === selectedCurriculumId);
   const currentStudent = students.find(s => s.student_id === selectedStudentId);
-  const gradeColor = (g: number | null) => !g && g !== 0 ? "text-slate-400" : g >= 85 ? "text-emerald-600" : g >= 70 ? "text-amber-600" : "text-rose-600";
+  const gradeColor = (g: number | null) => !g && g !== 0 ? "text-slate-400" : g >= 8.5 ? "text-emerald-600" : g >= 7.0 ? "text-amber-600" : "text-rose-600";
 
   // Helper: compute live activity_avg from pending scores for a month
   const getLiveActivityAvg = (monthNumber: number, activeCriteria: Criterion[]) => {
@@ -265,7 +265,7 @@ export default function CertificatePage() {
   const getLiveAccumulation = (monthNumber: number, activeCriteria: Criterion[], kiePct: number) => {
     const avg = getLiveActivityAvg(monthNumber, activeCriteria);
     if (avg === null) return null;
-    return Math.round(((avg * settings.activity_weight / 100) + (kiePct * settings.kie_weight / 100)) * 100) / 100;
+    return Math.round(((avg * settings.activity_weight / 100) + ((kiePct / 10) * settings.kie_weight / 100)) * 100) / 100;
   };
 
   // Active criteria (from gradeData if available, otherwise from criteria state)
@@ -380,13 +380,13 @@ export default function CertificatePage() {
                             {activeCriteria.map(c => (
                               <td key={c.id} className="px-3 py-3.5 text-center">
                                 <input
-                                  type="number" min="0" max="100" step="0.5"
+                                  type="number" min="0" max="10" step="0.1"
                                   value={pendingScores[month.month_number]?.[c.id] ?? (month.criteria_scores[c.id] !== undefined ? String(month.criteria_scores[c.id]) : "")}
                                   onChange={e => setPendingScores(p => ({
                                     ...p,
                                     [month.month_number]: { ...(p[month.month_number] || {}), [c.id]: e.target.value }
                                   }))}
-                                  placeholder="0–100"
+                                  placeholder="1–10"
                                   className="w-[80px] text-center text-xs font-bold border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2] bg-white transition-all"
                                 />
                               </td>

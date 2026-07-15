@@ -4625,7 +4625,7 @@ app.post('/api/cert-criterion-scores', async (req, res) => {
     // Upsert each criterion score
     for (const [criterionId, score] of Object.entries(scores)) {
       const numScore = parseFloat(String(score));
-      if (isNaN(numScore) || numScore < 0 || numScore > 100) continue;
+      if (isNaN(numScore) || numScore < 0 || numScore > 10) continue;
       await pool.query(
         `INSERT INTO cert_criterion_scores (student_id, curriculum_id, month_number, criterion_id, score, updated_at)
          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -4751,7 +4751,7 @@ app.get('/api/cert-grades', async (req, res) => {
 
       let accumulation = null;
       if (activityAvg !== null) {
-        accumulation = (activityAvg * settings.activity_weight / 100) + (kiePct * settings.kie_weight / 100);
+        accumulation = (activityAvg * settings.activity_weight / 100) + ((kiePct / 10) * settings.kie_weight / 100);
       }
 
       months.push({
