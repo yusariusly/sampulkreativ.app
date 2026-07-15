@@ -1466,7 +1466,7 @@ export default function PklScoreboardPage() {
                                           min="0"
                                           max="25"
                                           disabled={isDisabled}
-                                          value={isDisabled && currentPoint === 0 ? "" : currentPoint}
+                                          value={currentPoint === 0 ? "" : currentPoint}
                                           onChange={(e) =>
                                             handlePointChange(day.dateStr, aspect.aspect_key, e.target.value)
                                           }
