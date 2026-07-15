@@ -4495,7 +4495,306 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiDocument));
 // Mount router under /api/v1
 app.use('/api/v1', pklActivityRouter);
 
+// ══════════════════════════════════════════════════════════════════════════════
+// CERTIFICATE GRADE API ROUTES
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Helper: Count working days (Mon-Fri) in a date range ─────────────────────
+function countWorkingDays(startDate, endDate) {
+  let count = 0;
+  const cur = new Date(startDate);
+  const end = new Date(endDate);
+  while (cur <= end) {
+    const day = cur.getDay();
+    if (day !== 0 && day !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+// ── GET /api/cert-settings/:curriculumId ─────────────────────────────────────
+app.get('/api/cert-settings/:curriculumId', async (req, res) => {
+  try {
+    const { curriculumId } = req.params;
+    const [rows] = await pool.query(
+      'SELECT * FROM cert_curriculum_settings WHERE curriculum_id = ? LIMIT 1',
+      [curriculumId]
+    );
+    if (rows.length === 0) {
+      // Return defaults if not yet configured
+      return res.json({ curriculum_id: curriculumId, activity_weight: 50, kie_weight: 50, aspect_label: 'Kedisiplinan' });
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('GET /api/cert-settings error:', err);
+    res.status(500).json({ error: 'Gagal mengambil pengaturan sertifikat' });
+  }
+});
+
+// ── PUT /api/cert-settings/:curriculumId ─────────────────────────────────────
+app.put('/api/cert-settings/:curriculumId', async (req, res) => {
+  try {
+    const { curriculumId } = req.params;
+    const { activity_weight, kie_weight, aspect_label } = req.body;
+    if (activity_weight + kie_weight !== 100) {
+      return res.status(400).json({ error: 'Jumlah bobot aktivitas dan KIE harus 100%' });
+    }
+    await pool.query(
+      `INSERT INTO cert_curriculum_settings (curriculum_id, activity_weight, kie_weight, aspect_label, updated_at)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (curriculum_id) DO UPDATE SET
+         activity_weight = EXCLUDED.activity_weight,
+         kie_weight = EXCLUDED.kie_weight,
+         aspect_label = EXCLUDED.aspect_label,
+         updated_at = CURRENT_TIMESTAMP`,
+      [curriculumId, activity_weight, kie_weight, aspect_label]
+    );
+    res.json({ success: true, message: 'Pengaturan sertifikat berhasil disimpan' });
+  } catch (err) {
+    console.error('PUT /api/cert-settings error:', err);
+    res.status(500).json({ error: 'Gagal menyimpan pengaturan sertifikat' });
+  }
+});
+
+// ── GET /api/cert-grades ─────────────────────────────────────────────────────
+// Returns monthly grades with KIE completion data per month
+app.get('/api/cert-grades', async (req, res) => {
+  try {
+    const { student_id, curriculum_id } = req.query;
+    if (!student_id || !curriculum_id) {
+      return res.status(400).json({ error: 'student_id dan curriculum_id wajib diisi' });
+    }
+
+    // Get student info (start/end dates for duration)
+    const [studentRows] = await pool.query(
+      'SELECT s.id, u.id as user_id, s.start_date, s.end_date FROM pkl_students s JOIN users u ON u.id = s.user_id WHERE s.id = ? LIMIT 1',
+      [student_id]
+    );
+    if (studentRows.length === 0) {
+      return res.status(404).json({ error: 'Siswa tidak ditemukan' });
+    }
+    const student = studentRows[0];
+
+    // Calculate number of months from student's start/end
+    const start = new Date(student.start_date);
+    const end = new Date(student.end_date);
+    const monthsDiff = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+    const numMonths = Math.max(1, Math.min(monthsDiff, 24));
+
+    // Get curriculum settings
+    const [settingsRows] = await pool.query(
+      'SELECT * FROM cert_curriculum_settings WHERE curriculum_id = ? LIMIT 1',
+      [curriculum_id]
+    );
+    const settings = settingsRows[0] || { activity_weight: 50, kie_weight: 50 };
+
+    // Get existing manual grades
+    const [gradeRows] = await pool.query(
+      'SELECT * FROM cert_monthly_grades WHERE student_id = ? AND curriculum_id = ?',
+      [student_id, curriculum_id]
+    );
+    const gradeMap = {};
+    gradeRows.forEach(g => { gradeMap[g.month_number] = g; });
+
+    // Build monthly data with KIE calculation per month
+    const months = [];
+    for (let m = 1; m <= numMonths; m++) {
+      // Calculate the calendar date range for this month
+      const monthStart = new Date(start.getFullYear(), start.getMonth() + (m - 1), 1);
+      const monthEnd = new Date(start.getFullYear(), start.getMonth() + m, 0); // last day of that month
+      const actualEnd = monthEnd < end ? monthEnd : end;
+
+      // Count KIE submissions in this month range for this student
+      const [kieCountRows] = await pool.query(
+        `SELECT COUNT(*) as total FROM kie_submissions k
+         JOIN users u ON u.id = k.user_id
+         JOIN pkl_students ps ON ps.user_id = u.id
+         WHERE ps.id = ?
+           AND (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ?
+           AND (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ?`,
+        [student_id, monthStart.toISOString().split('T')[0], actualEnd.toISOString().split('T')[0]]
+      );
+      const kieSubmitted = parseInt(kieCountRows[0]?.total || 0);
+      const workingDays = countWorkingDays(monthStart, actualEnd);
+      const kieTarget = workingDays * 4;
+      const kiePct = kieTarget > 0 ? Math.min(100, (kieSubmitted / kieTarget) * 100) : 0;
+
+      const grade = gradeMap[m];
+      const activityScore = grade ? parseFloat(grade.activity_score) : null;
+
+      // Calculate accumulation if activity score is entered
+      let accumulation = null;
+      if (activityScore !== null) {
+        accumulation = (activityScore * settings.activity_weight / 100) + (kiePct * settings.kie_weight / 100);
+      }
+
+      months.push({
+        month_number: m,
+        month_label: `Bulan ${m}`,
+        month_start: monthStart.toISOString().split('T')[0],
+        month_end: actualEnd.toISOString().split('T')[0],
+        activity_score: activityScore,
+        notes: grade?.notes || null,
+        kie_submitted: kieSubmitted,
+        kie_target: kieTarget,
+        kie_pct: Math.round(kiePct * 100) / 100,
+        working_days: workingDays,
+        accumulation: accumulation !== null ? Math.round(accumulation * 100) / 100 : null,
+      });
+    }
+
+    // Calculate final certificate grade (average of all months with activity_score filled)
+    const filledMonths = months.filter(m => m.accumulation !== null);
+    const finalGrade = filledMonths.length > 0
+      ? Math.round((filledMonths.reduce((sum, m) => sum + m.accumulation, 0) / filledMonths.length) * 100) / 100
+      : null;
+
+    res.json({
+      student_id,
+      curriculum_id,
+      num_months: numMonths,
+      start_date: student.start_date,
+      end_date: student.end_date,
+      settings,
+      months,
+      final_grade: finalGrade,
+    });
+  } catch (err) {
+    console.error('GET /api/cert-grades error:', err);
+    res.status(500).json({ error: 'Gagal mengambil data nilai sertifikat' });
+  }
+});
+
+// ── POST /api/cert-grades ─────────────────────────────────────────────────────
+// Upsert a single month's activity score
+app.post('/api/cert-grades', async (req, res) => {
+  try {
+    const { student_id, curriculum_id, month_number, activity_score, notes } = req.body;
+    if (!student_id || !curriculum_id || !month_number) {
+      return res.status(400).json({ error: 'student_id, curriculum_id, dan month_number wajib diisi' });
+    }
+    if (activity_score < 0 || activity_score > 100) {
+      return res.status(400).json({ error: 'Nilai aktivitas harus antara 0–100' });
+    }
+    await pool.query(
+      `INSERT INTO cert_monthly_grades (student_id, curriculum_id, month_number, activity_score, notes, updated_at)
+       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (student_id, curriculum_id, month_number) DO UPDATE SET
+         activity_score = EXCLUDED.activity_score,
+         notes = EXCLUDED.notes,
+         updated_at = CURRENT_TIMESTAMP`,
+      [student_id, curriculum_id, month_number, activity_score, notes || null]
+    );
+    res.json({ success: true, message: `Nilai Bulan ${month_number} berhasil disimpan` });
+  } catch (err) {
+    console.error('POST /api/cert-grades error:', err);
+    res.status(500).json({ error: 'Gagal menyimpan nilai sertifikat' });
+  }
+});
+
+// ── GET /api/cert-tags ────────────────────────────────────────────────────────
+app.get('/api/cert-tags', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM cert_appreciation_tags ORDER BY sort_order ASC, id ASC'
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/cert-tags error:', err);
+    res.status(500).json({ error: 'Gagal mengambil daftar tag' });
+  }
+});
+
+// ── POST /api/cert-tags ───────────────────────────────────────────────────────
+app.post('/api/cert-tags', async (req, res) => {
+  try {
+    const { label } = req.body;
+    if (!label?.trim()) return res.status(400).json({ error: 'Label tag wajib diisi' });
+    const [result] = await pool.query(
+      'INSERT INTO cert_appreciation_tags (label, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order),0)+1 FROM cert_appreciation_tags t2))',
+      [label.trim()]
+    );
+    res.json({ success: true, id: result.insertId, message: 'Tag berhasil ditambahkan' });
+  } catch (err) {
+    console.error('POST /api/cert-tags error:', err);
+    res.status(500).json({ error: 'Gagal menambahkan tag' });
+  }
+});
+
+// ── PUT /api/cert-tags/:id ────────────────────────────────────────────────────
+app.put('/api/cert-tags/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { label, is_active } = req.body;
+    await pool.query(
+      'UPDATE cert_appreciation_tags SET label = COALESCE(?, label), is_active = COALESCE(?, is_active) WHERE id = ?',
+      [label ?? null, is_active ?? null, id]
+    );
+    res.json({ success: true, message: 'Tag berhasil diperbarui' });
+  } catch (err) {
+    console.error('PUT /api/cert-tags error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui tag' });
+  }
+});
+
+// ── DELETE /api/cert-tags/:id ─────────────────────────────────────────────────
+app.delete('/api/cert-tags/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM cert_appreciation_tags WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Tag berhasil dihapus' });
+  } catch (err) {
+    console.error('DELETE /api/cert-tags error:', err);
+    res.status(500).json({ error: 'Gagal menghapus tag' });
+  }
+});
+
+// ── GET /api/cert-student-tags ────────────────────────────────────────────────
+app.get('/api/cert-student-tags', async (req, res) => {
+  try {
+    const { student_id, curriculum_id } = req.query;
+    const [rows] = await pool.query(
+      `SELECT cst.tag_id, cat.label FROM cert_student_tags cst
+       JOIN cert_appreciation_tags cat ON cat.id = cst.tag_id
+       WHERE cst.student_id = ? AND cst.curriculum_id = ?`,
+      [student_id, curriculum_id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/cert-student-tags error:', err);
+    res.status(500).json({ error: 'Gagal mengambil tag siswa' });
+  }
+});
+
+// ── PUT /api/cert-student-tags ────────────────────────────────────────────────
+// Replace all selected tags for a student
+app.put('/api/cert-student-tags', async (req, res) => {
+  try {
+    const { student_id, curriculum_id, tag_ids } = req.body;
+    if (!student_id || !curriculum_id) {
+      return res.status(400).json({ error: 'student_id dan curriculum_id wajib diisi' });
+    }
+    // Delete existing then re-insert
+    await pool.query(
+      'DELETE FROM cert_student_tags WHERE student_id = ? AND curriculum_id = ?',
+      [student_id, curriculum_id]
+    );
+    if (Array.isArray(tag_ids) && tag_ids.length > 0) {
+      const values = tag_ids.map(tid => [student_id, curriculum_id, tid]);
+      await pool.query(
+        'INSERT INTO cert_student_tags (student_id, curriculum_id, tag_id) VALUES ?',
+        [values]
+      );
+    }
+    res.json({ success: true, message: 'Tag siswa berhasil diperbarui' });
+  } catch (err) {
+    console.error('PUT /api/cert-student-tags error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui tag siswa' });
+  }
+});
+
 // Global Error Handler for PKL Activity
+
 app.use((err, req, res, next) => {
   console.error('Express App Caught Error:', err);
 

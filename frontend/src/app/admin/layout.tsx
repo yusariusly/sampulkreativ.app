@@ -21,6 +21,7 @@ import {
   Wallet,
   ChevronLeft,
   ChevronRight,
+  FileText,
 } from "lucide-react";
 
 function AppLogo({ size = 80 }: { size?: number }) {
@@ -117,6 +118,7 @@ export default function AdminLayout({
     { href: "/admin/remote", label: "Remote Working", Icon: Laptop },
     { href: "/admin/pkl", label: "Aktivitas PKL", Icon: ClipboardList },
     { href: "/admin/pkl/score", label: "Poin PKL", Icon: Award },
+    { href: "/admin/certificate", label: "Nilai Sertifikat", Icon: FileText },
     { href: "/admin/pkl/savings", label: "Tabungan Buku", Icon: PiggyBank },
     { href: "/station", label: "Stasiun Absensi", Icon: Tablet },
     { href: "/admin/qr", label: "Generate QR", Icon: QrCode },
