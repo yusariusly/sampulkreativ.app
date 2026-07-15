@@ -4766,14 +4766,18 @@ app.get('/api/cert-grades', async (req, res) => {
       const curEnd = subtractOneDay(nextMonthStr);
       const actualEnd = curEnd < endStr ? curEnd : endStr;
 
-      // KIE for this month range
+      // KIE for this month range (capped at 4 submissions max per day)
       const [kieCountRows] = await pool.query(
-        `SELECT COUNT(*) as total FROM kie_submissions k
-         JOIN users u ON u.id = k.user_id
-         JOIN pkl_students ps ON ps.user_id = u.id
-         WHERE ps.id = ?
-           AND (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ?
-           AND (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ?`,
+        `SELECT COALESCE(SUM(LEAST(4, daily_count)), 0) as total FROM (
+           SELECT COUNT(*) as daily_count
+           FROM kie_submissions k
+           JOIN users u ON u.id = k.user_id
+           JOIN pkl_students ps ON ps.user_id = u.id
+           WHERE ps.id = ?
+             AND (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ?
+             AND (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ?
+           GROUP BY (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date
+         ) sub`,
         [student_id, curStart, actualEnd]
       );
       const kieSubmitted = parseInt(kieCountRows[0]?.total || 0);
