@@ -4808,7 +4808,6 @@ app.get('/api/cert-grades', async (req, res) => {
     let cur_day = new Date(startStr);
     const endLimitDate = new Date(endStr);
     
-    const formatDateStr = (d) => d.toISOString().split('T')[0];
 
     // Record state before startStr (t-1)
     const dayBeforeStart = new Date(new Date(startStr).getTime() - 24 * 60 * 60 * 1000);
@@ -4917,7 +4916,10 @@ app.get('/api/cert-grades', async (req, res) => {
     const targetQueryDate = todayStr < endStr ? todayStr : endStr;
     const overallRecord = dailyRecords[targetQueryDate] || { counted: 0, cumulativeTarget: 0 };
     
-    const autoKiePct = overallRecord.cumulativeTarget > 0 ? Math.round((overallRecord.counted / overallRecord.cumulativeTarget) * 10000) / 100 : 100;
+    const totalKieSubmitted = overallRecord.counted;
+    const totalKieTarget = overallRecord.cumulativeTarget;
+    
+    const autoKiePct = totalKieTarget > 0 ? Math.round((totalKieSubmitted / totalKieTarget) * 10000) / 100 : 100;
     const cappedAutoKiePct = Math.min(100, autoKiePct);
     const kieOverallPct = student.kie_progress_override !== null ? parseFloat(student.kie_progress_override) : cappedAutoKiePct;
 
