@@ -318,28 +318,41 @@ export default function AdminDataPage() {
       )}
 
       {/* Header bar with controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 md:mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 md:mb-8">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-[#1C3D3F]">Data Absensi</h1>
         </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
-          {/* Search bar */}
-          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 w-full sm:w-60 shadow-xs">
-            <Search size={16} className="text-gray-400 flex-shrink-0" />
-            <input
-              type="text"
-              placeholder="Cari nama / status..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 outline-none text-sm text-gray-500 bg-transparent min-w-0"
-            />
-          </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+          {/* Override Status Button */}
+          <button
+            onClick={() => setIsOverrideModalOpen(true)}
+            className="flex items-center justify-center gap-2 border-2 border-[#F6C13B] hover:bg-[#F6C13B]/10 text-[#F6C13B] rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors cursor-pointer w-full sm:w-auto shrink-0 active:scale-[0.98]"
+          >
+            <Edit2 size={16} />
+            <span>Override Status</span>
+          </button>
+          
+          {/* Export CSV Button */}
+          <button
+            onClick={handleExportCSV}
+            disabled={filteredRows.length === 0}
+            className="flex items-center justify-center gap-2 bg-[#2AB0B2] text-white rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm hover:bg-[#209092] transition-colors cursor-pointer w-full sm:w-auto disabled:opacity-50 shrink-0"
+          >
+            <Download size={16} />
+            <span>Ekspor Laporan (CSV)</span>
+          </button>
+        </div>
+      </div>
 
+      {/* Main Table Card containing integrated Toolbar */}
+      <div className="bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
+        {/* Table Toolbar / Controls */}
+        <div className="p-4 bg-gray-50/50 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3 select-none">
           {/* Date Selector with Previous/Next controls */}
-          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-xs w-full sm:w-auto">
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white border border-gray-250 rounded-xl p-1 shadow-xs w-full md:w-auto">
             <button
               onClick={handlePrevDay}
-              className="p-2 text-gray-500 hover:text-[#2AB0B2] hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
+              className="p-1.5 text-gray-500 hover:text-[#2AB0B2] hover:bg-gray-55 rounded-lg transition-colors cursor-pointer"
               title="Hari Sebelumnya"
             >
               <ChevronLeft size={16} />
@@ -359,37 +372,26 @@ export default function AdminDataPage() {
             <button
               onClick={handleNextDay}
               disabled={selectedDate === getLocalDateString(new Date())}
-              className="p-2 text-gray-500 hover:text-[#2AB0B2] hover:bg-gray-50 rounded-lg transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+              className="p-1.5 text-gray-500 hover:text-[#2AB0B2] hover:bg-gray-55 rounded-lg transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
               title="Hari Selanjutnya"
             >
               <ChevronRight size={16} />
             </button>
           </div>
-          
-          {/* Override Status Button */}
-          <button
-            onClick={() => setIsOverrideModalOpen(true)}
-            className="flex items-center justify-center gap-2 border-2 border-[#F6C13B] hover:bg-[#F6C13B]/10 text-[#F6C13B] rounded-xl px-4 py-2.5 text-sm font-semibold shadow-xs transition-colors cursor-pointer w-full sm:w-auto shrink-0 active:scale-[0.98]"
-          >
-            <Edit2 size={16} />
-            <span>Override Status</span>
-          </button>
-          
-          {/* Export CSV Button */}
-          <button
-            onClick={handleExportCSV}
-            disabled={filteredRows.length === 0}
-            className="flex items-center justify-center gap-2 bg-[#2AB0B2] text-white rounded-xl px-4 py-2.5 text-sm font-semibold shadow-xs hover:bg-[#209092] transition-colors cursor-pointer w-full sm:w-auto disabled:opacity-50"
-          >
-            <Download size={16} />
-            <span>Ekspor Laporan (CSV)</span>
-          </button>
+
+          {/* Search bar */}
+          <div className="flex items-center gap-2 bg-white border border-gray-250 rounded-xl px-4 py-2 w-full md:w-64 shadow-xs">
+            <Search size={16} className="text-gray-400 flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="Cari nama / status..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 outline-none text-sm text-gray-500 bg-transparent min-w-0 font-medium"
+            />
         </div>
       </div>
-
-      {/* Main Table */}
-      <div className="bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
-          <div className="overflow-x-auto">
+      <div className="overflow-x-auto">
             <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">
