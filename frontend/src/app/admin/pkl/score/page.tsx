@@ -1040,37 +1040,52 @@ export default function PklScoreboardPage() {
           <button
             onClick={toggleScoreboardVisibility}
             disabled={togglingScoreboard}
-            className={`px-3.5 py-2 text-xs font-bold rounded-xl border transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl border transition-all flex items-center gap-2.5 cursor-pointer shadow-xs active:scale-95 h-[42px] ${
               showPklScoreboard
-                ? "bg-emerald-50 text-emerald-700 border-emerald-250 hover:bg-emerald-100"
-                : "bg-slate-50 text-slate-650 border-slate-200 hover:bg-slate-100"
+                ? "bg-emerald-50/70 text-emerald-700 border-emerald-200/80 hover:bg-emerald-100/80"
+                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-350"
             }`}
           >
-            <Trophy size={14} className={showPklScoreboard ? "text-emerald-500" : "text-slate-400"} />
-            {showPklScoreboard ? "Scoreboard: Tampil" : "Scoreboard: Sembunyi"}
+            <Trophy size={15} className={showPklScoreboard ? "text-emerald-500 animate-pulse" : "text-slate-400"} />
+            <div className="flex flex-col items-start text-left select-none">
+              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-0.5">
+                Scoreboard
+              </span>
+              <span className="text-xs font-bold leading-tight">
+                {showPklScoreboard ? "Tampil" : "Sembunyi"}
+              </span>
+            </div>
           </button>
 
           {/* Week Selector */}
-          <div className="flex items-center gap-2 bg-slate-50/80 px-3 py-1.5 border border-slate-150 rounded-xl">
-            <Calendar size={13} className="text-slate-400" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Minggu Ke
-            </span>
-            <select
-              value={selectedWeek}
-              onChange={(e) => setSelectedWeek(parseInt(e.target.value))}
-              className="text-xs font-black text-slate-550 outline-none bg-transparent cursor-pointer max-w-[280px] truncate"
-            >
-              {Array.from({ length: 16 }, (_, i) => {
-                const wkNum = i + 1;
-                const isCurrent = wkNum === cohortActiveWeek;
-                return (
-                  <option key={wkNum} value={wkNum}>
-                    {getWeekRangeLabel(wkNum)}{isCurrent ? " (Minggu Berjalan)" : ""}
-                  </option>
-                );
-              })}
-            </select>
+          <div className="flex items-center gap-2.5 bg-white px-4 py-2 border border-slate-200 rounded-xl shadow-xs h-[42px]">
+            <Calendar size={14} className="text-slate-400" />
+            <div className="flex flex-col text-left">
+              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-0.5">
+                Minggu Ke
+              </span>
+              <select
+                value={selectedWeek}
+                onChange={(e) => setSelectedWeek(parseInt(e.target.value))}
+                className="text-xs font-bold text-slate-700 outline-none bg-transparent cursor-pointer pr-5 appearance-none focus:ring-0 border-0 p-0 leading-tight select-none"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml;utf8,<svg fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'><path d='m6 9 6 6 6-6'/></svg>")`,
+                  backgroundPosition: "right center",
+                  backgroundRepeat: "no-repeat",
+                  backgroundSize: "10px",
+                }}
+              >
+                {Array.from({ length: 16 }, (_, i) => {
+                  const wkNum = i + 1;
+                  const isCurrent = wkNum === cohortActiveWeek;
+                  return (
+                    <option key={wkNum} value={wkNum}>
+                      {getWeekRangeLabel(wkNum)}{isCurrent ? " (Minggu Berjalan)" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
           </div>
         </div>
       </div>
