@@ -584,58 +584,7 @@ export default function PklScoreboardPage() {
     }));
   };
 
-  // Handler: Save Daily Point Aspek to Server onBlur
-  const handleSavePointOnBlur = async (dateStr: string, aspectKey: string, valStr: string) => {
-    if (!mentor || !selectedStudentId) return;
-
-    let parsed = valStr === "" ? 0 : parseInt(valStr, 10);
-    if (isNaN(parsed)) parsed = 0;
-    const finalVal = Math.max(0, Math.min(25, parsed));
-
-    const existingEval = dailyEvals[dateStr] || {
-      evaluation_date: dateStr,
-      wkt_point: 0,
-      skp_point: 0,
-      has_point: 0,
-      ker_point: 0,
-      ini_point: 0,
-    };
-
-    const updatedEval = {
-      ...existingEval,
-      [aspectKey]: finalVal,
-    };
-
-    try {
-      const res = await fetch("/api/v1/mentor/evaluasi-harian", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": mentor.id,
-          "x-device-id": mentor.device_id || "",
-        },
-        body: JSON.stringify({
-          student_id: selectedStudentId,
-          evaluation_date: dateStr,
-          wkt_point: updatedEval.wkt_point,
-          skp_point: updatedEval.skp_point,
-          has_point: updatedEval.has_point,
-          ker_point: updatedEval.ker_point,
-          ini_point: updatedEval.ini_point,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Gagal menyimpan poin evaluasi");
-      }
-
-      // Automatically refetch weekly recap list and daily evaluations to synchronize UI state
-      fetchWeeklyRecap(selectedWeek, mentor.id, mentor.device_id || "");
-      fetchWeekEvaluations(selectedWeek, mentor.id, mentor.device_id || "");
-    } catch (err: any) {
-      setErrorMsg("Gagal melakukan auto-save poin: " + err.message);
-    }
-  };
+  // Handler: Save Weekly Recap Feedback (Draft)
 
   // Handler: Save Weekly Recap Feedback (Draft)
   const handleSaveFeedback = async (e: React.FormEvent) => {
@@ -819,6 +768,7 @@ export default function PklScoreboardPage() {
           throw new Error("Pilih setidaknya 1 Tag Apresiasi Cepat pada Rekap & Umpan Balik.");
         }
 
+        // 1.1 Save Weekly Recap & Progress Override
         const rekapRes = await fetch(`/api/v1/mentor/rekap-mingguan/${selectedStudentId}`, {
           method: "PUT",
           headers: {
@@ -840,6 +790,42 @@ export default function PklScoreboardPage() {
           throw new Error(rekapData.error?.message || "Gagal menyimpan rekap & progres");
         }
 
+        // 1.2 Save All Daily Evaluations in Parallel
+        const monFri = getMonFriDates(cohortStartDate, selectedWeek);
+        const saveEvalPromises = monFri.map(async (day) => {
+          const evalData = dailyEvals[day.dateStr] || {
+            wkt_point: 0,
+            skp_point: 0,
+            has_point: 0,
+            ker_point: 0,
+            ini_point: 0,
+          };
+
+          const res = await fetch("/api/v1/mentor/evaluasi-harian", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-id": mentor.id,
+              "x-device-id": mentor.device_id || "",
+            },
+            body: JSON.stringify({
+              student_id: selectedStudentId,
+              evaluation_date: day.dateStr,
+              wkt_point: evalData.wkt_point || 0,
+              skp_point: evalData.skp_point || 0,
+              has_point: evalData.has_point || 0,
+              ker_point: evalData.ker_point || 0,
+              ini_point: evalData.ini_point || 0,
+            }),
+          });
+
+          if (!res.ok) {
+            throw new Error(`Gagal menyimpan evaluasi untuk tanggal ${day.name} (${day.formatted})`);
+          }
+        });
+
+        await Promise.all(saveEvalPromises);
+
         // Update student list state locally
         setStudents((prev) =>
           prev.map((s) => {
@@ -855,6 +841,10 @@ export default function PklScoreboardPage() {
             return s;
           })
         );
+
+        // Refresh stats
+        await fetchWeeklyRecap(selectedWeek, mentor.id, mentor.device_id || "");
+        await fetchWeekEvaluations(selectedWeek, mentor.id, mentor.device_id || "");
       }
 
       // 2. Save Notice Setting (Reward & Punishment) if filled
@@ -1479,9 +1469,6 @@ export default function PklScoreboardPage() {
                                           value={isDisabled && currentPoint === 0 ? "" : currentPoint}
                                           onChange={(e) =>
                                             handlePointChange(day.dateStr, aspect.aspect_key, e.target.value)
-                                          }
-                                          onBlur={(e) =>
-                                            handleSavePointOnBlur(day.dateStr, aspect.aspect_key, e.target.value)
                                           }
                                           placeholder="0"
                                           className={`w-14 text-center text-xs font-black py-1 px-1.5 rounded-lg border transition-all outline-none ${
