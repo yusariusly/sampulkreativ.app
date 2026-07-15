@@ -4682,11 +4682,47 @@ app.get('/api/cert-grades', async (req, res) => {
     }
     const student = studentRows[0];
 
-    // Calculate number of months from student's start/end
-    const start = new Date(student.start_date);
-    const end = new Date(student.end_date);
-    const monthsDiff = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
-    const numMonths = Math.max(1, Math.min(monthsDiff, 24));
+    const formatDateStr = (d) => {
+      if (!d) return null;
+      if (d instanceof Date) {
+        const offset = d.getTimezoneOffset() * 60000;
+        const local = new Date(d.getTime() - offset);
+        return local.toISOString().split('T')[0];
+      }
+      return String(d).split('T')[0];
+    };
+    const startStr = formatDateStr(student.start_date);
+    const endStr = formatDateStr(student.end_date);
+
+    const addMonths = (dateStr, months) => {
+      const parts = dateStr.split('-');
+      const y = parseInt(parts[0]);
+      const m = parseInt(parts[1]) - 1;
+      const d = parseInt(parts[2]);
+      const targetDate = new Date(y, m + months, d);
+      const year = targetDate.getFullYear();
+      const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+      const day = String(targetDate.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const subtractOneDay = (dateStr) => {
+      const d = new Date(dateStr);
+      d.setDate(d.getDate() - 1);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const addOneDay = (dateStr) => {
+      const d = new Date(dateStr);
+      d.setDate(d.getDate() + 1);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
 
     // Get curriculum settings
     const [settingsRows] = await pool.query(
@@ -4720,14 +4756,17 @@ app.get('/api/cert-grades', async (req, res) => {
     const notesMap = {};
     gradeRows.forEach(g => { notesMap[g.month_number] = g.notes; });
 
-    // Build monthly data
+    // Build monthly intervals starting from start_date
     const months = [];
-    for (let m = 1; m <= numMonths; m++) {
-      const monthStart = new Date(start.getFullYear(), start.getMonth() + (m - 1), 1);
-      const monthEnd = new Date(start.getFullYear(), start.getMonth() + m, 0);
-      const actualEnd = monthEnd < end ? monthEnd : end;
+    let curStart = startStr;
+    let m = 1;
 
-      // KIE for this month
+    while (curStart <= endStr) {
+      const nextMonthStr = addMonths(startStr, m);
+      const curEnd = subtractOneDay(nextMonthStr);
+      const actualEnd = curEnd < endStr ? curEnd : endStr;
+
+      // KIE for this month range
       const [kieCountRows] = await pool.query(
         `SELECT COUNT(*) as total FROM kie_submissions k
          JOIN users u ON u.id = k.user_id
@@ -4735,10 +4774,10 @@ app.get('/api/cert-grades', async (req, res) => {
          WHERE ps.id = ?
            AND (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date >= ?
            AND (k.submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date <= ?`,
-        [student_id, monthStart.toISOString().split('T')[0], actualEnd.toISOString().split('T')[0]]
+        [student_id, curStart, actualEnd]
       );
       const kieSubmitted = parseInt(kieCountRows[0]?.total || 0);
-      const workingDays = countWorkingDays(monthStart, actualEnd);
+      const workingDays = countWorkingDays(new Date(curStart), new Date(actualEnd));
       const kieTarget = workingDays * 4;
       const kiePct = kieTarget > 0 ? Math.min(100, (kieSubmitted / kieTarget) * 100) : 0;
 
@@ -4757,9 +4796,9 @@ app.get('/api/cert-grades', async (req, res) => {
       months.push({
         month_number: m,
         month_label: `Bulan ${m}`,
-        month_start: monthStart.toISOString().split('T')[0],
-        month_end: actualEnd.toISOString().split('T')[0],
-        criteria_scores: monthScores,   // { criterion_id: score }
+        month_start: curStart,
+        month_end: actualEnd,
+        criteria_scores: monthScores,
         activity_avg: activityAvg !== null ? Math.round(activityAvg * 100) / 100 : null,
         notes: notesMap[m] || null,
         kie_submitted: kieSubmitted,
@@ -4768,7 +4807,13 @@ app.get('/api/cert-grades', async (req, res) => {
         working_days: workingDays,
         accumulation: accumulation !== null ? Math.round(accumulation * 100) / 100 : null,
       });
+      curStart = addOneDay(actualEnd);
+      m++;
+      if (curStart > endStr || m > 24) {
+        break;
+      }
     }
+    const numMonths = months.length;
 
     // Per-criterion averages across all months (for summary row)
     const criteriaAverages = {};
