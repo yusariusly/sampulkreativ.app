@@ -159,6 +159,7 @@ export default function PklScoreboardPage() {
   const [savingProgressOverride, setSavingProgressOverride] = useState<boolean>(false);
   const [savingAll, setSavingAll] = useState(false);
   const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
+  const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
 
   // Tag Presets
   const tagPresets = [
@@ -1171,26 +1172,50 @@ export default function PklScoreboardPage() {
               
               <div className="flex flex-wrap items-center gap-2">
                 {/* Student Selector */}
-                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 border border-slate-200 rounded-xl h-[36px]">
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Siswa</span>
-                  <select
-                    value={selectedStudentId || ""}
-                    onChange={(e) => setSelectedStudentId(e.target.value)}
-                    className="text-xs font-bold text-slate-700 outline-none bg-transparent cursor-pointer pr-5 appearance-none focus:ring-0 border-0 p-0 leading-tight min-w-[160px] truncate"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml;utf8,<svg fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'><path d='m6 9 6 6 6-6'/></svg>")`,
-                      backgroundPosition: "right center",
-                      backgroundRepeat: "no-repeat",
-                      backgroundSize: "10px",
-                    }}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsStudentDropdownOpen(!isStudentDropdownOpen)}
+                    className="flex items-center gap-2 bg-slate-50 px-3.5 py-1 border border-slate-200 rounded-xl h-[36px] cursor-pointer hover:border-slate-300 transition-colors select-none text-left"
                   >
-                    <option value="">Pilih Siswa</option>
-                    {students.map((student) => (
-                      <option key={student.student_id} value={student.student_id}>
-                        {student.student_name}
-                      </option>
-                    ))}
-                  </select>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider select-none pr-1">Siswa</span>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 leading-tight">
+                      <span>{currentStudent ? currentStudent.student_name : "Pilih Siswa"}</span>
+                      <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 ${isStudentDropdownOpen ? "rotate-180" : ""}`} />
+                    </div>
+                  </button>
+
+                  {isStudentDropdownOpen && (
+                    <>
+                      {/* Backdrop overlay to close dropdown */}
+                      <div className="fixed inset-0 z-40" onClick={() => setIsStudentDropdownOpen(false)} />
+                      
+                      {/* Dropdown Options List */}
+                      <div className="absolute top-[40px] left-0 min-w-[240px] bg-white rounded-2xl shadow-xl border border-slate-150/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[320px] overflow-y-auto">
+                        {students.map((student) => {
+                          const isSelected = student.student_id === selectedStudentId;
+                          return (
+                            <button
+                              key={student.student_id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedStudentId(student.student_id);
+                                setIsStudentDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer select-none ${
+                                isSelected
+                                  ? "bg-[#2AB0B2] text-white"
+                                  : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
+                              }`}
+                            >
+                              <span>{student.student_name}</span>
+                              {isSelected && <Check size={12} className="text-white flex-shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Publish Button */}
