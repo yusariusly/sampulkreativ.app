@@ -176,6 +176,7 @@ export default function PklManagementPage() {
   // ── Form State: Template ──
   const [newTemplateTitle, setNewTemplateTitle] = useState("");
   const [newTemplateDuration, setNewTemplateDuration] = useState("4");
+  const [isCurriculumModalOpen, setIsCurriculumModalOpen] = useState(false);
 
   // ── Form State: Week ──
   const [newWeekNumber, setNewWeekNumber] = useState("1");
@@ -366,6 +367,7 @@ export default function PklManagementPage() {
       if (!res.ok) throw new Error("Gagal membuat template");
       setNewTemplateTitle("");
       fetchTemplates();
+      setIsCurriculumModalOpen(false);
     } catch (err: any) {
       setErrorMsg(err.message || "Gagal membuat template");
     }
@@ -473,16 +475,31 @@ export default function PklManagementPage() {
   return (
     <div className="flex-1 bg-[#F0F2F5] p-4 md:p-8 select-none">
       {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
-          <span className="p-2 bg-[#2AB0B2]/10 rounded-xl text-[#2AB0B2]">
-            <ClipboardList size={22} />
-          </span>
-          Aktivitas PKL
-        </h1>
-        <p className="text-xs text-slate-500 mt-1.5 ml-[42px]">
-          Kelola program kerja dan aktivitas mingguan siswa PKL.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
+            <span className="p-2 bg-[#2AB0B2]/10 rounded-xl text-[#2AB0B2]">
+              <ClipboardList size={22} />
+            </span>
+            Aktivitas PKL
+          </h1>
+          <p className="text-xs text-slate-500 mt-1.5 ml-[42px]">
+            Kelola program kerja dan aktivitas mingguan siswa PKL.
+          </p>
+        </div>
+
+        {activeView === "list" && (
+          <button
+            onClick={() => {
+              setNewTemplateTitle("");
+              setIsCurriculumModalOpen(true);
+            }}
+            className="flex items-center justify-center gap-2 bg-[#2AB0B2] hover:bg-[#209092] text-white rounded-xl px-4 py-2.5 text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 shrink-0"
+          >
+            <Plus size={16} />
+            <span>Tambah Kurikulum</span>
+          </button>
+        )}
       </div>
 
       {/* Error Banner */}
@@ -504,42 +521,7 @@ export default function PklManagementPage() {
           ═══════════════════════════════════════════════════════════════════════ */}
       {activeView === "list" && (
         <div className="space-y-6">
-          {/* Form: Tambah Kurikulum Baru */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6">
-            <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <Plus size={16} className="text-[#2AB0B2]" />
-              Tambah Kurikulum Baru
-            </h2>
 
-            <form onSubmit={handleAddTemplate} className="space-y-4">
-              <FormInput
-                label="Nama Program Kerja"
-                placeholder="cth: Web Developer"
-                value={newTemplateTitle}
-                onChange={setNewTemplateTitle}
-              />
-
-              <div className="grid grid-cols-2 gap-3">
-                <FormSelect
-                  label="Durasi Program"
-                  value={newTemplateDuration}
-                  onChange={setNewTemplateDuration}
-                >
-                  {DURATION_OPTIONS.map((month) => (
-                    <option key={month} value={month}>
-                      {month} Bulan
-                    </option>
-                  ))}
-                </FormSelect>
-
-                <div className="flex items-end">
-                  <PrimaryButton type="submit">
-                    <Plus size={16} /> Simpan
-                  </PrimaryButton>
-                </div>
-              </div>
-            </form>
-          </div>
 
           {/* Daftar Kurikulum */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6">
@@ -1072,6 +1054,61 @@ export default function PklManagementPage() {
                 </>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* Create Curriculum Modal Overlay */}
+      {isCurriculumModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in" onClick={() => { setIsCurriculumModalOpen(false); setNewTemplateTitle(""); }}>
+          <div className="bg-white rounded-3xl overflow-hidden max-w-md w-full shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5 border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <Plus size={16} className="text-[#2AB0B2]" />
+                Tambah Kurikulum Baru
+              </h3>
+              <button onClick={() => { setIsCurriculumModalOpen(false); setNewTemplateTitle(""); }} className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer text-gray-400 hover:text-slate-650" title="Tutup">
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddTemplate} className="space-y-4">
+              <FormInput
+                label="Nama Program Kerja"
+                placeholder="cth: Web Developer"
+                value={newTemplateTitle}
+                onChange={setNewTemplateTitle}
+              />
+
+              <FormSelect
+                label="Durasi Program"
+                value={newTemplateDuration}
+                onChange={setNewTemplateDuration}
+              >
+                {DURATION_OPTIONS.map((month) => (
+                  <option key={month} value={month}>
+                    {month} Bulan
+                  </option>
+                ))}
+              </FormSelect>
+
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => { setIsCurriculumModalOpen(false); setNewTemplateTitle(""); }}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-550 text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-2 py-2.5 rounded-xl text-white text-xs font-bold bg-[#2AB0B2] hover:bg-[#1E8E90] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Plus size={14} />
+                  <span>Simpan Kurikulum</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
