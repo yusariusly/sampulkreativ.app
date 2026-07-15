@@ -2287,6 +2287,7 @@ app.get('/api/users', async (req, res) => {
       LEFT JOIN pkl_students s ON u.id = s.user_id
       LEFT JOIN users m ON s.mentor_id = m.id
       LEFT JOIN pkl_program_templates t ON s.program_template_id = t.id
+      ORDER BY u.nama_lengkap ASC
     `);
     const mapped = rows.map(u => {
       let start_date = null;
