@@ -49,9 +49,8 @@ async function main() {
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
     const todayDate = parseJakartaDate(todayStr);
 
-    const regDate = parseJakartaDate(created_at || new Date());
-    const systemStartDate = parseJakartaDate('2026-07-02');
-    const startDate = regDate.getTime() < systemStartDate.getTime() ? systemStartDate : regDate;
+    const regDate = parseJakartaDate(start_date);
+    const startDate = regDate;
     const yesterdayDate = new Date(todayDate.getTime() - 24 * 60 * 60 * 1000);
 
     let completedWeekdays = 0;

@@ -3120,10 +3120,13 @@ async function syncUserKieDebt(userId) {
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
     const todayDate = parseJakartaDate(todayStr);
 
-    // Determine calculation start date
-    const regDate = parseJakartaDate(user.created_at || new Date());
-    const systemStartDate = parseJakartaDate('2026-07-02');
-    const startDate = regDate.getTime() < systemStartDate.getTime() ? systemStartDate : regDate;
+    // Determine calculation start date from pkl_students table
+    const [pklRows] = await pool.query(
+      "SELECT start_date FROM pkl_students WHERE user_id = ?",
+      [userId]
+    );
+    if (pklRows.length === 0) return;
+    const startDate = parseJakartaDate(pklRows[0].start_date);
 
     // Yesterday is the day before todayDate
     const yesterdayDate = new Date(todayDate.getTime() - 24 * 60 * 60 * 1000);
