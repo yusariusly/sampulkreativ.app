@@ -4674,7 +4674,7 @@ app.get('/api/cert-grades', async (req, res) => {
 
     // Get student info (start/end dates for duration)
     const [studentRows] = await pool.query(
-      'SELECT s.id, u.id as user_id, s.start_date, s.end_date FROM pkl_students s JOIN users u ON u.id = s.user_id WHERE s.id = ? LIMIT 1',
+      'SELECT s.id, u.id as user_id, s.start_date, s.end_date, s.kie_progress_override FROM pkl_students s JOIN users u ON u.id = s.user_id WHERE s.id = ? LIMIT 1',
       [student_id]
     );
     if (studentRows.length === 0) {
@@ -4834,7 +4834,9 @@ app.get('/api/cert-grades', async (req, res) => {
 
     const totalKieSubmitted = months.reduce((sum, mo) => sum + mo.kie_submitted, 0);
     const totalKieTarget = months.reduce((sum, mo) => sum + mo.kie_target, 0);
-    const kieOverallPct = totalKieTarget > 0 ? Math.round((totalKieSubmitted / totalKieTarget) * 10000) / 100 : 0;
+    const autoKiePct = totalKieTarget > 0 ? Math.round((totalKieSubmitted / totalKieTarget) * 10000) / 100 : 0;
+    const kieOverallPct = student.kie_progress_override !== null ? parseFloat(student.kie_progress_override) : autoKiePct;
+
     res.json({
       student_id,
       curriculum_id,
@@ -4849,6 +4851,7 @@ app.get('/api/cert-grades', async (req, res) => {
       total_kie_submitted: totalKieSubmitted,
       total_kie_target: totalKieTarget,
       kie_overall_pct: kieOverallPct,
+      kie_progress_override: student.kie_progress_override,
     });
   } catch (err) {
     console.error('GET /api/cert-grades error:', err);
@@ -4856,7 +4859,27 @@ app.get('/api/cert-grades', async (req, res) => {
   }
 });
 
+// ── PUT /api/cert-grades/kie-override ─────────────────────────────────────────
+app.put('/api/cert-grades/kie-override', async (req, res) => {
+  try {
+    const { student_id, progress_override } = req.body;
+    if (!student_id) {
+      return res.status(400).json({ error: 'student_id wajib diisi' });
+    }
+    const overrideValue = progress_override === null || progress_override === '' ? null : parseInt(progress_override, 10);
+    await pool.query(
+      'UPDATE pkl_students SET kie_progress_override = ? WHERE id = ?',
+      [overrideValue, student_id]
+    );
+    res.json({ success: true, message: 'Progres KIE berhasil diperbarui' });
+  } catch (err) {
+    console.error('PUT /api/cert-grades/kie-override error:', err);
+    res.status(500).json({ error: 'Gagal memperbarui progres override KIE' });
+  }
+});
 
+
+// Force nodemon reload to run migrations
 // ── GET /api/cert-tags ────────────────────────────────────────────────────────
 app.get('/api/cert-tags', async (req, res) => {
   try {

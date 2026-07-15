@@ -26,6 +26,7 @@ interface CertGradeData {
   total_kie_submitted?: number;
   total_kie_target?: number;
   kie_overall_pct?: number;
+  kie_progress_override?: number | null;
 }
 interface AppTag { id: number; label: string; is_active: number; }
 
@@ -58,6 +59,10 @@ export default function CertificatePage() {
 
   const [settings, setSettings] = useState({ activity_weight: 50, kie_weight: 50, aspect_label: "Kedisiplinan" });
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // KIE progress override state
+  const [kieOverrideInput, setKieOverrideInput] = useState<string>("");
+  const [isSavingKieOverride, setIsSavingKieOverride] = useState(false);
 
   // Criteria master data management
   const [criteria, setCriteria] = useState<Criterion[]>([]);
@@ -122,6 +127,7 @@ export default function CertificatePage() {
       });
       setPendingScores(initScores);
       setPendingNotes(initNotes);
+      setKieOverrideInput(d.kie_progress_override !== null ? String(d.kie_progress_override) : "");
     } catch { setErrorMsg("Gagal memuat nilai"); }
     finally { setLoadingGrades(false); }
   }, []);
@@ -251,6 +257,30 @@ export default function CertificatePage() {
     if (!window.confirm("Hapus tag ini?")) return;
     try { await fetch("/api/cert-tags/" + id, { method: "DELETE" }); fetchTags(); }
     catch { setErrorMsg("Gagal menghapus tag"); }
+  };
+
+  const saveKieOverride = async (val: string) => {
+    if (!selectedStudentId) return;
+    setIsSavingKieOverride(true);
+    try {
+      const r = await fetch("/api/cert-grades/kie-override", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: selectedStudentId,
+          progress_override: val.trim() === "" ? null : parseInt(val, 10),
+        }),
+      });
+      if (!r.ok) throw new Error();
+      showSuccess("Progres belajar berhasil diperbarui!");
+      if (selectedStudentId && selectedCurriculumId) {
+        fetchGrades(selectedStudentId, selectedCurriculumId);
+      }
+    } catch {
+      setErrorMsg("Gagal memperbarui progres override KIE");
+    } finally {
+      setIsSavingKieOverride(false);
+    }
   };
 
   const currentCurriculum = curricula.find(c => c.id === selectedCurriculumId);
@@ -487,53 +517,84 @@ export default function CertificatePage() {
                 </div>
 
                 {/* KIE & Cetak Sertifikat */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                      <Award size={15} className="text-[#2AB0B2]" />
-                      Syarat Cetak Sertifikat
-                    </h3>
-                    <div className="space-y-4">
-                      {/* Overall KIE completion progress */}
-                      <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3.5">
-                        <div className="flex justify-between items-center text-xs mb-2">
-                          <span className="font-bold text-slate-600">Progres KIE PKL</span>
-                          <span className={`font-black ${((gradeData.kie_overall_pct ?? 0) >= 100) ? "text-emerald-600" : "text-amber-600"}`}>
-                            {(gradeData.kie_overall_pct ?? 0).toFixed(1)}%
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col justify-between md:col-span-1">
+                  <div className="space-y-4">
+                    {/* Widget: Progres Belajar Siswa */}
+                    <div className="bg-slate-50/55 border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Progres Belajar Siswa</span>
+                          <span className="text-xs font-black text-slate-800">Minggu Relatif (KIE)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {gradeData.kie_progress_override !== null && (
+                            <span className="text-[7px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded uppercase tracking-wide">Manual</span>
+                          )}
+                          <span className="text-sm font-black text-[#2AB0B2]">
+                            {gradeData.kie_overall_pct !== undefined ? `${gradeData.kie_overall_pct.toFixed(0)}%` : "0%"}
                           </span>
-                        </div>
-                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden mb-2.5">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${((gradeData.kie_overall_pct ?? 0) >= 100) ? "bg-emerald-500" : "bg-amber-500"}`}
-                            style={{ width: `${Math.min(100, gradeData.kie_overall_pct ?? 0)}%` }}
-                          />
-                        </div>
-                        <div className="text-[10px] text-slate-400 flex items-center justify-between font-semibold">
-                          <span>Total KIE: {gradeData.total_kie_submitted} KIE</span>
-                          <span>Target: {gradeData.total_kie_target} KIE</span>
                         </div>
                       </div>
 
-                      {/* Status Checkbox/Indicator */}
-                      <div className="flex items-start gap-2.5 p-3 rounded-xl border bg-slate-50/50">
-                        {((gradeData.kie_overall_pct ?? 0) >= 100) ? (
-                          <>
-                            <div className="p-1 bg-emerald-100 rounded-full text-emerald-600 flex-shrink-0 mt-0.5"><Check size={12} className="stroke-[3]" /></div>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-xs font-bold text-emerald-700">Syarat Terpenuhi</span>
-                              <span className="text-[10px] text-emerald-600/80">KIE sudah mencapai 100% target. Sertifikat siap dicetak.</span>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="p-1 bg-rose-100 rounded-full text-rose-600 flex-shrink-0 mt-0.5"><X size={12} className="stroke-[3]" /></div>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-xs font-bold text-rose-700">Belum Memenuhi Syarat</span>
-                              <span className="text-[10px] text-rose-600/80">KIE harus diselesaikan hingga 100% target untuk mengaktifkan cetak sertifikat.</span>
-                            </div>
-                          </>
-                        )}
+                      {/* Progress Bar Visual */}
+                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden mb-2">
+                        <div
+                          className="bg-[#2AB0B2] h-full rounded-full transition-all duration-500 ease-out"
+                          style={{ width: `${Math.min(100, gradeData.kie_overall_pct ?? 0)}%` }}
+                        />
                       </div>
+                      <div className="text-[9px] text-slate-400 font-medium">
+                        * Dihitung otomatis berdasarkan hari kerja yang telah dilalui.
+                      </div>
+                    </div>
+
+                    {/* Widget: Atur Progres */}
+                    <div className="bg-slate-50/55 border border-slate-200 rounded-xl p-4 flex items-center justify-between">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Atur Progres (%)</span>
+                        <p className="text-[9px] text-slate-400 mt-1 max-w-[130px]">
+                          * Kosongkan untuk kembali ke hitungan otomatis.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={kieOverrideInput}
+                          placeholder="Auto"
+                          onChange={e => setKieOverrideInput(e.target.value)}
+                          onBlur={e => saveKieOverride(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") {
+                              saveKieOverride(kieOverrideInput);
+                            }
+                          }}
+                          className="w-[84px] text-center text-xs font-bold border border-slate-200 rounded-xl px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2] bg-white transition-all text-slate-700 placeholder:text-slate-400"
+                        />
+                        {isSavingKieOverride && <Loader2 size={13} className="animate-spin text-[#2AB0B2]" />}
+                      </div>
+                    </div>
+
+                    {/* Status Checkbox/Indicator */}
+                    <div className="flex items-start gap-2.5 p-3.5 rounded-xl border bg-slate-50/50">
+                      {((gradeData.kie_overall_pct ?? 0) >= 100) ? (
+                        <>
+                          <div className="p-1 bg-emerald-100 rounded-full text-emerald-600 flex-shrink-0 mt-0.5"><Check size={12} className="stroke-[3]" /></div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-bold text-emerald-700">Syarat Terpenuhi</span>
+                            <span className="text-[10px] text-emerald-600/80">KIE sudah mencapai 100%. Sertifikat siap dicetak.</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="p-1 bg-rose-100 rounded-full text-rose-600 flex-shrink-0 mt-0.5"><X size={12} className="stroke-[3]" /></div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-bold text-rose-700">Belum Memenuhi Syarat</span>
+                            <span className="text-[10px] text-rose-600/80">Progres KIE harus mencapai 100% untuk mengaktifkan cetak sertifikat.</span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
