@@ -1159,235 +1159,77 @@ export default function PklScoreboardPage() {
       )}
 
       {activeTab === "evaluation" ? (
-        /* TAB 1: EVALUATION (ORIGINAL LAYOUT) */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Side: Student List & Summary Feed */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6">
-              <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-                <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                  <Users size={16} className="text-[#2AB0B2]" />
-                  Siswa Bimbingan ({students.length})
-                </h2>
+        /* TAB 1: EVALUATION (FULL WIDTH LAYOUT) */
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Top Card: Daily Evaluations details */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-3 mb-4 gap-3">
+              <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <ClipboardList size={16} className="text-[#2AB0B2]" />
+                Evaluasi Harian
+              </h2>
+              
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Student Selector */}
+                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 border border-slate-200 rounded-xl h-[36px]">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Siswa</span>
+                  <select
+                    value={selectedStudentId || ""}
+                    onChange={(e) => setSelectedStudentId(e.target.value)}
+                    className="text-xs font-bold text-slate-700 outline-none bg-transparent cursor-pointer pr-5 appearance-none focus:ring-0 border-0 p-0 leading-tight min-w-[160px] truncate"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml;utf8,<svg fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'><path d='m6 9 6 6 6-6'/></svg>")`,
+                      backgroundPosition: "right center",
+                      backgroundRepeat: "no-repeat",
+                      backgroundSize: "10px",
+                    }}
+                  >
+                    <option value="">Pilih Siswa</option>
+                    {students.map((student) => (
+                      <option key={student.student_id} value={student.student_id}>
+                        {student.student_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
+                {/* Publish Button */}
                 {students.length > 0 && (
                   isAnyPublished ? (
                     <button
                       onClick={handleUnpublishAll}
                       disabled={publishing}
-                      className="bg-slate-700 hover:bg-slate-800 disabled:bg-slate-350 text-white font-extrabold text-[10px] uppercase tracking-wider py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      className="bg-slate-700 hover:bg-slate-800 disabled:bg-slate-350 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer active:scale-95 h-[36px]"
                     >
                       {publishing ? (
-                        <Loader2 className="animate-spin" size={10} />
+                        <Loader2 className="animate-spin" size={12} />
                       ) : (
-                        <EyeOff size={10} />
+                        <EyeOff size={12} />
                       )}
-                      Sembunyikan Poin
+                      <span>Sembunyikan Poin</span>
                     </button>
                   ) : (
                     <button
                       onClick={handlePublishAll}
                       disabled={publishing}
-                      className="bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-350 text-white font-extrabold text-[10px] uppercase tracking-wider py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      className="bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-350 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer active:scale-95 h-[36px]"
                     >
                       {publishing ? (
-                        <Loader2 className="animate-spin" size={10} />
+                        <Loader2 className="animate-spin" size={12} />
                       ) : (
-                        <Send size={10} />
+                        <Send size={12} />
                       )}
-                      Publikasikan
+                      <span>Publikasikan</span>
                     </button>
                   )
                 )}
-              </div>
 
-              {/* Search Bar */}
-              {students.length > 0 && (
-                <div className="relative mb-4">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search size={14} className="text-slate-400" />
-                  </span>
-                  <input
-                    type="text"
-                    placeholder="Cari siswa atau sekolah..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full text-xs font-semibold pl-9 pr-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-[#2AB0B2]/5 focus:border-[#2AB0B2] transition-all bg-slate-50/50"
-                  />
-                </div>
-              )}
-
-              {loading ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="animate-spin text-[#2AB0B2]" size={24} />
-                </div>
-              ) : filteredStudents.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-xs text-slate-400 font-medium">
-                    {students.length === 0 ? "Belum ada siswa bimbingan yang terdaftar." : "Siswa tidak ditemukan."}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-                  {filteredStudents.map((student) => {
-                    const isSelected = student.student_id === selectedStudentId;
-                    const hasDraft = student.tags && student.tags.length > 0;
-                    return (
-                      <div
-                        key={student.student_id}
-                        onClick={() => setSelectedStudentId(student.student_id)}
-                        className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
-                          isSelected
-                            ? "bg-[#2AB0B2]/5 border-[#2AB0B2] shadow-xs"
-                            : "bg-white border-slate-200/70 hover:bg-slate-50/50 hover:border-slate-300"
-                        }`}
-                      >
-                        <div className="min-w-0 flex-1 pr-2">
-                          <div className="flex items-center gap-2">
-                            <h3 className={`text-xs font-bold truncate ${isSelected ? "text-[#1E8E90]" : "text-slate-800"}`}>
-                              {student.student_name}
-                            </h3>
-                            {student.is_published ? (
-                              <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 uppercase tracking-wide">
-                                Publik
-                              </span>
-                            ) : hasDraft ? (
-                              <span className="text-[8px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 uppercase tracking-wide">
-                                Draft
-                              </span>
-                            ) : (
-                              <span className="text-[8px] font-black text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200 uppercase tracking-wide">
-                                Belum Dinilai
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-slate-450 truncate mt-1">
-                            {student.school_name}
-                          </p>
-
-                          {/* 5 Status Dots (Monday - Friday) */}
-                          {student.days_status && (
-                            <div className="flex gap-1.5 mt-2 items-center">
-                              {student.days_status.map((status, idx) => {
-                                const dayLabels = ["S", "S", "R", "K", "J"]; // Senin, Selasa, Rabu, Kamis, Jumat
-                                let dotColorClass = "";
-                                let titleText = "";
-                                if (status === 1) {
-                                  dotColorClass = "bg-emerald-500 border-emerald-500 text-white";
-                                  titleText = `${dayLabels[idx]}: Terisi`;
-                                } else if (status === 0) {
-                                  dotColorClass = "bg-slate-100 border-slate-200 text-slate-400";
-                                  titleText = `${dayLabels[idx]}: Kosong`;
-                                } else {
-                                  dotColorClass = "bg-slate-50 border-dashed border-slate-300 text-slate-300";
-                                  titleText = `${dayLabels[idx]}: Belum PKL`;
-                                }
-                                return (
-                                  <span
-                                    key={idx}
-                                    title={titleText}
-                                    className={`w-3.5 h-3.5 rounded-full border text-[8px] font-black flex items-center justify-center select-none cursor-help transition-all ${dotColorClass}`}
-                                  >
-                                    {dayLabels[idx]}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <div className="text-right">
-                            <span className="text-xs font-black text-[#2AB0B2] bg-[#2AB0B2]/10 px-2 py-0.5 rounded-lg border border-[#2AB0B2]/20">
-                              {isSelected ? currentStudentTotalPoints : student.total_points} Poin
-                            </span>
-                          </div>
-                          <ChevronRight
-                            size={14}
-                            className={`transition-transform ${
-                              isSelected ? "text-[#2AB0B2] translate-x-0.5" : "text-slate-300 group-hover:text-slate-400"
-                            }`}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Feedback Form for Selected Student */}
-            {currentStudent && (
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6 animate-in fade-in">
-                <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <MessageSquare size={16} className="text-[#2AB0B2]" />
-                  Rekap & Umpan Balik: {currentStudent.student_name}
-                </h2>
-
-                <div className="space-y-4">
-                  {/* Tag Apresiasi Cepat */}
-                  <div>
-                    <label className="block text-[9px] font-extrabold text-slate-450 uppercase tracking-wider mb-2">
-                      Tag Apresiasi Cepat (Pilih Min. 1)
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {tagPresets.map((tag) => {
-                        const isSelected = selectedTags.includes(tag);
-                        return (
-                          <button
-                            key={tag}
-                            type="button"
-                            onClick={() => handleToggleTag(tag)}
-                            className={`text-[10px] font-bold px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer ${
-                              isSelected
-                                ? "bg-[#2AB0B2] text-white border-[#2AB0B2] shadow-sm"
-                                : "bg-slate-50 text-slate-650 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
-                            }`}
-                          >
-                            {tag}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Comment Input */}
-                  <div>
-                    <label className="block text-[9px] font-extrabold text-slate-450 uppercase tracking-wider mb-1.5">
-                      Catatan Pembimbing
-                    </label>
-                    <textarea
-                      rows={3}
-                      placeholder="Tulis kritik konstruktif atau apresiasi detail untuk siswa..."
-                      value={commentInput}
-                      onChange={(e) => setCommentInput(e.target.value)}
-                      className="w-full text-xs font-semibold px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-all bg-white shadow-xs"
-                    />
-                    {currentStudentTotalPoints < 12 && !commentInput.trim() && (
-                      <p className="text-[10px] text-amber-600 font-bold mt-1">
-                        💡 Disarankan menulis catatan bimbingan karena total poin minggu ini di bawah 12.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right Side: Daily Evaluations details */}
-          <div className="lg:col-span-7">
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 mb-4 gap-2">
-                <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                  <ClipboardList size={16} className="text-[#2AB0B2]" />
-                  Evaluasi Harian
-                </h2>
-                
+                {/* Save Button */}
                 {selectedStudentId && (
                   <button
                     onClick={handleSaveAll}
                     disabled={savingAll}
-                    className="bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-350 text-white font-extrabold text-xs px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer active:scale-95 shrink-0"
+                    className="bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-350 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer active:scale-95 shrink-0 h-[36px]"
                   >
                     {savingAll ? (
                       <>
@@ -1403,298 +1245,359 @@ export default function PklScoreboardPage() {
                   </button>
                 )}
               </div>
+            </div>
 
-              {!selectedStudentId ? (
-                <div className="text-center py-12">
-                  <p className="text-xs text-slate-400 font-medium">Pilih siswa bimbingan terlebih dahulu.</p>
-                </div>
-              ) : loadingEvals ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="animate-spin text-[#2AB0B2]" size={24} />
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {/* Information Header */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[11px] text-slate-600 leading-relaxed">
-                    <div className="font-bold text-slate-800 flex items-center gap-1.5 mb-1">
-                      <Info size={14} className="text-[#2AB0B2]" />
-                      <span>Auto-Save Aktif:</span>
-                    </div>
-                    <p className="text-slate-500 font-medium pl-5">
-                      Masukkan jumlah poin (0 - 25) pada kolom aspek untuk memberikan poin harian. Nilai tersimpan otomatis ke database ketika kursor keluar dari input (onBlur). Evaluasi hanya dapat diisi untuk hari kerja yang sedang berjalan atau sudah berlalu.
-                    </p>
+            {!selectedStudentId ? (
+              <div className="text-center py-12">
+                <p className="text-xs text-slate-400 font-medium">Pilih siswa bimbingan terlebih dahulu pada dropdown di atas.</p>
+              </div>
+            ) : loadingEvals ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="animate-spin text-[#2AB0B2]" size={24} />
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Information Header */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[11px] text-slate-600 leading-relaxed">
+                  <div className="font-bold text-slate-800 flex items-center gap-1.5 mb-1">
+                    <Info size={14} className="text-[#2AB0B2]" />
+                    <span>Auto-Save Aktif:</span>
                   </div>
+                  <p className="text-slate-500 font-medium pl-5">
+                    Masukkan jumlah poin (0 - 25) pada kolom aspek untuk memberikan poin harian. Nilai tersimpan otomatis ke database ketika kursor keluar dari input (onBlur). Evaluasi hanya dapat diisi untuk hari kerja yang sedang berjalan atau sudah berlalu.
+                  </p>
+                </div>
 
-                  {/* Days Table */}
-                  {currentStudent && (
-                    <>
-                      <div className="overflow-x-auto border border-slate-200/80 rounded-xl shadow-3xs">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200">
-                              <th className="p-3 text-[10px] font-black text-slate-450 uppercase tracking-wider min-w-[120px]">Hari</th>
-                              {aspects.map((aspect) => (
-                                <th key={aspect.aspect_key} className="p-3 text-[10px] font-black text-slate-450 uppercase tracking-wider text-center min-w-[90px]">
-                                  <div className="flex flex-col items-center gap-1 justify-center">
-                                    {getAspectIcon(aspect.icon_name)}
-                                    <span className="truncate max-w-[80px]" title={aspect.label}>{aspect.label.split(" ")[0]}</span>
-                                  </div>
-                                </th>
-                              ))}
-                              <th className="p-3 text-[10px] font-black text-slate-450 uppercase tracking-wider text-right min-w-[70px]">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {getMonFriDates(cohortStartDate, selectedWeek).map((day) => {
-                              const evalDay = dailyEvals[day.dateStr] || {
-                                evaluation_date: day.dateStr,
-                                wkt_point: 0,
-                                skp_point: 0,
-                                has_point: 0,
-                                ker_point: 0,
-                                ini_point: 0,
-                              };
-                              const isFuture = day.dateStr > todayStr;
-                              const studentStartDateStr = currentStudent.start_date
-                                ? new Date(currentStudent.start_date).toISOString().split('T')[0]
-                                : "2026-06-01";
-                              const isBeforeStart = day.dateStr < studentStartDateStr;
-                              const isDisabled = isFuture || isBeforeStart;
+                {/* Days Table */}
+                {currentStudent && (
+                  <>
+                    <div className="overflow-x-auto border border-slate-200/80 rounded-xl shadow-3xs">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="p-3 text-[10px] font-black text-slate-455 uppercase tracking-wider min-w-[120px]">Hari</th>
+                            {aspects.map((aspect) => (
+                              <th key={aspect.aspect_key} className="p-3 text-[10px] font-black text-slate-455 uppercase tracking-wider text-center min-w-[90px]">
+                                <div className="flex flex-col items-center gap-1 justify-center">
+                                  {getAspectIcon(aspect.icon_name)}
+                                  <span className="truncate max-w-[80px]" title={aspect.label}>{aspect.label.split(" ")[0]}</span>
+                                </div>
+                              </th>
+                            ))}
+                            <th className="p-3 text-[10px] font-black text-slate-455 uppercase tracking-wider text-right min-w-[70px]">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {getMonFriDates(cohortStartDate, selectedWeek).map((day) => {
+                            const evalDay = dailyEvals[day.dateStr] || {
+                              evaluation_date: day.dateStr,
+                              wkt_point: 0,
+                              skp_point: 0,
+                              has_point: 0,
+                              ker_point: 0,
+                              ini_point: 0,
+                            };
+                            const isFuture = day.dateStr > todayStr;
+                            const studentStartDateStr = currentStudent.start_date
+                              ? new Date(currentStudent.start_date).toISOString().split('T')[0]
+                              : "2026-06-01";
+                            const isBeforeStart = day.dateStr < studentStartDateStr;
+                            const isDisabled = isFuture || isBeforeStart;
 
-                              const dayPoints = (evalDay.wkt_point || 0) +
-                                (evalDay.skp_point || 0) +
-                                (evalDay.has_point || 0) +
-                                (evalDay.ker_point || 0) +
-                                (evalDay.ini_point || 0);
+                            const dayPoints = (evalDay.wkt_point || 0) +
+                              (evalDay.skp_point || 0) +
+                              (evalDay.has_point || 0) +
+                              (evalDay.ker_point || 0) +
+                              (evalDay.ini_point || 0);
 
-                              return (
-                                <tr
-                                  key={day.dateStr}
-                                  className={`transition-all hover:bg-slate-50/50 ${
-                                    isDisabled ? "bg-slate-50/20 opacity-70" : "bg-white"
-                                  }`}
-                                >
-                                  {/* Day Title & Date */}
-                                  <td className="p-3">
-                                    <div className="flex flex-col">
-                                      <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                                        {day.name}
-                                      </span>
-                                      <span className="text-[9px] font-bold text-slate-450 mt-0.5">
-                                        {day.formatted}
-                                      </span>
-                                      {isFuture && (
-                                        <span className="text-[7px] font-bold text-slate-400 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded mt-1 w-max">
-                                          Hari Mendatang
-                                        </span>
-                                      )}
-                                      {isBeforeStart && (
-                                        <span className="text-[7px] font-bold text-slate-400 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded mt-1 w-max">
-                                          Belum PKL
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-
-                                  {/* Aspect Inputs */}
-                                  {aspects.map((aspect) => {
-                                    const currentPoint = (evalDay as any)[aspect.aspect_key] || 0;
-
-                                    return (
-                                      <td key={aspect.aspect_key} className="p-3 text-center">
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          max="25"
-                                          disabled={isDisabled}
-                                          value={currentPoint === 0 ? "" : currentPoint}
-                                          onChange={(e) =>
-                                            handlePointChange(day.dateStr, aspect.aspect_key, e.target.value)
-                                          }
-                                          placeholder="0"
-                                          className={`w-14 text-center text-xs font-black py-1 px-1.5 rounded-lg border transition-all outline-none ${
-                                            isDisabled
-                                              ? "bg-slate-100/50 text-slate-350 border-slate-200/50 cursor-not-allowed"
-                                              : "bg-white text-slate-750 border-slate-200 focus:border-[#2AB0B2] focus:ring-1 focus:ring-[#2AB0B2]"
-                                          }`}
-                                        />
-                                      </td>
-                                    );
-                                  })}
-
-                                  {/* Day Total */}
-                                  <td className="p-3 text-right">
-                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${
-                                      isDisabled
-                                        ? "text-slate-350 bg-slate-50 border-slate-150"
-                                        : dayPoints > 0
-                                        ? "text-emerald-700 bg-emerald-50 border-emerald-200/50"
-                                        : "text-slate-500 bg-slate-50 border-slate-200/80"
-                                    }`}>
-                                      {dayPoints} Pts
+                            return (
+                              <tr
+                                key={day.dateStr}
+                                className={`transition-all hover:bg-slate-50/50 ${
+                                  isDisabled ? "bg-slate-50/20 opacity-70" : "bg-white"
+                                }`}
+                              >
+                                {/* Day Title & Date */}
+                                <td className="p-3">
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                                      {day.name}
                                     </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                                    <span className="text-[9px] font-bold text-slate-455 mt-0.5">
+                                      {day.formatted}
+                                    </span>
+                                    {isFuture && (
+                                      <span className="text-[7px] font-bold text-slate-400 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded mt-1 w-max">
+                                        Hari Mendatang
+                                      </span>
+                                    )}
+                                    {isBeforeStart && (
+                                      <span className="text-[7px] font-bold text-slate-400 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded mt-1 w-max">
+                                        Belum PKL
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
 
-                      {/* Progress Bar & Manual Override Section */}
-                      <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col md:flex-row gap-5 items-stretch">
-                        {/* Left: Progress Bar */}
-                        <div className="flex-1 bg-slate-50/55 border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Progres Belajar Siswa</span>
-                              <span className="text-xs font-black text-slate-800">Minggu {selectedWeek} (Relatif)</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              {progressOverrideInput !== null && (
-                                <span className="text-[7px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded uppercase tracking-wide">Manual</span>
-                              )}
-                              <span className="text-sm font-black text-[#2AB0B2]">
-                                {progressOverrideInput !== null
-                                  ? `${progressOverrideInput}%`
-                                  : (() => {
-                                      const studentStartDateStr = currentStudent.start_date
-                                        ? new Date(currentStudent.start_date).toISOString().split('T')[0]
-                                        : todayStr;
-                                      const activeWeek = currentStudent.relative_week_number || 1;
-                                      return `${calculateWeekProgress(studentStartDateStr, selectedWeek, activeWeek, extendedDaysInput)}%`;
-                                    })()}
-                              </span>
-                            </div>
-                          </div>
+                                {/* Aspect Inputs */}
+                                {aspects.map((aspect) => {
+                                  const currentPoint = (evalDay as any)[aspect.aspect_key] || 0;
 
-                          {/* Progress Bar Visual */}
-                          <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden mb-1">
-                            <div
-                              className="bg-[#2AB0B2] h-full rounded-full transition-all duration-500 ease-out"
-                              style={{
-                                width: `${progressOverrideInput !== null
-                                  ? progressOverrideInput
-                                  : (() => {
-                                      const studentStartDateStr = currentStudent.start_date
-                                        ? new Date(currentStudent.start_date).toISOString().split('T')[0]
-                                        : todayStr;
-                                      const activeWeek = currentStudent.relative_week_number || 1;
-                                      return calculateWeekProgress(studentStartDateStr, selectedWeek, activeWeek, extendedDaysInput);
-                                    })()}%`
-                              }}
-                            />
+                                  return (
+                                    <td key={aspect.aspect_key} className="p-3 text-center">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="25"
+                                        disabled={isDisabled}
+                                        value={currentPoint === 0 ? "" : currentPoint}
+                                        onChange={(e) =>
+                                          handlePointChange(day.dateStr, aspect.aspect_key, e.target.value)
+                                        }
+                                        placeholder="0"
+                                        className={`w-14 text-center text-xs font-black py-1 px-1.5 rounded-lg border transition-all outline-none ${
+                                          isDisabled
+                                            ? "bg-slate-100/50 text-slate-350 border-slate-200/50 cursor-not-allowed"
+                                            : "bg-white text-slate-750 border-slate-200 focus:border-[#2AB0B2] focus:ring-1 focus:ring-[#2AB0B2]"
+                                        }`}
+                                      />
+                                    </td>
+                                  );
+                                })}
+
+                                {/* Day Total */}
+                                <td className="p-3 text-right">
+                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${
+                                    isDisabled
+                                      ? "text-slate-350 bg-slate-50 border-slate-150"
+                                      : dayPoints > 0
+                                      ? "text-emerald-700 bg-emerald-50 border-emerald-200/50"
+                                      : "text-slate-500 bg-slate-50 border-slate-200/80"
+                                  }`}>
+                                    {dayPoints} Pts
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Progress Bar & Manual Override Section */}
+                    <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col md:flex-row gap-5 items-stretch">
+                      {/* Left: Progress Bar */}
+                      <div className="flex-1 bg-slate-50/55 border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Progres Belajar Siswa</span>
+                            <span className="text-xs font-black text-slate-800">Minggu {selectedWeek} (Relatif)</span>
                           </div>
-                          <span className="text-[8px] font-bold text-slate-400">
-                            {progressOverrideInput !== null
-                              ? "* Nilai progres diatur manual oleh pembimbing."
-                              : `* Dihitung otomatis berdasarkan hari kerja yang telah dilalui.`}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {progressOverrideInput !== null && (
+                              <span className="text-[7px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded uppercase tracking-wide">Manual</span>
+                            )}
+                            <span className="text-sm font-black text-[#2AB0B2]">
+                              {progressOverrideInput !== null
+                                ? `${progressOverrideInput}%`
+                                : (() => {
+                                    const studentStartDateStr = currentStudent.start_date
+                                      ? new Date(currentStudent.start_date).toISOString().split('T')[0]
+                                      : todayStr;
+                                    const activeWeek = currentStudent.relative_week_number || 1;
+                                    return `${calculateWeekProgress(studentStartDateStr, selectedWeek, activeWeek, extendedDaysInput)}%`;
+                                  })()}
+                            </span>
+                          </div>
                         </div>
 
-                        {/* Right: Progress Override Input */}
-                        <div className="w-full md:w-[200px] flex flex-col gap-2">
-                          <label className="block text-[9px] font-extrabold text-slate-450 uppercase tracking-wider">
-                            Atur Progres (%)
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={progressOverrideInput ?? ""}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === "") {
-                                  setProgressOverrideInput(null);
-                                } else {
-                                  setProgressOverrideInput(Math.min(100, Math.max(0, parseInt(val, 10) || 0)));
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleSaveAll();
-                                }
-                              }}
-                              className="w-16 text-center text-xs font-black py-2 px-2 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-all bg-white text-slate-800"
-                              placeholder="Auto"
-                            />
-                          </div>
-                          <p className="text-[9px] text-slate-400 font-bold leading-snug">
-                            * Kosongkan untuk kembali ke hitungan otomatis.
-                          </p>
+                        {/* Progress Bar Visual */}
+                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden mb-1">
+                          <div
+                            className="bg-[#2AB0B2] h-full rounded-full transition-all duration-500 ease-out"
+                            style={{
+                              width: `${progressOverrideInput !== null
+                                ? progressOverrideInput
+                                : (() => {
+                                    const studentStartDateStr = currentStudent.start_date
+                                      ? new Date(currentStudent.start_date).toISOString().split('T')[0]
+                                      : todayStr;
+                                    const activeWeek = currentStudent.relative_week_number || 1;
+                                    return calculateWeekProgress(studentStartDateStr, selectedWeek, activeWeek, extendedDaysInput);
+                                  })()}%`
+                            }}
+                          />
                         </div>
+                        <span className="text-[8px] font-bold text-slate-400">
+                          {progressOverrideInput !== null
+                            ? "* Nilai progres diatur manual oleh pembimbing."
+                            : `* Dihitung otomatis berdasarkan hari kerja yang telah dilalui.`}
+                        </span>
                       </div>
-                    </>
-                  )}
+
+                      {/* Right: Progress Override Input */}
+                      <div className="w-full md:w-[200px] flex flex-col gap-2">
+                        <label className="block text-[9px] font-extrabold text-slate-455 uppercase tracking-wider">
+                          Atur Progres (%)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={progressOverrideInput ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "") {
+                                setProgressOverrideInput(null);
+                              } else {
+                                setProgressOverrideInput(Math.min(100, Math.max(0, parseInt(val, 10) || 0)));
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleSaveAll();
+                              }
+                            }}
+                            className="w-16 text-center text-xs font-black py-2 px-2 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-all bg-white text-slate-800"
+                            placeholder="Auto"
+                          />
+                        </div>
+                        <p className="text-[9px] text-slate-400 font-bold leading-snug">
+                          * Kosongkan untuk kembali ke hitungan otomatis.
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Grid for Feedback & Reward/Punishment Settings (only when student is selected) */}
+          {selectedStudentId && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Feedback Form Card */}
+              {currentStudent && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6 animate-in fade-in">
+                  <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <MessageSquare size={16} className="text-[#2AB0B2]" />
+                    Rekap &amp; Umpan Balik: {currentStudent.student_name}
+                  </h2>
+
+                  <div className="space-y-4">
+                    {/* Tag Apresiasi Cepat */}
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-455 uppercase tracking-wider mb-2">
+                        Tag Apresiasi Cepat (Pilih Min. 1)
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tagPresets.map((tag) => {
+                          const isSelected = selectedTags.includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => handleToggleTag(tag)}
+                              className={`text-[10px] font-bold px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-[#2AB0B2] text-white border-[#2AB0B2] shadow-sm"
+                                  : "bg-slate-50 text-slate-650 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                              }`}
+                            >
+                              {tag}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Comment Input */}
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-455 uppercase tracking-wider mb-1.5">
+                        Catatan Pembimbing
+                      </label>
+                      <textarea
+                        rows={3}
+                        placeholder="Tulis kritik konstruktif atau apresiasi detail untuk siswa..."
+                        value={commentInput}
+                        onChange={(e) => setCommentInput(e.target.value)}
+                        className="w-full text-xs font-semibold px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-all bg-white shadow-xs"
+                      />
+                      {currentStudentTotalPoints < 12 && !commentInput.trim() && (
+                        <p className="text-[10px] text-amber-600 font-bold mt-1">
+                          💡 Disarankan menulis catatan bimbingan karena total poin minggu ini di bawah 12.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
-            </div>
 
-            {/* Pengaturan Reward & Punishment Minggu ini */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6 mt-6">
-              <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
-                <Sparkles size={16} className="text-[#2AB0B2]" />
-                Pengaturan Reward & Punishment (Minggu {selectedWeek})
-              </h2>
+              {/* Pengaturan Reward & Punishment Minggu ini */}
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6">
+                <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Sparkles size={16} className="text-[#2AB0B2]" />
+                  Pengaturan Reward &amp; Punishment (Minggu {selectedWeek})
+                </h2>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Reward Input */}
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-450 uppercase tracking-wider mb-1">
-                      🏆 Nama Hadiah (Reward)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Cth: Beng Beng Maxx / Free Lunch"
-                      value={prizeName}
-                      onChange={(e) => setPrizeName(e.target.value)}
-                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-250 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-colors bg-white font-medium"
-                    />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Reward Input */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-455 uppercase tracking-wider mb-1">
+                        🏆 Nama Hadiah (Reward)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Cth: Beng Beng Maxx / Free Lunch"
+                        value={prizeName}
+                        onChange={(e) => setPrizeName(e.target.value)}
+                        className="w-full text-xs font-semibold px-3 py-2 border border-slate-250 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-colors bg-white font-medium"
+                      />
+                    </div>
+
+                    {/* Punishment Input */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-455 uppercase tracking-wider mb-1">
+                        ⚠️ Konsekuensi (Punishment)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Cth: Presentasi hasil pekerjaan hari Senin"
+                        value={consequence}
+                        onChange={(e) => setConsequence(e.target.value)}
+                        className="w-full text-xs font-semibold px-3 py-2 border border-slate-250 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-colors bg-white font-medium"
+                      />
+                    </div>
                   </div>
 
-                  {/* Punishment Input */}
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-450 uppercase tracking-wider mb-1">
-                      ⚠️ Konsekuensi (Punishment)
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-2 border-t border-slate-50">
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showRecipients}
+                        onChange={(e) => setShowRecipients(e.target.checked)}
+                        className="rounded border-slate-350 text-[#2AB0B2] focus:ring-[#2AB0B2]"
+                      />
+                      Tampilkan pemenang &amp; pelanggar minggu ini
                     </label>
-                    <input
-                      type="text"
-                      placeholder="Cth: Presentasi hasil pekerjaan hari Senin"
-                      value={consequence}
-                      onChange={(e) => setConsequence(e.target.value)}
-                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-250 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-colors bg-white font-medium"
-                    />
+
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={autoShowRecipients}
+                        onChange={(e) => setAutoShowRecipients(e.target.checked)}
+                        className="rounded border-slate-350 text-[#2AB0B2] focus:ring-[#2AB0B2]"
+                      />
+                      Tampilkan Otomatis Hari Jumat Jam 15:00 WIB
+                    </label>
                   </div>
                 </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-2">
-                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={showRecipients}
-                      onChange={(e) => setShowRecipients(e.target.checked)}
-                      className="rounded border-slate-350 text-[#2AB0B2] focus:ring-[#2AB0B2]"
-                    />
-                    Tampilkan pemenang & pelanggar minggu ini
-                  </label>
-
-                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={autoShowRecipients}
-                      onChange={(e) => setAutoShowRecipients(e.target.checked)}
-                      className="rounded border-slate-350 text-[#2AB0B2] focus:ring-[#2AB0B2]"
-                    />
-                    Tampilkan Otomatis Hari Jumat Jam 15:00 WIB
-                  </label>
-                </div>
-
               </div>
             </div>
-          </div>
+          )}
         </div>
       ) : (
         /* TAB 2: SCOREBOARD (RICH VIEW) */
