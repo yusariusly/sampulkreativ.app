@@ -56,6 +56,8 @@ export default function AdminDataPage() {
   const [overrideUser, setOverrideUser] = useState("");
   const [overrideStatus, setOverrideStatus] = useState("Hadir");
   const [overrideDate, setOverrideDate] = useState("");
+  const [overrideCheckInTime, setOverrideCheckInTime] = useState("08:00");
+  const [overrideCheckOutTime, setOverrideCheckOutTime] = useState("17:00");
   const [currentStatus, setCurrentStatus] = useState("");
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [notification, setNotification] = useState("");
@@ -108,7 +110,13 @@ export default function AdminDataPage() {
       const res = await fetch("/api/attendance/override", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: overrideUser, status: overrideStatus, date: overrideDate }),
+        body: JSON.stringify({ 
+          username: overrideUser, 
+          status: overrideStatus, 
+          date: overrideDate,
+          checkInTime: overrideCheckInTime,
+          checkOutTime: overrideCheckOutTime
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -242,6 +250,8 @@ export default function AdminDataPage() {
         .then((data) => {
           setCurrentStatus(data.status || "Belum Absen");
           setOverrideStatus(data.status || "Hadir");
+          setOverrideCheckInTime(data.checkInTime || "08:00");
+          setOverrideCheckOutTime(data.checkOutTime || "17:00");
           setLoadingStatus(false);
         })
         .catch(() => {
@@ -476,6 +486,33 @@ export default function AdminDataPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Conditional Time Pickers */}
+              {(overrideStatus === "Hadir" || overrideStatus === "Pulang") && (
+                <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 mb-1.5 uppercase tracking-widest">Jam Masuk</label>
+                    <input
+                      type="time"
+                      value={overrideCheckInTime}
+                      onChange={(e) => setOverrideCheckInTime(e.target.value)}
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] focus:ring-2 focus:ring-[#2AB0B2]/10 outline-none bg-white text-gray-750 font-semibold shadow-xs"
+                    />
+                  </div>
+
+                  {overrideStatus === "Pulang" && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1.5 uppercase tracking-widest">Jam Pulang</label>
+                      <input
+                        type="time"
+                        value={overrideCheckOutTime}
+                        onChange={(e) => setOverrideCheckOutTime(e.target.value)}
+                        className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] focus:ring-2 focus:ring-[#2AB0B2]/10 outline-none bg-white text-gray-750 font-semibold shadow-xs"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Modal Buttons */}
               <div className="flex gap-3 pt-4">
