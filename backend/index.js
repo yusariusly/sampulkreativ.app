@@ -4880,7 +4880,7 @@ app.get('/api/cert-grades', async (req, res) => {
 
     // Get student info (start/end dates for duration)
     const [studentRows] = await pool.query(
-      'SELECT s.id, u.id as user_id, s.start_date, s.end_date, s.kie_progress_override FROM pkl_students s JOIN users u ON u.id = s.user_id WHERE s.id = ? LIMIT 1',
+      'SELECT s.id, u.id as user_id, s.start_date, s.end_date, s.kie_progress_override, u.kie_start_date FROM pkl_students s JOIN users u ON u.id = s.user_id WHERE s.id = ? LIMIT 1',
       [student_id]
     );
     if (studentRows.length === 0) {
@@ -4993,6 +4993,9 @@ app.get('/api/cert-grades', async (req, res) => {
     const endLimitDate = new Date(endStr);
     
 
+    // Determine custom KIE start date (fallback to PKL start date if not set)
+    const kieStartStr = student.kie_start_date ? formatDateStr(student.kie_start_date) : startStr;
+
     // Record state before startStr (t-1)
     const dayBeforeStart = new Date(new Date(startStr).getTime() - 24 * 60 * 60 * 1000);
     dailyRecords[formatDateStr(dayBeforeStart)] = { counted: 0, cumulativeTarget: 0 };
@@ -5000,10 +5003,13 @@ app.get('/api/cert-grades', async (req, res) => {
     while (cur_day <= endLimitDate) {
       const day = cur_day.getUTCDay();
       const isWeekday = (day !== 0 && day !== 6);
-      const targetToday = isWeekday ? 4 : 0;
+      const dateStr = formatDateStr(cur_day);
+      
+      const isBeforeKieStart = dateStr < kieStartStr;
+      
+      const targetToday = (isWeekday && !isBeforeKieStart) ? 4 : 0;
       cumulativeTarget += targetToday;
 
-      const dateStr = formatDateStr(cur_day);
       const subToday = subMap[dateStr] || 0;
 
       C_run = Math.min(C_run + subToday, cumulativeTarget);
