@@ -1,7 +1,7 @@
 const express = require('express');
 const mysql = require('pg');
 mysql.types.setTypeParser(1082, (val) => val); // Prevent pg from shifting DATE values by returning them as raw strings
-mysql.types.setTypeParser(1114, (val) => new Date(val.replace(' ', 'T'))); // Prevent pg from parsing TIMESTAMP using Node process local time offset
+mysql.types.setTypeParser(1114, (val) => new Date(val.replace(' ', 'T') + 'Z')); // Prevent pg from parsing TIMESTAMP using Node process local time offset
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
@@ -2190,7 +2190,7 @@ app.get('/api/attendance/override/status', async (req, res) => {
     const user = userRows[0];
 
     const [rows] = await pool.query(
-      'SELECT status, waktu_absen FROM absensi WHERE user_id = ? AND DATE(waktu_absen) = ?',
+      "SELECT status, waktu_absen FROM absensi WHERE user_id = ? AND DATE(waktu_absen + INTERVAL '7 hour') = ?",
       [user.id, date]
     );
 
@@ -2260,22 +2260,22 @@ app.post('/api/attendance/override', async (req, res) => {
     if (status === 'Belum Absen') {
       // Hapus seluruh data absensi pada tanggal tersebut
       await pool.query(
-        "DELETE FROM absensi WHERE user_id = ? AND DATE(waktu_absen) = ?",
+        "DELETE FROM absensi WHERE user_id = ? AND DATE(waktu_absen + INTERVAL '7 hour') = ?",
         [user.id, targetDate]
       );
     } else if (status === 'Hadir') {
       // Hapus data Pulang/Izin/Sakit/Alpa
       await pool.query(
-        "DELETE FROM absensi WHERE user_id = ? AND DATE(waktu_absen) = ? AND status IN ('Pulang', 'Izin', 'Sakit', 'Alpa')",
+        "DELETE FROM absensi WHERE user_id = ? AND DATE(waktu_absen + INTERVAL '7 hour') = ? AND status IN ('Pulang', 'Izin', 'Sakit', 'Alpa')",
         [user.id, targetDate]
       );
 
       const inTime = checkInTime || '08:00';
-      const overrideWaktu = new Date(`${targetDate}T${inTime}:00`);
+      const overrideWaktu = new Date(`${targetDate}T${inTime}:00+07:00`);
 
       // Cek record Hadir/Terlambat
       const [hadirRows] = await pool.query(
-        "SELECT * FROM absensi WHERE user_id = ? AND DATE(waktu_absen) = ? AND status IN ('Hadir', 'Terlambat')",
+        "SELECT * FROM absensi WHERE user_id = ? AND DATE(waktu_absen + INTERVAL '7 hour') = ? AND status IN ('Hadir', 'Terlambat')",
         [user.id, targetDate]
       );
 
@@ -2297,18 +2297,18 @@ app.post('/api/attendance/override', async (req, res) => {
     } else if (status === 'Pulang') {
       // Hapus izin/sakit/alpa
       await pool.query(
-        "DELETE FROM absensi WHERE user_id = ? AND DATE(waktu_absen) = ? AND status IN ('Izin', 'Sakit', 'Alpa')",
+        "DELETE FROM absensi WHERE user_id = ? AND DATE(waktu_absen + INTERVAL '7 hour') = ? AND status IN ('Izin', 'Sakit', 'Alpa')",
         [user.id, targetDate]
       );
 
       const inTime = checkInTime || '08:00';
       const outTime = checkOutTime || '17:00';
-      const overrideWaktuHadir = new Date(`${targetDate}T${inTime}:00`);
-      const overrideWaktuPulang = new Date(`${targetDate}T${outTime}:00`);
+      const overrideWaktuHadir = new Date(`${targetDate}T${inTime}:00+07:00`);
+      const overrideWaktuPulang = new Date(`${targetDate}T${outTime}:00+07:00`);
 
       // 1. Pastikan record Hadir/Terlambat ter-update/ter-insert
       const [hadirRows] = await pool.query(
-        "SELECT * FROM absensi WHERE user_id = ? AND DATE(waktu_absen) = ? AND status IN ('Hadir', 'Terlambat')",
+        "SELECT * FROM absensi WHERE user_id = ? AND DATE(waktu_absen + INTERVAL '7 hour') = ? AND status IN ('Hadir', 'Terlambat')",
         [user.id, targetDate]
       );
 
@@ -2328,7 +2328,7 @@ app.post('/api/attendance/override', async (req, res) => {
 
       // 2. Pastikan record Pulang ter-update/ter-insert
       const [pulangRows] = await pool.query(
-        "SELECT * FROM absensi WHERE user_id = ? AND DATE(waktu_absen) = ? AND status = 'Pulang'",
+        "SELECT * FROM absensi WHERE user_id = ? AND DATE(waktu_absen + INTERVAL '7 hour') = ? AND status = 'Pulang'",
         [user.id, targetDate]
       );
 
@@ -2348,12 +2348,12 @@ app.post('/api/attendance/override', async (req, res) => {
     } else {
       // Untuk Izin, Sakit, Alpa
       await pool.query(
-        "DELETE FROM absensi WHERE user_id = ? AND DATE(waktu_absen) = ?",
+        "DELETE FROM absensi WHERE user_id = ? AND DATE(waktu_absen + INTERVAL '7 hour') = ?",
         [user.id, targetDate]
       );
       const newRecordId = `att-override-o-${Date.now()}`;
       const inTime = checkInTime || '08:00';
-      const overrideWaktu = new Date(`${targetDate}T${inTime}:00`);
+      const overrideWaktu = new Date(`${targetDate}T${inTime}:00+07:00`);
       await pool.query(
         `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

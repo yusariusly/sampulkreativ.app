@@ -71,7 +71,7 @@ async function getTodayRemoteFacts(dbClient, userId) {
   const [absensiRows] = await dbClient.query(
     `SELECT status FROM absensi 
      WHERE user_id = $1 
-       AND DATE(waktu_absen) = $2`,
+       AND DATE(waktu_absen + INTERVAL '7 hour') = $2`,
     [userId, todayJakarta]
   );
 
