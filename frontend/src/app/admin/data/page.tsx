@@ -288,80 +288,115 @@ export default function AdminDataPage() {
 
       {/* Override Status Modal Overlay */}
       {isOverrideModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs" onClick={(e) => { if (e.target === e.currentTarget) setIsOverrideModalOpen(false); }}>
-          <div className="bg-white rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-[#1C3D3F] mb-1">Override Status Absensi</h3>
-            <p className="text-gray-400 text-xs mb-6 font-medium">Ubah status kehadiran karyawan secara manual</p>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-all duration-300" onClick={(e) => { if (e.target === e.currentTarget) setIsOverrideModalOpen(false); }}>
+          <div className="bg-white rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl p-6 border border-gray-150/40 relative animate-in fade-in zoom-in-95 duration-200 select-none" onClick={(e) => e.stopPropagation()}>
+            
+            {/* Modal Header */}
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-[#F6C13B]/10 flex items-center justify-center text-[#F6C13B] shrink-0">
+                <Edit2 size={22} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[#1C3D3F] leading-tight">Override Absensi</h3>
+                <p className="text-gray-400 text-xs mt-0.5 font-medium">Ubah status kehadiran karyawan secara manual</p>
+              </div>
+            </div>
             
             <div className="space-y-4">
+              {/* Karyawan Select */}
               <div>
-                <label className="block text-xs font-black text-gray-500 mb-1.5 uppercase tracking-wider">Pilih Karyawan</label>
-                <select
-                  value={overrideUser}
-                  onChange={(e) => setOverrideUser(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-700 transition-colors cursor-pointer font-medium"
-                >
-                  <option value="">Pilih Karyawan</option>
-                  {users
-                    .filter((u) => u.role !== "admin")
-                    .map((u) => (
-                      <option key={u.username} value={u.username} className="font-medium text-gray-700">
-                        {u.nama_lengkap}
-                      </option>
-                    ))}
-                </select>
+                <label className="block text-[10px] font-bold text-gray-400 mb-1.5 uppercase tracking-widest">Karyawan</label>
+                <div className="relative">
+                  <select
+                    value={overrideUser}
+                    onChange={(e) => setOverrideUser(e.target.value)}
+                    className="w-full pl-3.5 pr-10 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] focus:ring-2 focus:ring-[#2AB0B2]/10 outline-none bg-white text-gray-700 transition-all cursor-pointer font-semibold shadow-xs appearance-none"
+                  >
+                    <option value="">Pilih Karyawan</option>
+                    {users
+                      .filter((u) => u.role !== "admin")
+                      .map((u) => (
+                        <option key={u.username} value={u.username} className="font-semibold text-gray-700">
+                          {u.nama_lengkap}
+                        </option>
+                      ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-gray-400">
+                    <ChevronDown size={16} />
+                  </div>
+                </div>
               </div>
 
+              {/* Tanggal Input */}
               <div>
-                <label className="block text-xs font-black text-gray-500 mb-1.5 uppercase tracking-wider">Tanggal Absensi</label>
-                <input
-                  type="date"
-                  value={overrideDate}
-                  onChange={(e) => setOverrideDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-700 transition-colors cursor-pointer font-medium"
-                />
+                <label className="block text-[10px] font-bold text-gray-400 mb-1.5 uppercase tracking-widest">Tanggal Absensi</label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={overrideDate}
+                    onChange={(e) => setOverrideDate(e.target.value)}
+                    className="w-full pl-10 pr-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] focus:ring-2 focus:ring-[#2AB0B2]/10 outline-none bg-white text-gray-700 transition-all cursor-pointer font-semibold shadow-xs"
+                  />
+                  <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-gray-400">
+                    <Calendar size={16} />
+                  </div>
+                </div>
               </div>
 
+              {/* Status Saat Ini Card */}
               {overrideUser && overrideDate && (
-                <div className="bg-[#1C3D3F]/5 border border-[#1C3D3F]/10 rounded-2xl p-4 flex flex-col gap-1.5 animate-in fade-in duration-200">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status Saat Ini</span>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#F6C13B] animate-pulse" />
-                    <span className="text-sm font-bold text-[#1C3D3F]">
-                      {loadingStatus ? "Memuat..." : currentStatus}
+                <div className="bg-[#1C3D3F]/5 border border-gray-100 rounded-2xl p-4 flex items-center justify-between animate-in fade-in slide-in-from-top-1 duration-200 select-none">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Status Saat Ini</span>
+                    <span className="text-[10px] font-semibold text-gray-400">
+                      {overrideUser}
                     </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {loadingStatus ? (
+                      <span className="text-xs font-bold text-gray-400 animate-pulse">Memuat...</span>
+                    ) : (
+                      <StatusBadge status={currentStatus} small />
+                    )}
                   </div>
                 </div>
               )}
 
+              {/* Status Kehadiran Dropdown */}
               <div>
-                <label className="block text-xs font-black text-gray-500 mb-1.5 uppercase tracking-wider">Status Kehadiran</label>
-                <select
-                  value={overrideStatus}
-                  onChange={(e) => setOverrideStatus(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-700 transition-colors cursor-pointer font-medium"
-                >
-                  <option>Belum Absen</option>
-                  <option>Hadir</option>
-                  <option>Pulang</option>
-                  <option>Izin</option>
-                  <option>Sakit</option>
-                  <option>Alpa</option>
-                </select>
+                <label className="block text-[10px] font-bold text-gray-400 mb-1.5 uppercase tracking-widest">Status Baru</label>
+                <div className="relative">
+                  <select
+                    value={overrideStatus}
+                    onChange={(e) => setOverrideStatus(e.target.value)}
+                    className="w-full pl-3.5 pr-10 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] focus:ring-2 focus:ring-[#2AB0B2]/10 outline-none bg-white text-gray-700 transition-all cursor-pointer font-semibold shadow-xs appearance-none"
+                  >
+                    <option>Belum Absen</option>
+                    <option>Hadir</option>
+                    <option>Pulang</option>
+                    <option>Izin</option>
+                    <option>Sakit</option>
+                    <option>Alpa</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-gray-400">
+                    <ChevronDown size={16} />
+                  </div>
+                </div>
               </div>
 
+              {/* Modal Buttons */}
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setIsOverrideModalOpen(false)}
-                  className="flex-1 py-3 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-xl font-bold transition-colors cursor-pointer text-sm"
+                  className="flex-1 py-3 bg-gray-50 hover:bg-gray-100/80 active:scale-95 text-gray-500 rounded-xl font-bold transition-all cursor-pointer text-sm"
                 >
                   Batal
                 </button>
                 <button
                   type="button"
                   onClick={handleOverrideStatus}
-                  className="flex-1 py-3 bg-[#2AB0B2] hover:bg-[#209092] text-white rounded-xl font-bold shadow-sm transition-colors cursor-pointer text-sm"
+                  className="flex-1 py-3 bg-[#2AB0B2] hover:bg-[#209092] active:scale-95 text-white rounded-xl font-bold shadow-md shadow-[#2AB0B2]/10 transition-all cursor-pointer text-sm"
                 >
                   Terapkan
                 </button>
