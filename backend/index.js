@@ -1,3 +1,4 @@
+process.env.TZ = 'Asia/Jakarta'; // Force timezone for the Node.js process to always be WIB
 const express = require('express');
 const mysql = require('pg');
 mysql.types.setTypeParser(1082, (val) => val); // Prevent pg from shifting DATE values by returning them as raw strings
