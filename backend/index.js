@@ -2276,7 +2276,7 @@ app.post('/api/attendance/override', async (req, res) => {
       );
 
       const inTime = checkInTime || '08:00';
-      const overrideWaktu = new Date(`${targetDate}T${inTime}:00`);
+      const overrideWaktuStr = `${targetDate} ${inTime}:00`;
 
       // Cek record Hadir/Terlambat
       const [hadirRows] = await pool.query(
@@ -2288,7 +2288,7 @@ app.post('/api/attendance/override', async (req, res) => {
         // Update record yang sudah ada
         await pool.query(
           "UPDATE absensi SET status = 'Hadir', waktu_absen = ?, diubah_oleh_admin = 1 WHERE id = ?",
-          [overrideWaktu, hadirRows[0].id]
+          [overrideWaktuStr, hadirRows[0].id]
         );
       } else {
         // Insert record baru
@@ -2296,7 +2296,7 @@ app.post('/api/attendance/override', async (req, res) => {
         await pool.query(
           `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newRecordId, user.id, user.username, user.nama_lengkap, overrideWaktu, '/uploads/placeholder.jpg', null, null, 'Hadir', 1]
+          [newRecordId, user.id, user.username, user.nama_lengkap, overrideWaktuStr, '/uploads/placeholder.jpg', null, null, 'Hadir', 1]
         );
       }
     } else if (status === 'Pulang') {
@@ -2308,8 +2308,8 @@ app.post('/api/attendance/override', async (req, res) => {
 
       const inTime = checkInTime || '08:00';
       const outTime = checkOutTime || '17:00';
-      const overrideWaktuHadir = new Date(`${targetDate}T${inTime}:00`);
-      const overrideWaktuPulang = new Date(`${targetDate}T${outTime}:00`);
+      const overrideWaktuHadirStr = `${targetDate} ${inTime}:00`;
+      const overrideWaktuPulangStr = `${targetDate} ${outTime}:00`;
 
       // 1. Pastikan record Hadir/Terlambat ter-update/ter-insert
       const [hadirRows] = await pool.query(
@@ -2320,14 +2320,14 @@ app.post('/api/attendance/override', async (req, res) => {
       if (hadirRows.length > 0) {
         await pool.query(
           "UPDATE absensi SET waktu_absen = ?, diubah_oleh_admin = 1 WHERE id = ?",
-          [overrideWaktuHadir, hadirRows[0].id]
+          [overrideWaktuHadirStr, hadirRows[0].id]
         );
       } else {
         const newRecordIdHadir = `att-override-h-${Date.now()}`;
         await pool.query(
           `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newRecordIdHadir, user.id, user.username, user.nama_lengkap, overrideWaktuHadir, '/uploads/placeholder.jpg', null, null, 'Hadir', 1]
+          [newRecordIdHadir, user.id, user.username, user.nama_lengkap, overrideWaktuHadirStr, '/uploads/placeholder.jpg', null, null, 'Hadir', 1]
         );
       }
 
@@ -2340,14 +2340,14 @@ app.post('/api/attendance/override', async (req, res) => {
       if (pulangRows.length > 0) {
         await pool.query(
           "UPDATE absensi SET waktu_absen = ?, diubah_oleh_admin = 1 WHERE id = ?",
-          [overrideWaktuPulang, pulangRows[0].id]
+          [overrideWaktuPulangStr, pulangRows[0].id]
         );
       } else {
         const newRecordIdPulang = `att-override-p-${Date.now()}`;
         await pool.query(
           `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newRecordIdPulang, user.id, user.username, user.nama_lengkap, overrideWaktuPulang, '/uploads/placeholder.jpg', null, null, 'Pulang', 1]
+          [newRecordIdPulang, user.id, user.username, user.nama_lengkap, overrideWaktuPulangStr, '/uploads/placeholder.jpg', null, null, 'Pulang', 1]
         );
       }
     } else {
@@ -2358,11 +2358,11 @@ app.post('/api/attendance/override', async (req, res) => {
       );
       const newRecordId = `att-override-o-${Date.now()}`;
       const inTime = checkInTime || '08:00';
-      const overrideWaktu = new Date(`${targetDate}T${inTime}:00`);
+      const overrideWaktuStr = `${targetDate} ${inTime}:00`;
       await pool.query(
         `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newRecordId, user.id, user.username, user.nama_lengkap, overrideWaktu, '/uploads/placeholder.jpg', null, null, status, 1]
+        [newRecordId, user.id, user.username, user.nama_lengkap, overrideWaktuStr, '/uploads/placeholder.jpg', null, null, status, 1]
       );
     }
 
