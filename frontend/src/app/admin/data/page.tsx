@@ -49,6 +49,8 @@ export default function AdminDataPage() {
   const [overrideUser, setOverrideUser] = useState("");
   const [overrideStatus, setOverrideStatus] = useState("Hadir");
   const [overrideDate, setOverrideDate] = useState("");
+  const [currentStatus, setCurrentStatus] = useState("");
+  const [loadingStatus, setLoadingStatus] = useState(false);
   const [notification, setNotification] = useState("");
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
 
@@ -134,6 +136,29 @@ export default function AdminDataPage() {
     fetchLogs();
     fetchUsers();
   }, []);
+
+  // Fetch current status dynamically when employee or date changes inside override modal
+  useEffect(() => {
+    if (isOverrideModalOpen && overrideUser && overrideDate) {
+      setLoadingStatus(true);
+      fetch(`/api/attendance/override/status?username=${overrideUser}&date=${overrideDate}`)
+        .then((res) => {
+          if (!res.ok) throw new Error();
+          return res.json();
+        })
+        .then((data) => {
+          setCurrentStatus(data.status || "Belum Absen");
+          setOverrideStatus(data.status || "Hadir");
+          setLoadingStatus(false);
+        })
+        .catch(() => {
+          setCurrentStatus("Gagal memuat");
+          setLoadingStatus(false);
+        });
+    } else {
+      setCurrentStatus("");
+    }
+  }, [overrideUser, overrideDate, isOverrideModalOpen]);
 
   const handlePrevDay = () => {
     const current = new Date(selectedDate);
@@ -297,6 +322,18 @@ export default function AdminDataPage() {
                 />
               </div>
 
+              {overrideUser && overrideDate && (
+                <div className="bg-[#1C3D3F]/5 border border-[#1C3D3F]/10 rounded-2xl p-4 flex flex-col gap-1.5 animate-in fade-in duration-200">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status Saat Ini</span>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#F6C13B] animate-pulse" />
+                    <span className="text-sm font-bold text-[#1C3D3F]">
+                      {loadingStatus ? "Memuat..." : currentStatus}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-black text-gray-500 mb-1.5 uppercase tracking-wider">Status Kehadiran</label>
                 <select
@@ -304,7 +341,9 @@ export default function AdminDataPage() {
                   onChange={(e) => setOverrideStatus(e.target.value)}
                   className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-700 transition-colors cursor-pointer font-medium"
                 >
+                  <option>Belum Absen</option>
                   <option>Hadir</option>
+                  <option>Pulang</option>
                   <option>Izin</option>
                   <option>Sakit</option>
                   <option>Alpa</option>
