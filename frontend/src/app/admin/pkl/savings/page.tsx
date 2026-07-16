@@ -32,7 +32,11 @@ export default function AdminSavingsPage() {
 
   // State untuk edit langsung total tabungan
   const [editingStudent, setEditingStudent] = useState<string | null>(null);
-  const [editAmountInput, setEditAmountInput] = useState("");
+  const [editAmountInput, setEditAmountInput] = useState<string>("");
+
+  // State untuk edit langsung target tabungan
+  const [editingTargetStudent, setEditingTargetStudent] = useState<string | null>(null);
+  const [editTargetInput, setEditTargetInput] = useState<string>("");
 
   const fetchSavings = useCallback(async () => {
     try {
@@ -148,6 +152,49 @@ export default function AdminSavingsPage() {
       }
     } catch (err) {
       console.error("Gagal memperbarui total tabungan:", err);
+      setSavingStates(prev => ({ ...prev, [student.student_id]: "idle" }));
+    }
+  };
+
+  const handleEditTarget = async (student: StudentSavings) => {
+    const newTarget = parseInt(editTargetInput || "0");
+    if (newTarget <= 0) return;
+
+    setSavingStates(prev => ({ ...prev, [student.student_id]: "saving" }));
+
+    try {
+      const deviceId = localStorage.getItem("v2_device_id") || "";
+      const userObj = JSON.parse(localStorage.getItem("v2_user") || "{}");
+      const res = await fetch(`/api/v1/pkl/savings/${student.student_id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": userObj.id || "",
+          "x-device-id": deviceId,
+        },
+        body: JSON.stringify({
+          saved_amount: student.saved_amount,
+          target_amount: newTarget,
+        }),
+      });
+
+      if (res.ok) {
+        setStudents(prev =>
+          prev.map(s =>
+            s.student_id === student.student_id
+              ? { ...s, target_amount: newTarget }
+              : s
+          )
+        );
+        setEditingTargetStudent(null);
+        setEditTargetInput("");
+        setSavingStates(prev => ({ ...prev, [student.student_id]: "saved" }));
+        setTimeout(() => {
+          setSavingStates(prev => ({ ...prev, [student.student_id]: "idle" }));
+        }, 1500);
+      }
+    } catch (err) {
+      console.error("Gagal memperbarui target tabungan:", err);
       setSavingStates(prev => ({ ...prev, [student.student_id]: "idle" }));
     }
   };
@@ -346,9 +393,44 @@ export default function AdminSavingsPage() {
                       <Pencil size={9} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
                     </div>
                   )}
-                  <p className="text-[10px] text-gray-400">
-                    dari {formatRupiah(student.target_amount)}
-                  </p>
+                  {editingTargetStudent === student.student_id ? (
+                    <div className="flex items-center justify-end gap-1 mt-1">
+                      <span className="text-[10px] text-gray-400">dari</span>
+                      <input
+                        type="number"
+                        value={editTargetInput}
+                        onChange={e => setEditTargetInput(e.target.value)}
+                        className="w-16 text-[10px] font-bold text-gray-800 border border-gray-200 rounded px-1 outline-none focus:border-[#2AB0B2] text-right bg-white"
+                        autoFocus
+                        onKeyDown={e => {
+                          if (e.key === "Enter") handleEditTarget(student);
+                          if (e.key === "Escape") {
+                            setEditingTargetStudent(null);
+                            setEditTargetInput("");
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={() => handleEditTarget(student)}
+                        className="p-0.5 rounded text-[#2AB0B2] hover:bg-[#2AB0B2] hover:text-white transition-colors cursor-pointer border border-[#2AB0B2]"
+                      >
+                        <Check size={9} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className="flex items-center justify-end gap-1 cursor-pointer group mt-0.5"
+                      onClick={() => {
+                        setEditingTargetStudent(student.student_id);
+                        setEditTargetInput(String(student.target_amount));
+                      }}
+                    >
+                      <p className="text-[10px] text-gray-400">
+                        dari <span className="font-semibold text-gray-600">{formatRupiah(student.target_amount)}</span>
+                      </p>
+                      <Pencil size={8} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+                    </div>
+                  )}
                 </div>
               </div>
 
