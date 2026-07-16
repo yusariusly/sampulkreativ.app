@@ -21,7 +21,7 @@ export default function QRScanPage() {
   useEffect(() => {
     const getQrToken = async () => {
       try {
-        const res = await fetch("/api/qr");
+        const res = await fetch("/api/qr?t=" + Date.now(), { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           setQrToken(data.token);

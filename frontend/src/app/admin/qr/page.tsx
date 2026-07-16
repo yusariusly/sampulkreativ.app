@@ -12,7 +12,7 @@ export default function AdminQRPage() {
 
   const fetchToken = async () => {
     try {
-      const res = await fetch("/api/qr");
+      const res = await fetch("/api/qr?t=" + Date.now(), { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setToken(data.token);

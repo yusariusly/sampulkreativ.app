@@ -39,7 +39,7 @@ export default function SelfiePage() {
 
       try {
         // Validate the token against the official QR token
-        const res = await fetch("/api/qr");
+        const res = await fetch("/api/qr?t=" + Date.now(), { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           const officialToken = data.token ? data.token.trim() : "ABSENSI-KANTOR-PENGESAHAN-TOKEN-2026";
