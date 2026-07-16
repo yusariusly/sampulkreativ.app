@@ -48,8 +48,8 @@ export default function QrScannerView({
     try {
       const constraints: MediaStreamConstraints = {
         video: selectedCameraId
-          ? { deviceId: { exact: selectedCameraId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-          : { facingMode: cameraFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+          ? { deviceId: { exact: selectedCameraId }, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: "continuous" } as any] }
+          : { facingMode: cameraFacing, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: "continuous" } as any] },
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -102,7 +102,7 @@ export default function QrScannerView({
       if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         if (ctx) {
-          const maxDim = 640;
+          const maxDim = 800;
           let scanWidth = video.videoWidth;
           let scanHeight = video.videoHeight;
           if (scanWidth > maxDim) {
@@ -117,7 +117,7 @@ export default function QrScannerView({
           const imageData = ctx.getImageData(0, 0, scanWidth, scanHeight);
           
           let code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert",
+            inversionAttempts: "attemptBoth",
           });
 
           if (!code) {
@@ -131,7 +131,7 @@ export default function QrScannerView({
               tempCtx.drawImage(canvas, 0, 0);
               const mirroredData = tempCtx.getImageData(0, 0, scanWidth, scanHeight);
               code = jsQR(mirroredData.data, mirroredData.width, mirroredData.height, {
-                inversionAttempts: "dontInvert",
+                inversionAttempts: "attemptBoth",
               });
             }
           }

@@ -58,8 +58,9 @@ export default function QRScanPage() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          advanced: [{ focusMode: "continuous" } as any]
         }
       });
       
@@ -122,8 +123,8 @@ export default function QRScanPage() {
       if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         if (ctx) {
-          // Downscale to 480px width for fast decoding and lower CPU footprint
-          const maxDim = 480;
+          // Downscale to 800px width for better sensitivity while keeping performance decent
+          const maxDim = 800;
           let scanWidth = video.videoWidth;
           let scanHeight = video.videoHeight;
           if (scanWidth > maxDim) {
@@ -137,7 +138,7 @@ export default function QRScanPage() {
           
           const imageData = ctx.getImageData(0, 0, scanWidth, scanHeight);
           const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert",
+            inversionAttempts: "attemptBoth",
           });
           
           if (code) {
