@@ -48,6 +48,7 @@ export default function AdminDataPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [overrideUser, setOverrideUser] = useState("");
   const [overrideStatus, setOverrideStatus] = useState("Hadir");
+  const [overrideDate, setOverrideDate] = useState("");
   const [notification, setNotification] = useState("");
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
 
@@ -90,11 +91,15 @@ export default function AdminDataPage() {
       showToast("⚠️ Silakan pilih karyawan terlebih dahulu");
       return;
     }
+    if (!overrideDate) {
+      showToast("⚠️ Silakan tentukan tanggal terlebih dahulu");
+      return;
+    }
     try {
       const res = await fetch("/api/attendance/override", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: overrideUser, status: overrideStatus }),
+        body: JSON.stringify({ username: overrideUser, status: overrideStatus, date: overrideDate }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -283,6 +288,16 @@ export default function AdminDataPage() {
               </div>
 
               <div>
+                <label className="block text-xs font-black text-gray-500 mb-1.5 uppercase tracking-wider">Tanggal Absensi</label>
+                <input
+                  type="date"
+                  value={overrideDate}
+                  onChange={(e) => setOverrideDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-700 transition-colors cursor-pointer font-medium"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-black text-gray-500 mb-1.5 uppercase tracking-wider">Status Kehadiran</label>
                 <select
                   value={overrideStatus}
@@ -325,7 +340,10 @@ export default function AdminDataPage() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
           {/* Override Status Button */}
           <button
-            onClick={() => setIsOverrideModalOpen(true)}
+            onClick={() => {
+              setOverrideDate(selectedDate);
+              setIsOverrideModalOpen(true);
+            }}
             className="flex items-center justify-center gap-2 border-2 border-[#F6C13B] hover:bg-[#F6C13B]/10 text-[#F6C13B] rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors cursor-pointer w-full sm:w-auto shrink-0 active:scale-[0.98]"
           >
             <Edit2 size={16} />

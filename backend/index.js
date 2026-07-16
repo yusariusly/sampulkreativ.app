@@ -2184,7 +2184,7 @@ app.post('/api/attendance/station/checkin', async (req, res) => {
 // 3. Attendance Override
 app.post('/api/attendance/override', async (req, res) => {
   try {
-    const { username, status } = req.body;
+    const { username, status, date } = req.body;
     if (!username || !status) {
       return res.status(400).json({ error: 'Username dan status wajib diisi' });
     }
@@ -2195,22 +2195,33 @@ app.post('/api/attendance/override', async (req, res) => {
     }
     const user = userRows[0];
 
-    // Today start in local timezone
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    // Default ke tanggal hari ini di Jakarta (WIB) jika parameter date tidak disediakan
+    const todayJakarta = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(new Date());
 
+    const targetDate = date || todayJakarta;
+
+    // Cari data absensi di tanggal tersebut (WIB)
     const [existing] = await pool.query(
-      'SELECT * FROM absensi WHERE user_id = ? AND waktu_absen >= ?',
-      [user.id, todayStart]
+      'SELECT * FROM absensi WHERE user_id = ? AND DATE(waktu_absen) = ?',
+      [user.id, targetDate]
     );
 
     if (existing.length > 0) {
+      // Jika record ada, update statusnya
       await pool.query(
         'UPDATE absensi SET status = ?, diubah_oleh_admin = 1 WHERE id = ?',
         [status, existing[0].id]
       );
     } else {
+      // Jika belum ada, buat baru
       const newRecordId = `att-override-${Date.now()}`;
+      // Set jam: jika statusnya 'Pulang' set ke jam 17:00, selain itu 08:00
+      const hourStr = status === 'Pulang' ? '17:00:00' : '08:00:00';
+      const overrideWaktu = new Date(`${targetDate}T${hourStr}`);
+
       await pool.query(
         `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -2219,7 +2230,7 @@ app.post('/api/attendance/override', async (req, res) => {
           user.id,
           user.username,
           user.nama_lengkap,
-          new Date(),
+          overrideWaktu,
           '/uploads/placeholder.jpg',
           null,
           null,
@@ -2231,6 +2242,7 @@ app.post('/api/attendance/override', async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
+    console.error('Error override status:', error);
     res.status(500).json({ error: 'Gagal memproses override status' });
   }
 });

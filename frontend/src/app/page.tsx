@@ -175,7 +175,7 @@ export default function LoginPage() {
                       router.replace("/user");
                       return;
                     } else if (hasClockedIn) {
-                      localStorage.setItem("v2_clockInDate", todayStart.toDateString());
+                      localStorage.setItem("v2_clockInDate", new Date().toDateString());
                       sessionStorage.setItem("v2_absen_type", "pulang");
                       router.replace("/user/selfie");
                       return;
