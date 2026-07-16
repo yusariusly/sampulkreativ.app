@@ -80,9 +80,20 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string) => 
   
   const startDate = registerDate;
 
+  let earliestSubDate = startDate;
+  const groupKeys = Object.keys(groups).sort();
+  if (groupKeys.length > 0) {
+    const earliestSubStr = groupKeys[0];
+    const [y, m, d] = earliestSubStr.split('-').map(Number);
+    const subDate = new Date(Date.UTC(y, m - 1, d));
+    if (subDate.getTime() < startDate.getTime()) {
+      earliestSubDate = subDate;
+    }
+  }
+
   // Build list of dates chronologically (oldest to newest)
   const chronologicalDates: Date[] = [];
-  let current = new Date(startDate);
+  let current = new Date(earliestSubDate);
   while (current.getTime() <= todayDate.getTime()) {
     chronologicalDates.push(new Date(current));
     current.setTime(current.getTime() + 24 * 60 * 60 * 1000);
@@ -101,7 +112,14 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string) => 
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     const isToday = dateStr === todayFormatted;
     
-    const targetToday = isWeekend ? 0 : 4;
+    const isBeforeRegister = date.getTime() < startDate.getTime();
+    
+    // If before register date and no submissions, don't show the empty row
+    if (isBeforeRegister && count === 0) {
+      return;
+    }
+
+    const targetToday = (isWeekend || isBeforeRegister) ? 0 : 4;
     totalTarget += targetToday;
     
     C = Math.min(C + count, totalTarget);
@@ -110,7 +128,10 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string) => 
     let statusLabel = "";
     let statusColor = "";
 
-    if (isWeekend) {
+    if (isBeforeRegister) {
+      statusLabel = `Setor Sebelum Tanggal Mulai (${count} Keys)`;
+      statusColor = "text-purple-600 bg-purple-50 border-purple-200/60 font-medium";
+    } else if (isWeekend) {
       if (count === 0) {
         statusLabel = "Hari Libur (Rest Day)";
         statusColor = "text-slate-500 bg-slate-50 border-slate-200";
