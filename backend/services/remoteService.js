@@ -64,22 +64,15 @@ async function getTodayRemoteFacts(dbClient, userId) {
      ORDER BY created_at DESC LIMIT 1`,
     [userId, todayJakarta]
   );
-  
-  // Calculate tomorrow in Jakarta
-  const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowJakarta = getJakartaDate(tomorrow);
 
-  const startTimestamp = `${todayJakarta}T00:00:00+07:00`;
-  const endTimestamp = `${tomorrowJakarta}T00:00:00+07:00`;
-
+  // FIX: waktu_absen tersimpan sebagai WIB (timestamp WITHOUT timezone).
+  // Jangan pakai range timestamptz karena akan salah interpretasi timezone.
+  // Gunakan DATE(waktu_absen) = todayJakarta agar perbandingan selalu berbasis tanggal WIB.
   const [absensiRows] = await dbClient.query(
     `SELECT status FROM absensi 
      WHERE user_id = $1 
-       AND waktu_absen >= $2::timestamptz 
-       AND waktu_absen < $3::timestamptz`,
-    [userId, startTimestamp, endTimestamp]
+       AND DATE(waktu_absen) = $2`,
+    [userId, todayJakarta]
   );
 
   return {
