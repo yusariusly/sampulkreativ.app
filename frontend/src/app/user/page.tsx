@@ -610,11 +610,18 @@ function UserDashboardContent() {
       if (res.ok) {
         const logs = await res.json();
         
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        // Ambil tanggal hari ini dalam format YYYY-MM-DD di zona waktu Jakarta (WIB)
+        const todayJakarta = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Jakarta',
+          year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(new Date());
 
+        // waktu_absen tersimpan sebagai WIB (tanpa label timezone).
+        // Jangan pakai new Date() karena browser akan baca sebagai UTC lalu geser +7 jam.
+        // Gunakan perbandingan string tanggal langsung (10 karakter pertama = YYYY-MM-DD).
         const todayLogs = logs.filter(
-          (log: { waktu_absen: string; status: string }) => new Date(log.waktu_absen).getTime() >= todayStart.getTime()
+          (log: { waktu_absen: string; status: string }) =>
+            (log.waktu_absen || '').slice(0, 10) === todayJakarta
         );
 
         const checkInLog = todayLogs.find(

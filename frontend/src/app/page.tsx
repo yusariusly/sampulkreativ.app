@@ -161,10 +161,12 @@ export default function LoginPage() {
                   const attnRes = await fetch(`/api/attendance?user_id=${data.user.id}`);
                   if (attnRes.ok) {
                     const logs = await attnRes.json();
-                    const todayStart = new Date();
-                    todayStart.setHours(0, 0, 0, 0);
+                    const todayJakarta = new Intl.DateTimeFormat('en-CA', {
+                      timeZone: 'Asia/Jakarta',
+                      year: 'numeric', month: '2-digit', day: '2-digit'
+                    }).format(new Date());
                     const todayLogs = logs.filter(
-                      (log: any) => new Date(log.waktu_absen).getTime() >= todayStart.getTime()
+                      (log: any) => (log.waktu_absen || '').slice(0, 10) === todayJakarta
                     );
                     const hasClockedOut = todayLogs.some((log: any) => log.status === "Pulang");
                     const hasClockedIn = todayLogs.some((log: any) => log.status === "Hadir" || log.status === "Terlambat");

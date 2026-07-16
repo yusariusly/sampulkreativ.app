@@ -58,12 +58,14 @@ export default function AdminDashboardPage() {
       if (attendanceRes.ok) {
         const logs = await attendanceRes.json();
 
-        // Get logs for today
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        // Get logs for today (WIB date string comparison)
+        const todayJakarta = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Jakarta',
+          year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(new Date());
 
         const todayLogs = logs.filter(
-          (log: any) => new Date(log.waktu_absen).getTime() >= todayStart.getTime()
+          (log: any) => (log.waktu_absen || '').slice(0, 10) === todayJakarta
         );
 
         // Count unique employee attendance today (only count active users with role user)
