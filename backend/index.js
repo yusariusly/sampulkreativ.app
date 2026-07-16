@@ -3262,9 +3262,8 @@ async function syncUserKieDebt(userId) {
     if (pklRows.length === 0) return;
     const startDate = parseJakartaDate(pklRows[0].start_date);
 
-    // Yesterday is the day before todayDate
-    const yesterdayDate = new Date(todayDate.getTime() - 24 * 60 * 60 * 1000);
-
+    // The user wants to include TODAY in the debt calculation, even if the day is not over yet.
+    // So we don't stop at yesterdayDate. We stop at todayDate.
     // Fetch all submissions with Jakarta dates
     const [submissions] = await pool.query(
       `SELECT (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date as date_str, COUNT(*) as count
@@ -3285,7 +3284,7 @@ async function syncUserKieDebt(userId) {
     let totalTarget = 0;
     let cur = new Date(startDate.getTime());
 
-    while (cur.getTime() <= yesterdayDate.getTime()) {
+    while (cur.getTime() <= todayDate.getTime()) {
       const day = cur.getUTCDay();
       const isWeekday = (day !== 0 && day !== 6);
       const targetToday = isWeekday ? 4 : 0;
@@ -3301,10 +3300,10 @@ async function syncUserKieDebt(userId) {
 
     const currentKieDebt = Math.max(0, totalTarget - C);
 
-    const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+    const todayStrToSave = todayDate.toISOString().split('T')[0];
     await pool.query(
       "UPDATE users SET kie_debt = ?, last_kie_debt_date = ? WHERE id = ?",
-      [currentKieDebt, yesterdayStr, userId]
+      [currentKieDebt, todayStrToSave, userId]
     );
   } catch (err) {
     console.error("Gagal sinkronisasi hutang KIE untuk user:", userId, err);
@@ -3665,10 +3664,11 @@ app.get('/api/kie/admin/users-submissions', async (req, res) => {
 
     // Fetch page of users
     const [users] = await pool.query(
-      `SELECT id, username, nama_lengkap, role, foto_profile, email, kie_debt, telegram_chat_id, telegram_chat_name, created_at 
-       FROM users 
-       WHERE ${whereClause} 
-       ORDER BY nama_lengkap ASC 
+      `SELECT u.id, u.username, u.nama_lengkap, u.role, u.foto_profile, u.email, u.kie_debt, u.telegram_chat_id, u.telegram_chat_name, u.created_at, p.start_date as pkl_start_date
+       FROM users u
+       LEFT JOIN pkl_students p ON u.id = p.user_id
+       WHERE u.${whereClause.replace('role', 'role').replace('kie_debt', 'kie_debt')} 
+       ORDER BY u.nama_lengkap ASC 
        LIMIT ? OFFSET ?`,
       [limit, offset]
     );

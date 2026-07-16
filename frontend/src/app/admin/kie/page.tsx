@@ -20,6 +20,7 @@ interface UserKieData {
   telegram_chat_id?: string;
   telegram_chat_name?: string;
   created_at?: string;
+  pkl_start_date?: string;
   submissions: KieSubmission[];
 }
 
@@ -53,7 +54,7 @@ const groupSubmissionsByDate = (subs: KieSubmission[]) => {
     }));
 };
 
-const getDailyAuditList = (subs: KieSubmission[], userCreatedAt?: string) => {
+const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string) => {
   const groups: Record<string, KieSubmission[]> = {};
   subs.forEach((sub) => {
     const dateObj = new Date(sub.submitted_at);
@@ -64,20 +65,20 @@ const getDailyAuditList = (subs: KieSubmission[], userCreatedAt?: string) => {
     groups[dateStr].push(sub);
   });
 
-  const systemStartDate = new Date(Date.UTC(2026, 6, 2)); // 2026-07-02
-  let registerDate = systemStartDate;
-  if (userCreatedAt) {
-    const parsedReg = new Date(userCreatedAt);
+  const todayFormatted = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+  const [ty, tm, td] = todayFormatted.split('-').map(Number);
+  const todayDate = new Date(Date.UTC(ty, tm - 1, td));
+
+  // Default to today if no start date
+  let registerDate = new Date(todayDate.getTime());
+  if (userPklStartDate) {
+    const parsedReg = new Date(userPklStartDate);
     const formatted = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(parsedReg);
     const [y, m, d] = formatted.split('-').map(Number);
     registerDate = new Date(Date.UTC(y, m - 1, d));
   }
   
-  const startDate = registerDate.getTime() < systemStartDate.getTime() ? systemStartDate : registerDate;
-
-  const todayFormatted = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
-  const [ty, tm, td] = todayFormatted.split('-').map(Number);
-  const todayDate = new Date(Date.UTC(ty, tm - 1, td));
+  const startDate = registerDate;
 
   // Build list of dates chronologically (oldest to newest)
   const chronologicalDates: Date[] = [];
@@ -87,87 +88,60 @@ const getDailyAuditList = (subs: KieSubmission[], userCreatedAt?: string) => {
     current.setTime(current.getTime() + 24 * 60 * 60 * 1000);
   }
 
-  // Calculate surplus and initial deficits
-  let poolOfSurplus = 0;
-  const dailyDeficits: Record<string, number> = {};
-
-  chronologicalDates.forEach((date) => {
-    const dateStr = date.toISOString().split('T')[0];
-    const items = groups[dateStr] || [];
-    const count = items.length;
-    const dayOfWeek = date.getUTCDay();
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    const target = isWeekend ? 0 : 4;
-
-    if (count > target) {
-      poolOfSurplus += (count - target);
-    } else if (count < target) {
-      dailyDeficits[dateStr] = target - count;
-    }
-  });
-
-  // Distribute surplus chronologically (FIFO) to cover deficits
-  const dailyRemainingDeficits: Record<string, number> = {};
-  chronologicalDates.forEach((date) => {
-    const dateStr = date.toISOString().split('T')[0];
-    const deficit = dailyDeficits[dateStr] || 0;
-    if (deficit > 0) {
-      const covered = Math.min(deficit, poolOfSurplus);
-      poolOfSurplus -= covered;
-      const remaining = deficit - covered;
-      if (remaining > 0) {
-        dailyRemainingDeficits[dateStr] = remaining;
-      }
-    }
-  });
-
-  // Build the final audit list backwards (newest first)
+  // Calculate strict running balance (Backend Logic - Opsi A)
+  let C = 0;
+  let totalTarget = 0;
   const auditList = [];
-  for (let i = chronologicalDates.length - 1; i >= 0; i--) {
-    const date = chronologicalDates[i];
+
+  chronologicalDates.forEach((date) => {
     const dateStr = date.toISOString().split('T')[0];
     const items = groups[dateStr] || [];
     const count = items.length;
     const dayOfWeek = date.getUTCDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     const isToday = dateStr === todayFormatted;
+    
+    const targetToday = isWeekend ? 0 : 4;
+    totalTarget += targetToday;
+    
+    C = Math.min(C + count, totalTarget);
+    const currentKieDebt = Math.max(0, totalTarget - C);
 
     let statusLabel = "";
     let statusColor = "";
-
-    const remainingDeficit = dailyRemainingDeficits[dateStr] || 0;
 
     if (isWeekend) {
       if (count === 0) {
         statusLabel = "Hari Libur (Rest Day)";
         statusColor = "text-slate-500 bg-slate-50 border-slate-200";
       } else {
-        statusLabel = "Target Tercapai";
+        statusLabel = `Setor Saat Libur (${count} Keys) - Sisa Hutang: ${currentKieDebt}`;
         statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
       }
     } else {
-      if (remainingDeficit === 0) {
-        statusLabel = "Target Tercapai";
-        statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
-      } else {
-        if (isToday) {
-          statusLabel = `Belum Lengkap (Kurang ${remainingDeficit} Key)`;
+      if (count >= targetToday) {
+        if (currentKieDebt > 0) {
+          statusLabel = `Target Harian Tercapai (Sisa Hutang: ${currentKieDebt})`;
           statusColor = "text-amber-600 bg-amber-50 border-amber-200/60";
         } else {
-          statusLabel = `Hutang +${remainingDeficit} KIE`;
-          statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
+          statusLabel = "Target Tercapai & Bebas Hutang";
+          statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
         }
+      } else {
+        const missedToday = targetToday - count;
+        statusLabel = `Kurang Setor Harian (-${missedToday}) | Total Hutang: ${currentKieDebt}`;
+        statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
       }
     }
 
-    auditList.push({
+    auditList.unshift({ // Add to beginning so newest is first
       dateStr,
       items,
       statusLabel,
       statusColor,
       isToday,
     });
-  }
+  });
 
   return auditList;
 };
@@ -539,7 +513,7 @@ export default function AdminKiePage() {
                     <div className="border-t border-gray-100 bg-slate-50/50 p-4.5">
                       {(() => {
                         if (user.role === "student") {
-                          const auditList = getDailyAuditList(user.submissions, user.created_at);
+                          const auditList = getDailyAuditList(user.submissions, user.pkl_start_date);
                           return (
                             <div className="space-y-6">
                               {auditList.map((group) => {
