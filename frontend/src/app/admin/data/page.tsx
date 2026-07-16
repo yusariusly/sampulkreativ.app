@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Search, Calendar, ChevronDown, Download, CheckCircle2, XCircle, Send, ChevronLeft, ChevronRight, AlertTriangle, Edit2 } from "lucide-react";
+import { Search, Calendar, ChevronDown, Download, CheckCircle2, XCircle, Send, ChevronLeft, ChevronRight, AlertTriangle, Edit2, Users, User } from "lucide-react";
 
 const TEAL = "#2AB0B2";
 
@@ -30,6 +30,13 @@ export default function AdminDataPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"daily" | "user">("daily");
+
+  // User list view state
+  const [selectedUserForHistory, setSelectedUserForHistory] = useState<any | null>(null);
+  const [userHistoryLogs, setUserHistoryLogs] = useState<any[]>([]);
+  const [loadingUserHistory, setLoadingUserHistory] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
 
   const getLocalDateString = (date: Date) => {
     const yyyy = date.getFullYear();
@@ -132,10 +139,96 @@ export default function AdminDataPage() {
     }
   };
 
+  const fetchUserHistory = async (userId: string) => {
+    setLoadingUserHistory(true);
+    try {
+      const res = await fetch(`/api/attendance?user_id=${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setUserHistoryLogs(data);
+      }
+    } catch (err) {
+      console.error("Gagal memuat riwayat user:", err);
+    } finally {
+      setLoadingUserHistory(false);
+    }
+  };
+
+  const groupLogsByDate = (userLogs: any[]) => {
+    const groups: Record<string, {
+      dateStr: string;
+      formattedDate: string;
+      status: string;
+      checkInTime: string | null;
+      checkOutTime: string | null;
+      diubahOlehAdmin: boolean;
+    }> = {};
+    
+    userLogs.forEach((log) => {
+      const datePart = (log.waktu_absen || '').slice(0, 10);
+      if (!datePart) return;
+
+      if (!groups[datePart]) {
+        const d = new Date(datePart);
+        const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+        const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        
+        const dayName = days[d.getDay()];
+        const dayNum = d.getDate();
+        const monthName = months[d.getMonth()];
+        const year = d.getFullYear();
+        
+        groups[datePart] = {
+          dateStr: datePart,
+          formattedDate: `${dayName}, ${dayNum} ${monthName} ${year}`,
+          status: log.status,
+          checkInTime: null,
+          checkOutTime: null,
+          diubahOlehAdmin: log.diubah_oleh_admin
+        };
+      }
+
+      const grp = groups[datePart];
+      
+      const timeObj = new Date(log.waktu_absen);
+      const hh = String(timeObj.getHours()).padStart(2, "0");
+      const mm = String(timeObj.getMinutes()).padStart(2, "0");
+      const timeStr = `${hh}:${mm} WIB`;
+
+      if (log.status === 'Hadir' || log.status === 'Terlambat') {
+        grp.checkInTime = timeStr;
+      } else if (log.status === 'Pulang') {
+        grp.checkOutTime = timeStr;
+      }
+      
+      if (log.status === 'Pulang') {
+        grp.status = 'Pulang';
+      } else if (['Izin', 'Sakit', 'Alpa'].includes(log.status)) {
+        grp.status = log.status;
+      } else if (!['Pulang', 'Izin', 'Sakit', 'Alpa'].includes(grp.status)) {
+        grp.status = log.status;
+      }
+      
+      if (log.diubah_oleh_admin) {
+        grp.diubahOlehAdmin = true;
+      }
+    });
+
+    return Object.values(groups).sort((a, b) => b.dateStr.localeCompare(a.dateStr));
+  };
+
   useEffect(() => {
     fetchLogs();
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    if (selectedUserForHistory) {
+      fetchUserHistory(selectedUserForHistory.id);
+    } else {
+      setUserHistoryLogs([]);
+    }
+  }, [selectedUserForHistory]);
 
   // Fetch current status dynamically when employee or date changes inside override modal
   useEffect(() => {
@@ -407,10 +500,37 @@ export default function AdminDataPage() {
       )}
 
       {/* Header bar with controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 md:mb-8">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 md:mb-8 select-none">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <h1 className="text-2xl md:text-3xl font-bold text-[#1C3D3F]">Data Absensi</h1>
+          
+          {/* View Mode Toggle Switcher */}
+          <div className="inline-flex p-1 bg-white border border-gray-200 rounded-2xl shadow-xs shrink-0 self-start sm:self-auto">
+            <button
+              onClick={() => setViewMode("daily")}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                viewMode === "daily"
+                  ? "bg-[#2AB0B2] text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Calendar size={14} />
+              <span>Harian</span>
+            </button>
+            <button
+              onClick={() => setViewMode("user")}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                viewMode === "user"
+                  ? "bg-[#2AB0B2] text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Users size={14} />
+              <span>Per Pengguna</span>
+            </button>
+          </div>
         </div>
+
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
           {/* Override Status Button */}
           <button
@@ -436,54 +556,56 @@ export default function AdminDataPage() {
         </div>
       </div>
 
-      {/* Main Table Card containing integrated Toolbar */}
-      <div className="bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
-        {/* Table Toolbar / Controls */}
-        <div className="p-4 bg-gray-50/50 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3 select-none">
-          {/* Date Selector with Previous/Next controls */}
-          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white border border-gray-250 rounded-xl p-1 shadow-xs w-full md:w-auto">
-            <button
-              onClick={handlePrevDay}
-              className="p-1.5 text-gray-500 hover:text-[#2AB0B2] hover:bg-gray-55 rounded-lg transition-colors cursor-pointer"
-              title="Hari Sebelumnya"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            
-            <div className="flex items-center gap-1.5 px-2">
-              <Calendar size={14} className="text-[#2AB0B2] flex-shrink-0" />
-              <input
-                type="date"
-                value={selectedDate}
-                max={getLocalDateString(new Date())}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="outline-none text-sm font-semibold text-gray-750 bg-transparent border-0 cursor-pointer w-28 sm:w-auto"
-              />
+      {/* Conditional Layout Rendering */}
+      {viewMode === "daily" ? (
+        /* Main Table Card containing integrated Toolbar (Daily View) */
+        <div className="bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
+          {/* Table Toolbar / Controls */}
+          <div className="p-4 bg-gray-50/50 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3 select-none">
+            {/* Date Selector with Previous/Next controls */}
+            <div className="flex items-center justify-between sm:justify-start gap-1 bg-white border border-gray-250 rounded-xl p-1 shadow-xs w-full md:w-auto">
+              <button
+                onClick={handlePrevDay}
+                className="p-1.5 text-gray-500 hover:text-[#2AB0B2] hover:bg-gray-55 rounded-lg transition-colors cursor-pointer"
+                title="Hari Sebelumnya"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              
+              <div className="flex items-center gap-1.5 px-2">
+                <Calendar size={14} className="text-[#2AB0B2] flex-shrink-0" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  max={getLocalDateString(new Date())}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="outline-none text-sm font-semibold text-gray-750 bg-transparent border-0 cursor-pointer w-28 sm:w-auto"
+                />
+              </div>
+
+              <button
+                onClick={handleNextDay}
+                disabled={selectedDate === getLocalDateString(new Date())}
+                className="p-1.5 text-gray-500 hover:text-[#2AB0B2] hover:bg-gray-55 rounded-lg transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+                title="Hari Selanjutnya"
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
 
-            <button
-              onClick={handleNextDay}
-              disabled={selectedDate === getLocalDateString(new Date())}
-              className="p-1.5 text-gray-500 hover:text-[#2AB0B2] hover:bg-gray-55 rounded-lg transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
-              title="Hari Selanjutnya"
-            >
-              <ChevronRight size={16} />
-            </button>
+            {/* Search bar */}
+            <div className="flex items-center gap-2 bg-white border border-gray-250 rounded-xl px-4 py-2 w-full md:w-64 shadow-xs">
+              <Search size={16} className="text-gray-400 flex-shrink-0" />
+              <input
+                type="text"
+                placeholder="Cari nama / status..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 outline-none text-sm text-gray-500 bg-transparent min-w-0 font-medium"
+              />
+            </div>
           </div>
-
-          {/* Search bar */}
-          <div className="flex items-center gap-2 bg-white border border-gray-250 rounded-xl px-4 py-2 w-full md:w-64 shadow-xs">
-            <Search size={16} className="text-gray-400 flex-shrink-0" />
-            <input
-              type="text"
-              placeholder="Cari nama / status..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 outline-none text-sm text-gray-500 bg-transparent min-w-0 font-medium"
-            />
-        </div>
-      </div>
-      <div className="overflow-x-auto">
+          <div className="overflow-x-auto">
             <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">
@@ -562,7 +684,161 @@ export default function AdminDataPage() {
               </tbody>
             </table>
           </div>
-      </div>
+        </div>
+      ) : (
+        /* Split Pane User History View */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column: User Selection List */}
+          <div className="lg:col-span-4 bg-white rounded-2xl border border-gray-100 p-4 shadow-xs">
+            <h2 className="text-sm font-bold text-[#1C3D3F] mb-3">Daftar Karyawan</h2>
+            
+            {/* Search Input for User List */}
+            <div className="flex items-center gap-2 bg-gray-55 border border-gray-200 rounded-xl px-3 py-2 mb-4">
+              <Search size={14} className="text-gray-400 flex-shrink-0" />
+              <input
+                type="text"
+                placeholder="Cari karyawan..."
+                value={userSearchQuery}
+                onChange={(e) => setUserSearchQuery(e.target.value)}
+                className="flex-1 outline-none text-xs text-gray-700 bg-transparent min-w-0 font-semibold"
+              />
+            </div>
+
+            {/* Scrollable list */}
+            <div className="space-y-2 overflow-y-auto max-h-[500px] pr-1">
+              {users
+                .filter(u => u.role !== 'admin' && u.nama_lengkap.toLowerCase().includes(userSearchQuery.toLowerCase()))
+                .map((u, i) => {
+                  const isSelected = selectedUserForHistory?.id === u.id;
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => setSelectedUserForHistory(u)}
+                      className={`w-full text-left p-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer ${
+                        isSelected 
+                          ? "bg-[#2AB0B2]/10 border border-[#2AB0B2] text-[#1C3D3F]" 
+                          : "bg-white hover:bg-gray-50 border border-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {/* Avatar */}
+                      <div 
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white uppercase shrink-0 ${
+                          isSelected ? "bg-[#2AB0B2]" : "bg-gray-300"
+                        }`}
+                        style={{ backgroundColor: isSelected ? undefined : AVATAR_COLORS[i % AVATAR_COLORS.length] }}
+                      >
+                        {u.nama_lengkap.split(" ").map((w: string) => w[0]).join("").slice(0, 2)}
+                      </div>
+                      
+                      {/* Details */}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold truncate leading-tight">{u.nama_lengkap}</p>
+                        <p className="text-[10px] text-gray-400 mt-1 uppercase font-black tracking-wider">{u.role === 'student' ? 'Siswa PKL' : 'Karyawan'}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+
+          {/* Right Column: User History View */}
+          <div className="lg:col-span-8 bg-white rounded-2xl border border-gray-100 p-5 shadow-xs min-h-[500px]">
+            {!selectedUserForHistory ? (
+              <div className="h-[450px] flex flex-col items-center justify-center text-center p-6 select-none animate-in fade-in duration-200">
+                <div className="w-16 h-16 rounded-3xl bg-[#2AB0B2]/5 flex items-center justify-center text-[#2AB0B2] mb-4">
+                  <User size={32} />
+                </div>
+                <h3 className="text-base font-bold text-[#1C3D3F]">Pilih Karyawan</h3>
+                <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto leading-relaxed">
+                  Silakan pilih salah satu karyawan di sebelah kiri untuk memuat riwayat absensi secara detail.
+                </p>
+              </div>
+            ) : (
+              <div className="animate-in fade-in duration-200">
+                {/* Header Info */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-4 mb-4 gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-[#2AB0B2] text-white font-bold flex items-center justify-center text-sm shrink-0">
+                      {selectedUserForHistory.nama_lengkap.split(" ").map((w: string) => w[0]).join("").slice(0, 2)}
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-[#1C3D3F] leading-tight">{selectedUserForHistory.nama_lengkap}</h3>
+                      <p className="text-xs text-gray-400 mt-0.5 font-medium">{selectedUserForHistory.username}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Statistics */}
+                  <div className="flex gap-4">
+                    <div className="bg-green-50 border border-green-100 rounded-xl px-3 py-1.5 text-center">
+                      <p className="text-[10px] text-green-700 font-bold uppercase tracking-wider">Hadir</p>
+                      <p className="text-lg font-black text-green-800 leading-tight">
+                        {userHistoryLogs.filter(l => l.status === 'Hadir' || l.status === 'Terlambat').length}
+                      </p>
+                    </div>
+                    <div className="bg-orange-50 border border-orange-100 rounded-xl px-3 py-1.5 text-center">
+                      <p className="text-[10px] text-orange-700 font-bold uppercase tracking-wider">Izin/Sakit</p>
+                      <p className="text-lg font-black text-orange-800 leading-tight">
+                        {userHistoryLogs.filter(l => l.status === 'Izin' || l.status === 'Sakit').length}
+                      </p>
+                    </div>
+                    <div className="bg-red-50 border border-red-100 rounded-xl px-3 py-1.5 text-center">
+                      <p className="text-[10px] text-red-700 font-bold uppercase tracking-wider">Alpa</p>
+                      <p className="text-lg font-black text-red-800 leading-tight">
+                        {userHistoryLogs.filter(l => l.status === 'Alpa').length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* History Table */}
+                {loadingUserHistory ? (
+                  <div className="text-center py-12 text-sm text-gray-400 font-medium">
+                    Memuat riwayat absensi...
+                  </div>
+                ) : userHistoryLogs.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[500px]">
+                      <thead>
+                        <tr className="border-b border-gray-100 text-left bg-gray-50/50">
+                          <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-widest">Hari / Tanggal</th>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-widest">Masuk</th>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-widest">Pulang</th>
+                          <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupLogsByDate(userHistoryLogs).map((g, i) => (
+                          <tr key={i} className="border-b border-gray-55 last:border-0 hover:bg-gray-50/30 transition-colors">
+                            <td className="px-4 py-3 text-sm font-semibold text-gray-700 flex flex-col">
+                              <span>{g.formattedDate}</span>
+                              {g.diubahOlehAdmin && (
+                                <span className="text-orange-500 text-[9px] font-black uppercase tracking-wider mt-0.5">Diedit Admin</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-semibold text-gray-500 font-mono">
+                              {g.checkInTime || <span className="text-gray-300">-</span>}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-semibold text-gray-500 font-mono">
+                              {g.checkOutTime || <span className="text-gray-300">-</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                              <StatusBadge status={g.status} small />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-sm text-gray-400 font-medium select-none">
+                    Belum ada riwayat absensi terdaftar untuk karyawan ini.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
