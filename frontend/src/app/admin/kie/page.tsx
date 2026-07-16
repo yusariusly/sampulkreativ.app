@@ -102,7 +102,7 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string) => 
   // Calculate strict running balance (Backend Logic - Opsi A)
   let C = 0;
   let totalTarget = 0;
-  const auditList = [];
+  const auditList: any[] = [];
 
   chronologicalDates.forEach((date) => {
     const dateStr = date.toISOString().split('T')[0];
@@ -639,7 +639,7 @@ export default function AdminKiePage() {
                                           Tidak ada setoran API KIE pada tanggal ini.
                                         </div>
                                       ) : (
-                                        group.items.map((sub) => {
+                                        group.items.map((sub: any) => {
                                           const isCopied = copiedKey === sub.id;
                                           const isEditing = editingId === sub.id;
                                           return (
