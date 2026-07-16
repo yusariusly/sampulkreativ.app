@@ -817,6 +817,12 @@ async function initDb() {
       // Column already exists, safe to ignore
     }
 
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN kie_start_date DATE NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
     // Backfill no_karyawan for existing users
     try {
       // Normalize slashes from any existing no_karyawan entries
@@ -3243,7 +3249,7 @@ function getWeekdaysCount(startDate, endDate) {
 async function syncUserKieDebt(userId) {
   try {
     const [userRows] = await pool.query(
-      "SELECT id, role FROM users WHERE id = ?",
+      "SELECT id, role, kie_start_date FROM users WHERE id = ?",
       [userId]
     );
     if (userRows.length === 0) return;
@@ -3254,13 +3260,18 @@ async function syncUserKieDebt(userId) {
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
     const todayDate = parseJakartaDate(todayStr);
 
-    // Determine calculation start date from pkl_students table
-    const [pklRows] = await pool.query(
-      "SELECT start_date FROM pkl_students WHERE user_id = ?",
-      [userId]
-    );
-    if (pklRows.length === 0) return;
-    const startDate = parseJakartaDate(pklRows[0].start_date);
+    // Determine calculation start date
+    let startDate;
+    if (user.kie_start_date) {
+      startDate = parseJakartaDate(user.kie_start_date);
+    } else {
+      const [pklRows] = await pool.query(
+        "SELECT start_date FROM pkl_students WHERE user_id = ?",
+        [userId]
+      );
+      if (pklRows.length === 0) return;
+      startDate = parseJakartaDate(pklRows[0].start_date);
+    }
 
     // The user wants to include TODAY in the debt calculation, even if the day is not over yet.
     // So we don't stop at yesterdayDate. We stop at todayDate.
@@ -3664,7 +3675,7 @@ app.get('/api/kie/admin/users-submissions', async (req, res) => {
 
     // Fetch page of users
     const [users] = await pool.query(
-      `SELECT u.id, u.username, u.nama_lengkap, u.role, u.foto_profile, u.email, u.kie_debt, u.telegram_chat_id, u.telegram_chat_name, u.created_at, p.start_date as pkl_start_date
+      `SELECT u.id, u.username, u.nama_lengkap, u.role, u.foto_profile, u.email, u.kie_debt, u.telegram_chat_id, u.telegram_chat_name, u.created_at, COALESCE(u.kie_start_date, p.start_date) as pkl_start_date
        FROM users u
        LEFT JOIN pkl_students p ON u.id = p.user_id
        WHERE u.${whereClause.replace('role', 'role').replace('kie_debt', 'kie_debt')} 
@@ -3709,6 +3720,45 @@ app.get('/api/kie/admin/users-submissions', async (req, res) => {
   } catch (error) {
     console.error('Gagal mengambil data submissions admin KIE:', error);
     res.status(500).json({ error: 'Gagal mengambil data' });
+  }
+});
+
+// POST set manual KIE start date for Admin
+app.post('/api/kie/admin/set-start-date', async (req, res) => {
+  try {
+    const { user_ids, start_date } = req.body;
+    if (!Array.isArray(user_ids) || user_ids.length === 0 || !start_date) {
+      return res.status(400).json({ error: 'Data tidak valid' });
+    }
+
+    // Update kie_start_date
+    await pool.query(
+      'UPDATE users SET kie_start_date = ? WHERE id IN (?)',
+      [start_date, user_ids]
+    );
+
+    // Sync debt for all updated users
+    for (const id of user_ids) {
+      await syncUserKieDebt(id);
+    }
+
+    res.json({ success: true, message: 'Tanggal mulai KIE berhasil diperbarui' });
+  } catch (error) {
+    console.error('Gagal mengatur tanggal mulai KIE:', error);
+    res.status(500).json({ error: 'Gagal mengatur tanggal mulai' });
+  }
+});
+
+// GET all students for KIE admin modal
+app.get('/api/kie/admin/students', async (req, res) => {
+  try {
+    const [students] = await pool.query(
+      "SELECT id, nama_lengkap FROM users WHERE role = 'student' ORDER BY nama_lengkap ASC"
+    );
+    res.json(students);
+  } catch (error) {
+    console.error('Gagal mengambil daftar siswa:', error);
+    res.status(500).json({ error: 'Gagal memuat data' });
   }
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { Key, ChevronDown, ChevronUp, Copy, Check, ShieldCheck, Pencil, Trash2, X, RefreshCw, Unlink } from "lucide-react";
+import { Key, ChevronDown, ChevronUp, Copy, Check, ShieldCheck, Pencil, Trash2, X, RefreshCw, Unlink, CalendarClock } from "lucide-react";
 
 interface KieSubmission {
   id: number;
@@ -162,6 +162,13 @@ export default function AdminKiePage() {
   const [telegramUsers, setTelegramUsers] = useState<any[]>([]);
   const [loadingTelegram, setLoadingTelegram] = useState(false);
 
+  // Set Start Date Modal states
+  const [showStartDateModal, setShowStartDateModal] = useState(false);
+  const [startDateStudents, setStartDateStudents] = useState<{id: string, nama_lengkap: string}[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [selectedStartDate, setSelectedStartDate] = useState("");
+  const [submittingStartDate, setSubmittingStartDate] = useState(false);
+
   // Sentinel for infinite scroll
   const loaderRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
@@ -275,8 +282,22 @@ export default function AdminKiePage() {
           }
           return u;
         }));
+        setUsers((prev) =>
+          prev.map((u) => {
+            if (u.id === userId) {
+              return {
+                ...u,
+                submissions: u.submissions.map((sub) =>
+                  sub.id === submissionId ? { ...sub, api_key: cleanVal } : sub
+                ),
+              };
+            }
+            return u;
+          })
+        );
         setEditingId(null);
         setEditValue("");
+        handleFilterChange(filter);
       } else {
         const data = await res.json();
         alert(data.error || "Gagal memperbarui API KIE");
@@ -284,6 +305,51 @@ export default function AdminKiePage() {
     } catch (err) {
       console.error("Error editing KIE:", err);
       alert("Gagal menghubungi server");
+    }
+  };
+
+  const openStartDateModal = async () => {
+    setShowStartDateModal(true);
+    setSelectedStudentIds([]);
+    setSelectedStartDate("");
+    try {
+      const res = await fetch("/api/kie/admin/students");
+      if (res.ok) {
+        const data = await res.json();
+        setStartDateStudents(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveStartDate = async () => {
+    if (selectedStudentIds.length === 0 || !selectedStartDate) {
+      alert("Pilih minimal satu siswa dan isi tanggalnya.");
+      return;
+    }
+    setSubmittingStartDate(true);
+    try {
+      const res = await fetch("/api/kie/admin/set-start-date", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_ids: selectedStudentIds,
+          start_date: selectedStartDate
+        }),
+      });
+      if (res.ok) {
+        alert("Tanggal KIE berhasil diatur!");
+        setShowStartDateModal(false);
+        handleFilterChange(filter);
+      } else {
+        const err = await res.json();
+        alert(err.error || "Gagal mengatur tanggal");
+      }
+    } catch (error) {
+      alert("Terjadi kesalahan saat menyimpan tanggal.");
+    } finally {
+      setSubmittingStartDate(false);
     }
   };
 
@@ -391,6 +457,12 @@ export default function AdminKiePage() {
           }`}
         >
           💬 Monitor Grup Telegram
+        </button>
+        <button
+          onClick={openStartDateModal}
+          className="pb-3 text-xs font-bold border-b-2 border-transparent text-[#2AB0B2] hover:text-[#1C3D3F] transition-all cursor-pointer ml-auto flex items-center gap-1.5"
+        >
+          <CalendarClock className="w-4 h-4" /> Atur Tanggal Mulai KIE
         </button>
       </div>
 
@@ -925,6 +997,100 @@ export default function AdminKiePage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SET START DATE */}
+      {showStartDateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                <CalendarClock className="w-5 h-5 text-[#2AB0B2]" />
+                Atur Tanggal Mulai KIE
+              </h3>
+              <button
+                onClick={() => setShowStartDateModal(false)}
+                className="text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-5 flex-1 overflow-y-auto space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-gray-700">Tanggal Mulai Perhitungan KIE</label>
+                <input
+                  type="date"
+                  value={selectedStartDate}
+                  onChange={(e) => setSelectedStartDate(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#2AB0B2] focus:ring-1 focus:ring-[#2AB0B2]"
+                />
+                <p className="text-xs text-gray-500">Hutang KIE akan dihitung mulai dari tanggal ini.</p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-gray-700">Pilih Siswa PKL</label>
+                  <button
+                    onClick={() => {
+                      if (selectedStudentIds.length === startDateStudents.length) {
+                        setSelectedStudentIds([]);
+                      } else {
+                        setSelectedStudentIds(startDateStudents.map(s => s.id));
+                      }
+                    }}
+                    className="text-xs font-bold text-[#2AB0B2] cursor-pointer hover:underline"
+                  >
+                    {selectedStudentIds.length === startDateStudents.length ? "Deselect All" : "Select All"}
+                  </button>
+                </div>
+                
+                <div className="border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                  {startDateStudents.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-gray-500">Memuat data siswa...</div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {startDateStudents.map(student => (
+                        <label key={student.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={selectedStudentIds.includes(student.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedStudentIds([...selectedStudentIds, student.id]);
+                              } else {
+                                setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
+                              }
+                            }}
+                            className="w-4 h-4 text-[#2AB0B2] rounded focus:ring-[#2AB0B2]"
+                          />
+                          <span className="text-sm text-gray-700 font-medium">{student.nama_lengkap}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs font-medium text-[#2AB0B2]">{selectedStudentIds.length} Siswa dipilih</p>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
+              <button
+                onClick={() => setShowStartDateModal(false)}
+                className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200 bg-gray-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleSaveStartDate}
+                disabled={submittingStartDate}
+                className="px-6 py-2 text-sm font-bold text-white bg-[#2AB0B2] hover:bg-[#1c9294] rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {submittingStartDate ? "Menyimpan..." : "Simpan Tanggal"}
+              </button>
             </div>
           </div>
         </div>
