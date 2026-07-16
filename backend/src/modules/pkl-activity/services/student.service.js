@@ -194,19 +194,12 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
   const progress = calculatePklProgress(student.start_date, student.duration_months || 4, todayDateStr);
 
   // 2. Info Kehadiran Hari Ini
-  const tomorrow = new Date(todayDateStr);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
-  const startTimestamp = `${todayDateStr}T00:00:00+07:00`;
-  const endTimestamp = `${tomorrowStr}T00:00:00+07:00`;
-
   const [attendanceRows] = await dbClient.query(
     `SELECT status, waktu_absen FROM absensi 
      WHERE user_id = ? 
-       AND waktu_absen >= ? 
-       AND waktu_absen < ?
+       AND DATE(waktu_absen) = ?
      ORDER BY waktu_absen ASC LIMIT 1`,
-    [userId, startTimestamp, endTimestamp]
+    [userId, todayDateStr]
   );
 
   const attn = attendanceRows[0] || null;

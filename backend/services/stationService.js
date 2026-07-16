@@ -50,16 +50,12 @@ async function verifyStationToken(pool, token) {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowJakarta = remoteService.getJakartaDate(tomorrow);
 
-  const startTimestamp = `${todayJakarta}T00:00:00+07:00`;
-  const endTimestamp = `${tomorrowJakarta}T00:00:00+07:00`;
-
   const [logs] = await pool.query(
     `SELECT status, waktu_absen FROM absensi 
      WHERE user_id = ? 
-       AND waktu_absen >= ?::timestamptz 
-       AND waktu_absen < ?::timestamptz 
+       AND DATE(waktu_absen) = ?
      ORDER BY waktu_absen ASC`,
-    [user.id, startTimestamp, endTimestamp]
+    [user.id, todayJakarta]
   );
 
   // 5. Analisis logs hari ini
