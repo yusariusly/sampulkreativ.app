@@ -1672,6 +1672,74 @@ function sendTelegramPhoto(botToken, chatId, photoPath, caption) {
       reject(err);
     });
 
+  });
+}
+
+function sendTelegramDocument(botToken, chatId, filePath, caption) {
+  return new Promise((resolve, reject) => {
+    const boundary = '----TelegramBotBoundary' + Math.random().toString(36).substring(2);
+    const filename = path.basename(filePath);
+    
+    let fileBuffer;
+    try {
+      fileBuffer = fs.readFileSync(filePath);
+    } catch (e) {
+      return reject(e);
+    }
+
+    const postDataHeader = 
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="chat_id"\r\n\r\n` +
+      `${chatId}\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="caption"\r\n\r\n` +
+      `${caption}\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="document"; filename="${filename}"\r\n` +
+      `Content-Type: application/pdf\r\n\r\n`;
+
+    const postDataFooter = `\r\n--${boundary}--\r\n`;
+
+    const payload = Buffer.concat([
+      Buffer.from(postDataHeader, 'utf-8'),
+      fileBuffer,
+      Buffer.from(postDataFooter, 'utf-8')
+    ]);
+
+    const options = {
+      hostname: 'api.telegram.org',
+      port: 443,
+      path: `/bot${botToken}/sendDocument`,
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': payload.length
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let responseBody = '';
+      res.on('data', (chunk) => {
+        responseBody += chunk;
+      });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(responseBody);
+          if (json.ok) {
+            resolve(json.result);
+          } else {
+            reject(new Error(json.description || 'Gagal mengirim dokumen Telegram'));
+          }
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
     req.write(payload);
     req.end();
   });
@@ -1902,7 +1970,11 @@ async function triggerTelegramNotification(newRecord, fileBuffer, filename) {
       const photoPath = path.join(uploadDir, relativePath);
 
       if (fs.existsSync(photoPath)) {
-        await sendTelegramPhoto(botToken, chatId, photoPath, caption);
+        if (photoPath.toLowerCase().endsWith('.pdf')) {
+          await sendTelegramDocument(botToken, chatId, photoPath, caption);
+        } else {
+          await sendTelegramPhoto(botToken, chatId, photoPath, caption);
+        }
         return;
       }
     }
@@ -2057,7 +2129,7 @@ app.post('/api/attendance', async (req, res) => {
     let fileBuffer = null;
     let filename = '';
 
-    if (foto_base64 && foto_base64.startsWith('data:image')) {
+    if (foto_base64 && (foto_base64.startsWith('data:image') || foto_base64.startsWith('data:application/pdf'))) {
       try {
         const matches = foto_base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
         if (matches && matches.length === 3) {

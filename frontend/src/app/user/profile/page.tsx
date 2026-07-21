@@ -365,47 +365,53 @@ export default function ProfilePage() {
           )}
           
           <div className="flex flex-col gap-2 mt-4 w-full max-w-[280px]">
-            {userRole === 'student' ? (
+            {/* Download Kartu Siswa/Karyawan (Hidden) */}
+            {false && (
+              userRole === 'student' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    setShowCardModal(true);
+                  }}
+                  className="w-full px-4 py-2.5 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <CreditCard size={13} />
+                  Download Kartu Siswa PKL
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!jabatan || jabatan.trim() === "" || jabatan.trim().toLowerCase() === "karyawan") {
+                      setError("⚠️ Jabatan Anda belum ditentukan oleh Administrator. Silakan hubungi Administrator.");
+                    } else {
+                      setError("");
+                      setShowCardModal(true);
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <CreditCard size={13} />
+                  Download Kartu Karyawan
+                </button>
+              )
+            )}
+
+            {/* Tampilkan QR Absensi (Hidden) */}
+            {false && (
               <button
                 type="button"
                 onClick={() => {
                   setError("");
-                  setShowCardModal(true);
+                  setShowQrModal(true);
                 }}
-                className="w-full px-4 py-2.5 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-full px-4 py-2.5 bg-white border border-gray-200 text-[#1C3D3F] hover:bg-gray-50 font-bold text-xs rounded-xl shadow-xs hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <CreditCard size={13} />
-                Download Kartu Siswa PKL
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  if (!jabatan || jabatan.trim() === "" || jabatan.trim().toLowerCase() === "karyawan") {
-                    setError("⚠️ Jabatan Anda belum ditentukan oleh Administrator. Silakan hubungi Administrator.");
-                  } else {
-                    setError("");
-                    setShowCardModal(true);
-                  }
-                }}
-                className="w-full px-4 py-2.5 bg-gradient-to-r from-[#2AB0B2] to-[#209092] hover:from-[#209092] hover:to-[#1C3D3F] text-white font-bold text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <CreditCard size={13} />
-                Download Kartu Karyawan
+                <QrCode size={13} className="text-[#2AB0B2]" />
+                Tampilkan QR Absensi
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setShowQrModal(true);
-              }}
-              className="w-full px-4 py-2.5 bg-white border border-gray-200 text-[#1C3D3F] hover:bg-gray-50 font-bold text-xs rounded-xl shadow-xs hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
-            >
-              <QrCode size={13} className="text-[#2AB0B2]" />
-              Tampilkan QR Absensi
-            </button>
           </div>
         </div>
 

@@ -330,6 +330,7 @@ function UserDashboardContent() {
   const [izinDate, setIzinDate] = useState("");
   const [reason, setReason] = useState("");
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [attachmentName, setAttachmentName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -798,6 +799,7 @@ function UserDashboardContent() {
     setModalType(type);
     setReason("");
     setPhotoBase64(null);
+    setAttachmentName("");
     setErrorMsg("");
     if (type === "Izin") {
       const hasAbsen = clockInTime !== null || clockOutTime !== null;
@@ -809,6 +811,17 @@ function UserDashboardContent() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setAttachmentName(file.name);
+
+    if (file.type === "application/pdf") {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPhotoBase64(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
 
     try {
       const compressedFile = await compressImage(file, IMAGE_PRESETS.selfie);
@@ -1705,8 +1718,8 @@ function UserDashboardContent() {
             </h3>
             <p className="text-gray-400 text-xs mb-4">
               {modalType === "Sakit" 
-                ? "Silakan unggah foto surat sakit dari dokter untuk dikirimkan ke email administrator." 
-                : "Silakan unggah foto bukti pendukung dan isi keterangan pengajuan izin Anda."}
+                ? "Silakan unggah foto/PDF surat sakit dari dokter untuk dikirimkan ke email administrator." 
+                : "Silakan unggah foto/PDF bukti pendukung dan isi keterangan pengajuan izin Anda."}
             </p>
 
             {errorMsg && (
@@ -1720,7 +1733,7 @@ function UserDashboardContent() {
               {/* File Uploader */}
               <div>
                 <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
-                  {modalType === "Sakit" ? "Foto Surat Sakit Dokter" : "Foto Bukti Pendukung"}
+                  {modalType === "Sakit" ? "Foto/PDF Surat Sakit Dokter" : "Foto/PDF Bukti Pendukung"}
                 </label>
                 <div 
                   onClick={() => document.getElementById("attachment-upload")?.click()}
@@ -1728,18 +1741,28 @@ function UserDashboardContent() {
                   style={{ minHeight: "120px" }}
                 >
                   {photoBase64 ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photoBase64} alt="Preview" className="max-h-36 object-contain" />
+                    photoBase64.startsWith("data:application/pdf") ? (
+                      <div className="flex flex-col items-center justify-center p-2 text-center">
+                        <FileText size={48} className="text-rose-500 mb-2" />
+                        <span className="text-xs font-bold text-gray-700 truncate max-w-[220px]">
+                          {attachmentName || "Berkas.pdf"}
+                        </span>
+                        <span className="text-[10px] text-gray-400 mt-1">Dokumen PDF Terunggah</span>
+                      </div>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={photoBase64} alt="Preview" className="max-h-36 object-contain" />
+                    )
                   ) : (
                     <>
                       <Camera size={24} className="text-gray-300 mb-1" />
-                      <span className="text-xs font-semibold text-gray-500">Klik untuk Ambil / Pilih Foto</span>
+                      <span className="text-xs font-semibold text-gray-500">Klik untuk Ambil / Pilih Berkas</span>
                     </>
                   )}
                 </div>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,application/pdf"
                   onChange={handleFileChange}
                   className="hidden"
                   id="attachment-upload"
