@@ -47,6 +47,12 @@ export default function AdminDataPage() {
 
   const [selectedDate, setSelectedDate] = useState(getLocalDateString(new Date()));
 
+  const tomorrowStr = (() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return getLocalDateString(tomorrow);
+  })();
+
   // Photo Audit Modal State
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [selectedLogName, setSelectedLogName] = useState("");
@@ -271,8 +277,7 @@ export default function AdminDataPage() {
 
   const handleNextDay = () => {
     const current = new Date(selectedDate);
-    const todayStr = getLocalDateString(new Date());
-    if (getLocalDateString(current) === todayStr) return; // Prevent going to tomorrow
+    if (getLocalDateString(current) === tomorrowStr) return; // Prevent going beyond tomorrow
     current.setDate(current.getDate() + 1);
     setSelectedDate(getLocalDateString(current));
   };
@@ -614,7 +619,7 @@ export default function AdminDataPage() {
                 <input
                   type="date"
                   value={selectedDate}
-                  max={getLocalDateString(new Date())}
+                  max={tomorrowStr}
                   onChange={(e) => setSelectedDate(e.target.value)}
                   className="outline-none text-sm font-semibold text-gray-750 bg-transparent border-0 cursor-pointer w-28 sm:w-auto"
                 />
@@ -622,7 +627,7 @@ export default function AdminDataPage() {
 
               <button
                 onClick={handleNextDay}
-                disabled={selectedDate === getLocalDateString(new Date())}
+                disabled={selectedDate === tomorrowStr}
                 className="p-1.5 text-gray-500 hover:text-[#2AB0B2] hover:bg-gray-55 rounded-lg transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
                 title="Hari Selanjutnya"
               >
