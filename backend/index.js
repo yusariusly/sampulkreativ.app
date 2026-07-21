@@ -187,7 +187,7 @@ if (!fs.existsSync(uploadDir)) {
 
 app.use('/uploads', express.static(uploadDir));
 
-async function sendAttendanceEmail({ senderName, status, reason, filePath, fileName, fileBuffer }) {
+async function sendAttendanceEmail({ senderName, status, reason, filePath, fileName, fileBuffer, targetDate }) {
   // Query settings from DB using raw pgPool since pool is not hoisted yet
   let host = process.env.SMTP_HOST;
   let port = process.env.SMTP_PORT || 587;
@@ -233,7 +233,8 @@ Attachment: ${filePath || 'None'}`);
     },
   });
 
-  const formattedDate = new Date().toLocaleDateString('id-ID', {
+  const dateObj = targetDate ? new Date(targetDate + 'T08:00:00+07:00') : new Date();
+  const formattedDate = dateObj.toLocaleDateString('id-ID', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -2192,7 +2193,8 @@ app.post('/api/attendance', async (req, res) => {
         reason: reason,
         filePath: localFilePath,
         fileName: filename,
-        fileBuffer: fileBuffer
+        fileBuffer: fileBuffer,
+        targetDate: targetDateStr
       }).catch(err => console.error("Gagal mengirim email absensi:", err));
     }
 
