@@ -1915,8 +1915,8 @@ async function triggerTelegramNotification(newRecord, fileBuffer, filename) {
 
 app.post('/api/attendance', async (req, res) => {
   try {
-    const { user_id, foto_base64, latitude, longitude, status } = req.body;
-    console.log(`[GPS_BACKEND_RECEIVED]\nUser: ${user_id}\nLatitude: ${latitude}\nLongitude: ${longitude}\nStatus: ${status}`);
+    const { user_id, foto_base64, latitude, longitude, status, tanggal } = req.body;
+    console.log(`[GPS_BACKEND_RECEIVED]\nUser: ${user_id}\nLatitude: ${latitude}\nLongitude: ${longitude}\nStatus: ${status}\nTanggal: ${tanggal}`);
     if (!user_id || !status) {
       return res.status(400).json({ error: 'Data absensi tidak lengkap' });
     }
@@ -1929,8 +1929,9 @@ app.post('/api/attendance', async (req, res) => {
     if (user.is_active !== 1) {
       return res.status(403).json({ error: 'Akses ditolak: Akun Anda belum disetujui atau dinonaktifkan oleh administrator.' });
     }
-    // Fetch WFH/Remote permission status using remoteService
-    const wfhStatus = await remoteService.getTodayRemoteStatus(pool, user_id);
+    // Fetch WFH/Remote permission status using remoteService for the target date
+    const targetDateStr = (status === 'Izin' && tanggal) ? tanggal : remoteService.getJakartaDate(new Date());
+    const wfhStatus = await remoteService.getTodayRemoteStatus(pool, user_id, targetDateStr);
     const { permissions, remoteStatus } = wfhStatus;
 
     if (status === 'Hadir' || status === 'Terlambat') {
@@ -1963,33 +1964,33 @@ app.post('/api/attendance', async (req, res) => {
       }
     } else if (status === 'Izin') {
       if (!permissions.leave.allowed) {
-        let errorMsg = 'Anda tidak diperbolehkan mengajukan izin hari ini.';
+        let errorMsg = 'Anda tidak diperbolehkan mengajukan izin pada tanggal ini.';
         if (permissions.leave.reason === 'WFH_REQUEST_PENDING') {
           errorMsg = 'Tidak dapat mengajukan izin karena pengajuan WFH Anda sedang menunggu persetujuan.';
         } else if (permissions.leave.reason === 'WFH_REQUEST_APPROVED') {
-          errorMsg = 'Tidak dapat mengajukan izin karena pengajuan WFH Anda hari ini sudah disetujui.';
+          errorMsg = 'Tidak dapat mengajukan izin karena pengajuan WFH Anda pada tanggal ini sudah disetujui.';
         } else if (permissions.leave.reason === 'ALREADY_CLOCKED_IN') {
-          errorMsg = 'Anda sudah melakukan absen masuk hari ini.';
+          errorMsg = 'Anda sudah melakukan absen masuk pada tanggal ini.';
         } else if (permissions.leave.reason === 'ALREADY_ON_LEAVE') {
-          errorMsg = 'Anda sudah mengajukan izin hari ini.';
+          errorMsg = 'Anda sudah mengajukan izin pada tanggal ini.';
         } else if (permissions.leave.reason === 'ALREADY_ON_SICK_LEAVE') {
-          errorMsg = 'Anda sudah mengajukan sakit hari ini.';
+          errorMsg = 'Anda sudah mengajukan sakit pada tanggal ini.';
         }
         return res.status(400).json({ error: errorMsg });
       }
     } else if (status === 'Sakit') {
       if (!permissions.sick.allowed) {
-        let errorMsg = 'Anda tidak diperbolehkan mengajukan sakit hari ini.';
+        let errorMsg = 'Anda tidak diperbolehkan mengajukan sakit pada tanggal ini.';
         if (permissions.sick.reason === 'WFH_REQUEST_PENDING') {
           errorMsg = 'Tidak dapat mengajukan sakit karena pengajuan WFH Anda sedang menunggu persetujuan.';
         } else if (permissions.sick.reason === 'WFH_REQUEST_APPROVED') {
-          errorMsg = 'Tidak dapat mengajukan sakit karena pengajuan WFH Anda hari ini sudah disetujui.';
+          errorMsg = 'Tidak dapat mengajukan sakit karena pengajuan WFH Anda pada tanggal ini sudah disetujui.';
         } else if (permissions.sick.reason === 'ALREADY_CLOCKED_IN') {
-          errorMsg = 'Anda sudah melakukan absen masuk hari ini.';
+          errorMsg = 'Anda sudah melakukan absen masuk pada tanggal ini.';
         } else if (permissions.sick.reason === 'ALREADY_ON_LEAVE') {
-          errorMsg = 'Anda sudah mengajukan izin hari ini.';
+          errorMsg = 'Anda sudah mengajukan izin pada tanggal ini.';
         } else if (permissions.sick.reason === 'ALREADY_ON_SICK_LEAVE') {
-          errorMsg = 'Anda sudah mengajukan sakit hari ini.';
+          errorMsg = 'Anda sudah mengajukan sakit pada tanggal ini.';
         }
         return res.status(400).json({ error: errorMsg });
       }
@@ -2100,7 +2101,7 @@ app.post('/api/attendance', async (req, res) => {
         newRecord.user_id,
         newRecord.username,
         newRecord.nama_lengkap,
-        new Date(newRecord.waktu_absen),
+        (status === 'Izin' && tanggal) ? `${tanggal} 08:00:00` : new Date(newRecord.waktu_absen),
         newRecord.foto_url,
         newRecord.latitude,
         newRecord.longitude,

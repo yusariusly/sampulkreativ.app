@@ -54,8 +54,8 @@ function wfhRequestDto(req) {
 }
 
 // 3. Facts Provider: Mengambil fakta database (Menggunakan Dependency Injection)
-async function getTodayRemoteFacts(dbClient, userId) {
-  const todayJakarta = getJakartaDate(new Date());
+async function getTodayRemoteFacts(dbClient, userId, targetDateStr) {
+  const todayJakarta = targetDateStr || getJakartaDate(new Date());
 
   const [wfhRows] = await dbClient.query(
     `SELECT id, tanggal, status, report_submitted_at, expired_at 
@@ -149,8 +149,8 @@ function evaluateRemotePermissions(facts) {
 }
 
 // 6. Orchestrator (Menggunakan Dependency Injection)
-async function getTodayRemoteStatus(dbClient, userId) {
-  const facts = await getTodayRemoteFacts(dbClient, userId);
+async function getTodayRemoteStatus(dbClient, userId, targetDateStr) {
+  const facts = await getTodayRemoteFacts(dbClient, userId, targetDateStr);
   return evaluateRemotePermissions(facts);
 }
 

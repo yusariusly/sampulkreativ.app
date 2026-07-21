@@ -196,6 +196,27 @@ const getDailyAuditList = (subs: any[], userCreatedAt?: string) => {
   return auditList;
 };
 
+const getTodayWibDate = () => {
+  const d = new Date();
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(d);
+};
+
+const getTomorrowWibDate = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(d);
+};
+
 function UserDashboardContent() {
   const router = useRouter();
   const [fullname, setFullname] = useState("Karyawan");
@@ -306,6 +327,7 @@ function UserDashboardContent() {
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<"Izin" | "Sakit" | null>(null);
+  const [izinDate, setIzinDate] = useState("");
   const [reason, setReason] = useState("");
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -777,6 +799,10 @@ function UserDashboardContent() {
     setReason("");
     setPhotoBase64(null);
     setErrorMsg("");
+    if (type === "Izin") {
+      const hasAbsen = clockInTime !== null || clockOutTime !== null;
+      setIzinDate(hasAbsen ? getTomorrowWibDate() : getTodayWibDate());
+    }
     setModalOpen(true);
   };
 
@@ -818,6 +844,11 @@ function UserDashboardContent() {
       return;
     }
 
+    if (modalType === "Izin" && !izinDate) {
+      setErrorMsg("⚠️ Harap pilih tanggal izin Anda");
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMsg("");
 
@@ -850,7 +881,8 @@ function UserDashboardContent() {
           longitude: lng ? String(lng) : null,
           status: modalType,
           reason: reason,
-          device_id: deviceId
+          device_id: deviceId,
+          tanggal: modalType === "Izin" ? izinDate : null
         })
       });
 
@@ -1462,27 +1494,24 @@ function UserDashboardContent() {
                             <Camera size={20} /> Mulai Absen
                           </button>
                         )}
-
-                        <div className="grid grid-cols-2 gap-3 pt-1">
-                          {remotePermissions?.leave?.allowed && (
-                            <button
-                              onClick={() => openModal("Izin")}
-                              className="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#1C3D3F] font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.97] transition-all"
-                            >
-                              <FileText size={14} className="text-[#2AB0B2]" /> Pengajuan Izin
-                            </button>
-                          )}
-                          {remotePermissions?.sick?.allowed && (
-                            <button
-                              onClick={() => openModal("Sakit")}
-                              className="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#1C3D3F] font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.97] transition-all"
-                            >
-                              <HeartPulse size={14} className="text-rose-600" /> Izin Sakit
-                            </button>
-                          )}
-                        </div>
                       </>
                     )}
+
+                    {/* Pengajuan Izin & Sakit buttons always visible */}
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <button
+                        onClick={() => openModal("Izin")}
+                        className="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#1C3D3F] font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.97] transition-all"
+                      >
+                        <FileText size={14} className="text-[#2AB0B2]" /> Pengajuan Izin
+                      </button>
+                      <button
+                        onClick={() => openModal("Sakit")}
+                        className="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#1C3D3F] font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.97] transition-all"
+                      >
+                        <HeartPulse size={14} className="text-rose-600" /> Izin Sakit
+                      </button>
+                    </div>
 
                     {/* Status & Kontrol Remote Working (WFH) */}
                     {!loadingWfh && (
@@ -1718,19 +1747,34 @@ function UserDashboardContent() {
               </div>
 
               {/* Reason / Custom Content */}
+              {/* Reason / Custom Date & Content */}
               {modalType === "Izin" && (
-                <div>
-                  <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
-                    Keterangan / Isi Email Izin
-                  </label>
-                  <textarea
-                    rows={4}
-                    placeholder="Contoh: Saya izin cuti hari ini karena ada keperluan keluarga yang mendesak..."
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-gray-50/50 resize-none text-sm"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
+                      Tanggal Izin
+                    </label>
+                    <input
+                      type="date"
+                      value={izinDate}
+                      min={clockInTime || clockOutTime ? getTomorrowWibDate() : getTodayWibDate()}
+                      onChange={(e) => setIzinDate(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-gray-50/50 text-sm font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
+                      Keterangan / Isi Email Izin
+                    </label>
+                    <textarea
+                      rows={4}
+                      placeholder="Contoh: Saya izin cuti hari ini karena ada keperluan keluarga yang mendesak..."
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-gray-50/50 resize-none text-sm"
+                    />
+                  </div>
+                </>
               )}
             </div>
 

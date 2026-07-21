@@ -1,1 +1,4 @@
 .vercel
+db_dump.sql
+schema_init.sql
+*.sql
