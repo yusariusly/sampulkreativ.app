@@ -795,7 +795,17 @@ export default function PklScoreboardPage() {
 
         // 1.2 Save All Daily Evaluations in Parallel
         const monFri = getMonFriDates(cohortStartDate, selectedWeek);
+        const studentStartDateStr = currentStudent?.start_date 
+          ? new Date(currentStudent.start_date).toISOString().split('T')[0] 
+          : "2026-06-01";
+        
         const saveEvalPromises = monFri.map(async (day) => {
+          const isFuture = day.dateStr > todayStr;
+          const isBeforeStart = day.dateStr < studentStartDateStr;
+          
+          // Skip saving if day is in future or before start date
+          if (isFuture || isBeforeStart) return;
+
           const evalData = dailyEvals[day.dateStr] || {
             wkt_point: 0,
             skp_point: 0,
