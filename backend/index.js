@@ -4318,8 +4318,8 @@ app.post('/api/remote/requests/:id/admin-approve', validateDeviceSession, async 
       
       await pool.query(
         `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
-         VALUES (?, ?, ?, ?, NOW(), 'wfh-auto-clock-in', NULL, NULL, 'Hadir', 0)`,
-        [newAbsensiId, requestRow.user_id, employeeUsername, employeeName]
+         VALUES (?, ?, ?, ?, ?, 'wfh-auto-clock-in', NULL, NULL, 'Hadir', 0)`,
+        [newAbsensiId, requestRow.user_id, employeeUsername, employeeName, new Date()]
       );
     } catch (absensiErr) {
       console.error("Gagal otomatis clock-in setelah WFH disetujui via admin:", absensiErr);
@@ -4539,8 +4539,8 @@ app.post('/api/remote/requests/:id/report', validateDeviceSession, async (req, r
       
       await pool.query(
         `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
-         VALUES (?, ?, ?, ?, NOW(), ?, NULL, NULL, 'Pulang', 0)`,
-        [newAbsensiId, user_id, employeeUsername, employeeName, clockOutFoto]
+         VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, 'Pulang', 0)`,
+        [newAbsensiId, user_id, employeeUsername, employeeName, new Date(), clockOutFoto]
       );
     } catch (absensiErr) {
       console.error("Gagal otomatis clock-out setelah daily report:", absensiErr);
