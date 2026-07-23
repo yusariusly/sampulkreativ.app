@@ -83,6 +83,42 @@ export default function AdminRemotePage() {
     }
   };
 
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  const handleApproveRequest = async (requestId: string) => {
+    if (!confirm("Setujui WFH ini? Karyawan akan otomatis tercatat 'Hadir'.")) return;
+
+    setApprovingId(requestId);
+    try {
+      const storedUser = localStorage.getItem("v2_user");
+      if (!storedUser) return;
+      const adminUser = JSON.parse(storedUser);
+
+      const res = await fetch(`/api/remote/requests/${requestId}/admin-approve`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("v2_token")}`
+        },
+        body: JSON.stringify({
+          user_id: adminUser.id,
+          role: "admin"
+        })
+      });
+
+      if (res.ok) {
+        await fetchRequests();
+      } else {
+        const err = await res.json();
+        alert(err.error || "Gagal menyetujui permohonan");
+      }
+    } catch (err) {
+      alert("Gagal menghubungi server");
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
   const isRequestActive = (req: RemoteRequest) => {
     if (req.status !== "APPROVED") return false;
     return new Date(req.expired_at).getTime() > Date.now();
@@ -379,15 +415,24 @@ export default function AdminRemotePage() {
                       )}
 
                       {req.status === "PENDING" && (
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                           <span className="text-amber-600 font-semibold block">Menunggu Konfirmasi</span>
-                          <button
-                            onClick={() => handleCancelRequest(req.id)}
-                            disabled={cancellingId === req.id}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-650 rounded-lg font-bold border border-red-100 transition-colors cursor-pointer"
-                          >
-                            Tolak / Batalkan
-                          </button>
+                          <div className="flex flex-col gap-1.5 max-w-[140px]">
+                            <button
+                              onClick={() => handleApproveRequest(req.id)}
+                              disabled={approvingId === req.id}
+                              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold border border-emerald-200 transition-colors cursor-pointer w-full text-xs"
+                            >
+                              {approvingId === req.id ? 'Memproses...' : 'Setujui (Hadir)'}
+                            </button>
+                            <button
+                              onClick={() => handleCancelRequest(req.id)}
+                              disabled={cancellingId === req.id}
+                              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-650 rounded-lg font-bold border border-red-100 transition-colors cursor-pointer w-full text-xs"
+                            >
+                              Tolak / Batalkan
+                            </button>
+                          </div>
                         </div>
                       )}
                     </td>

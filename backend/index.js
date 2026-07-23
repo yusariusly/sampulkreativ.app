@@ -4249,9 +4249,85 @@ app.post('/api/remote/requests/:id/approve', async (req, res) => {
       });
     }
 
-    res.json({ success: true, message: 'Permohonan remote working berhasil disetujui.', request: remoteService.wfhRequestDto(result[0]) });
+    const requestRow = result[0];
+
+    // AUTO CLOCK-IN: Insert 'Hadir' record for WFH
+    try {
+      const [userRows] = await pool.query("SELECT username, nama_lengkap FROM users WHERE id = ?", [requestRow.user_id]);
+      const employeeName = userRows[0]?.nama_lengkap || 'Karyawan';
+      const employeeUsername = userRows[0]?.username || 'unknown';
+      
+      const newAbsensiId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      await pool.query(
+        `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
+         VALUES (?, ?, ?, ?, NOW(), 'wfh-auto-clock-in', NULL, NULL, 'Hadir', 0)`,
+        [newAbsensiId, requestRow.user_id, employeeUsername, employeeName]
+      );
+    } catch (absensiErr) {
+      console.error("Gagal otomatis clock-in setelah WFH disetujui via email:", absensiErr);
+    }
+
+    res.json({ success: true, message: 'Permohonan remote working berhasil disetujui.', request: remoteService.wfhRequestDto(requestRow) });
   } catch (error) {
     console.error('Error approving WFH:', error);
+    res.status(500).json({ error: 'Gagal memproses persetujuan remote' });
+  }
+});
+
+// 4b. Admin Approve WFH Request (Dashboard)
+app.post('/api/remote/requests/:id/admin-approve', validateDeviceSession, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+    if (user.role !== 'admin') {
+      return res.status(403).json({ error: 'Akses ditolak. Hanya admin yang dapat menyetujui.' });
+    }
+
+    const expiredAt = remoteService.getJakartaExpiredAt(new Date());
+    const todayJakarta = remoteService.getJakartaDate(new Date());
+
+    const [result] = await pool.query(
+      `UPDATE remote_requests 
+       SET status = 'APPROVED', 
+           action_by = 'Administrator', 
+           action_at = NOW(), 
+           expired_at = $1,
+           token_hash = NULL
+       WHERE id = $2 AND status = 'PENDING' AND tanggal >= $3
+       RETURNING *`,
+      [expiredAt, id, todayJakarta]
+    );
+
+    if (!result || result.length === 0) {
+      return res.status(400).json({ 
+        error: 'Persetujuan gagal. Pengajuan tidak ditemukan, sudah diproses, atau kedaluwarsa.' 
+      });
+    }
+
+    const requestRow = result[0];
+
+    // AUTO CLOCK-IN: Insert 'Hadir' record for WFH
+    try {
+      const [userRows] = await pool.query("SELECT username, nama_lengkap FROM users WHERE id = ?", [requestRow.user_id]);
+      const employeeName = userRows[0]?.nama_lengkap || 'Karyawan';
+      const employeeUsername = userRows[0]?.username || 'unknown';
+      
+      const crypto = require('crypto');
+      const newAbsensiId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      await pool.query(
+        `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
+         VALUES (?, ?, ?, ?, NOW(), 'wfh-auto-clock-in', NULL, NULL, 'Hadir', 0)`,
+        [newAbsensiId, requestRow.user_id, employeeUsername, employeeName]
+      );
+    } catch (absensiErr) {
+      console.error("Gagal otomatis clock-in setelah WFH disetujui via admin:", absensiErr);
+    }
+
+    res.json({ success: true, message: 'Permohonan remote working berhasil disetujui oleh admin.', request: remoteService.wfhRequestDto(requestRow) });
+  } catch (error) {
+    console.error('Error admin approving WFH:', error);
     res.status(500).json({ error: 'Gagal memproses persetujuan remote' });
   }
 });
@@ -4450,9 +4526,27 @@ app.post('/api/remote/requests/:id/report', validateDeviceSession, async (req, r
 
     const updatedRequest = result[0];
 
-    // D. Fetch user details to send email notification
-    const [userRows] = await pool.query("SELECT nama_lengkap FROM users WHERE id = ?", [user_id]);
+    // D. Fetch user details to send email notification and auto clock-out
+    const [userRows] = await pool.query("SELECT username, nama_lengkap FROM users WHERE id = ?", [user_id]);
     const employeeName = userRows[0]?.nama_lengkap || 'Karyawan';
+    const employeeUsername = userRows[0]?.username || 'unknown';
+    
+    // AUTO CLOCK-OUT: Insert 'Pulang' record for WFH
+    try {
+      const crypto = require('crypto');
+      const newAbsensiId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const clockOutFoto = attachmentUrls.length > 0 ? attachmentUrls[0] : 'wfh-daily-report';
+      
+      await pool.query(
+        `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
+         VALUES (?, ?, ?, ?, NOW(), ?, NULL, NULL, 'Pulang', 0)`,
+        [newAbsensiId, user_id, employeeUsername, employeeName, clockOutFoto]
+      );
+    } catch (absensiErr) {
+      console.error("Gagal otomatis clock-out setelah daily report:", absensiErr);
+      // We don't block the request if absensi insertion fails, we just log it
+    }
+
     const formattedDate = new Date().toLocaleDateString('id-ID', {
       weekday: 'long',
       year: 'numeric',
