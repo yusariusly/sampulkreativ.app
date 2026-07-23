@@ -639,12 +639,21 @@ function UserDashboardContent() {
           year: 'numeric', month: '2-digit', day: '2-digit'
         }).format(new Date());
 
-        // waktu_absen tersimpan sebagai WIB (tanpa label timezone).
-        // Jangan pakai new Date() karena browser akan baca sebagai UTC lalu geser +7 jam.
-        // Gunakan perbandingan string tanggal langsung (10 karakter pertama = YYYY-MM-DD).
+        // waktu_absen tersimpan sebagai timestamp UTC (atau tanpa label timezone).
+        // Gunakan Date object dan format ke WIB (Asia/Jakarta) sebelum dibandingkan.
         const todayLogs = logs.filter(
-          (log: { waktu_absen: string; status: string }) =>
-            (log.waktu_absen || '').slice(0, 10) === todayJakarta
+          (log: { waktu_absen: string; status: string }) => {
+            if (!log.waktu_absen) return false;
+            try {
+              const logDateStr = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Jakarta',
+                year: 'numeric', month: '2-digit', day: '2-digit'
+              }).format(new Date(log.waktu_absen));
+              return logDateStr === todayJakarta;
+            } catch (e) {
+              return (log.waktu_absen || '').slice(0, 10) === todayJakarta;
+            }
+          }
         );
 
         const checkInLog = todayLogs.find(
