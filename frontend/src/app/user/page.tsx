@@ -811,8 +811,7 @@ function UserDashboardContent() {
     setAttachmentName("");
     setErrorMsg("");
     if (type === "Izin") {
-      const hasAbsen = clockInTime !== null || clockOutTime !== null;
-      setIzinDate(hasAbsen ? getTomorrowWibDate() : getTodayWibDate());
+      setIzinDate(getTodayWibDate());
     }
     setModalOpen(true);
   };
@@ -1789,7 +1788,7 @@ function UserDashboardContent() {
                     <input
                       type="date"
                       value={izinDate}
-                      min={clockInTime || clockOutTime ? getTomorrowWibDate() : getTodayWibDate()}
+                      min={getTodayWibDate()}
                       onChange={(e) => setIzinDate(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-gray-50/50 text-sm font-semibold"
                     />

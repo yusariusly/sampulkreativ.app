@@ -84,8 +84,6 @@ async function getTodayRemoteFacts(dbClient, userId, targetDateStr) {
 // 4. Sub-Evaluators: Logika bisnis kecil
 function evaluateLeaveSickRemotePermission(status, hasHadir, hasIzin, hasSakit) {
   if (status === REMOTE_STATUS.PENDING) return { allowed: false, reason: 'WFH_REQUEST_PENDING' };
-  if (status === REMOTE_STATUS.APPROVED) return { allowed: false, reason: 'WFH_REQUEST_APPROVED' };
-  if (hasHadir) return { allowed: false, reason: 'ALREADY_CLOCKED_IN' };
   if (hasIzin) return { allowed: false, reason: 'ALREADY_ON_LEAVE' };
   if (hasSakit) return { allowed: false, reason: 'ALREADY_ON_SICK_LEAVE' };
   return { allowed: true, reason: null };
