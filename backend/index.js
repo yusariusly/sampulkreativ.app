@@ -1874,7 +1874,31 @@ function sendTelegramReply(botToken, chatId, text, replyToMessageId) {
   });
 }
 
-function sendTelegramPhotoFromBuffer(botToken, chatId, fileBuffer, filename, caption) {
+/**
+ * Safely executes background tasks in both serverless (Vercel) and traditional Node.js environments.
+ * Prevents Vercel serverless container freezing after HTTP response completion by leveraging @vercel/functions waitUntil.
+ * 
+ * @param {Promise} taskPromise - The asynchronous background operation to execute.
+ * @param {string} taskName - Descriptive name for logging context on failure.
+ */
+function runBackgroundTask(taskPromise, taskName = 'Background Task') {
+  if (!taskPromise || typeof taskPromise.catch !== 'function') return;
+
+  const guardedPromise = taskPromise.catch(err => {
+    console.error(`[${taskName} Error]:`, err.message || err);
+  });
+
+  try {
+    const { waitUntil } = require('@vercel/functions');
+    if (typeof waitUntil === 'function') {
+      waitUntil(guardedPromise);
+    }
+  } catch (e) {
+    // Non-Vercel environment fallback (standalone Node.js / dev server)
+  }
+}
+
+function sendTelegramPhotoFromBuffer(botToken, chatId, fileBuffer, filename, caption, mimeType = 'image/jpeg') {
   return new Promise((resolve, reject) => {
     const boundary = '----TelegramBotBoundary' + Math.random().toString(36).substring(2);
 
@@ -1887,7 +1911,7 @@ function sendTelegramPhotoFromBuffer(botToken, chatId, fileBuffer, filename, cap
       `${caption}\r\n` +
       `--${boundary}\r\n` +
       `Content-Disposition: form-data; name="photo"; filename="${filename}"\r\n` +
-      `Content-Type: image/jpeg\r\n\r\n`;
+      `Content-Type: ${mimeType || 'image/jpeg'}\r\n\r\n`;
 
     const postDataFooter = `\r\n--${boundary}--\r\n`;
 
@@ -1926,7 +1950,7 @@ function sendTelegramPhotoFromBuffer(botToken, chatId, fileBuffer, filename, cap
   });
 }
 
-async function triggerTelegramNotification(newRecord, fileBuffer, filename) {
+async function triggerTelegramNotification(newRecord, fileBuffer, filename, mimeType) {
   try {
     const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
     const [chatIdPklSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
@@ -1962,8 +1986,12 @@ async function triggerTelegramNotification(newRecord, fileBuffer, filename) {
       `📝 Status: ${newRecord.status}`;
 
     if (newRecord.foto_url === 'telegram' && fileBuffer) {
-      await sendTelegramPhotoFromBuffer(botToken, chatId, fileBuffer, filename, caption);
-      return;
+      try {
+        await sendTelegramPhotoFromBuffer(botToken, chatId, fileBuffer, filename, caption, mimeType);
+        return;
+      } catch (photoErr) {
+        console.warn("Gagal mengunggah foto buffer ke Telegram, menggunakan fallback pesan teks:", photoErr.message);
+      }
     }
 
     if (newRecord.foto_url && newRecord.foto_url !== '/uploads/placeholder.jpg' && newRecord.foto_url !== 'telegram') {
@@ -1971,12 +1999,16 @@ async function triggerTelegramNotification(newRecord, fileBuffer, filename) {
       const photoPath = path.join(uploadDir, relativePath);
 
       if (fs.existsSync(photoPath)) {
-        if (photoPath.toLowerCase().endsWith('.pdf')) {
-          await sendTelegramDocument(botToken, chatId, photoPath, caption);
-        } else {
-          await sendTelegramPhoto(botToken, chatId, photoPath, caption);
+        try {
+          if (photoPath.toLowerCase().endsWith('.pdf')) {
+            await sendTelegramDocument(botToken, chatId, photoPath, caption);
+          } else {
+            await sendTelegramPhoto(botToken, chatId, photoPath, caption);
+          }
+          return;
+        } catch (photoErr) {
+          console.warn("Gagal mengunggah foto file ke Telegram, menggunakan fallback pesan teks:", photoErr.message);
         }
-        return;
       }
     }
 
@@ -2198,8 +2230,11 @@ app.post('/api/attendance', async (req, res) => {
       }).catch(err => console.error("Gagal mengirim email absensi:", err));
     }
 
-    // Trigger Telegram Notification in background with in-memory buffer if present
-    triggerTelegramNotification(newRecord, fileBuffer, filename).catch(err => console.error("Error triggering telegram notification:", err));
+    // Trigger Telegram Notification in background using Vercel-safe waitUntil
+    runBackgroundTask(
+      triggerTelegramNotification(newRecord, fileBuffer, filename),
+      'Telegram Notification'
+    );
 
     res.json({ success: true, record: { ...newRecord, diubah_oleh_admin: false } });
   } catch (error) {
@@ -2245,11 +2280,13 @@ app.post('/api/attendance/station/checkin', async (req, res) => {
     const chatId = chatIdSetting[0]?.key_value;
     const hasTelegram = botToken && chatId && botToken.trim() !== '' && chatId.trim() !== '';
 
-    const { newRecord, fileBuffer, filename } = await stationService.checkinStation(pool, user, status, foto_base64, hasTelegram);
+    const { newRecord, fileBuffer, filename, mimeType } = await stationService.checkinStation(pool, user, status, foto_base64, hasTelegram);
 
-    triggerTelegramNotification(newRecord, fileBuffer, filename).catch(err => {
-      console.error("Gagal mengirim notifikasi Telegram dari stasiun:", err);
-    });
+    // Trigger Telegram Notification safely in background with Vercel waitUntil
+    runBackgroundTask(
+      triggerTelegramNotification(newRecord, fileBuffer, filename, mimeType),
+      'Station Telegram Notification'
+    );
 
     res.json({ success: true, record: newRecord });
   } catch (error) {

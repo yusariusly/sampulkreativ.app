@@ -57,7 +57,13 @@ export default function QrScannerView({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute("playsinline", "true");
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (err: any) {
+          if (err?.name !== "AbortError") {
+            console.error("Gagal play video scanner:", err);
+          }
+        }
       }
       setScanError(null);
 

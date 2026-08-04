@@ -122,26 +122,34 @@ async function checkinStation(pool, user, status, foto_base64, hasTelegram) {
   let fotoUrl = '/uploads/placeholder.jpg';
   let fileBuffer = null;
   let filename = '';
+  let mimeType = 'image/jpeg';
 
-  if (foto_base64 && foto_base64.startsWith('data:image')) {
-    try {
-      const matches = foto_base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-      if (matches && matches.length === 3) {
-        const extension = matches[1].split('/')[1] || 'jpg';
-        fileBuffer = Buffer.from(matches[2], 'base64');
-        filename = `selfie-station-${user.username}-${Date.now()}.${extension}`;
+  if (foto_base64 && typeof foto_base64 === 'string') {
+    const cleanedBase64 = foto_base64.trim();
+    if (cleanedBase64.startsWith('data:image')) {
+      try {
+        const matches = cleanedBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          mimeType = matches[1] || 'image/jpeg';
+          let ext = mimeType.split('/')[1] || 'jpg';
+          if (ext === 'jpeg') ext = 'jpg';
 
-        if (hasTelegram) {
-          // Lewatkan penyimpanan lokal jika Telegram aktif (menghemat disk space)
-          fotoUrl = 'telegram';
-        } else {
-          const filepath = path.join(uploadDir, filename);
-          await fs.promises.writeFile(filepath, fileBuffer);
-          fotoUrl = `/uploads/${filename}`;
+          const rawBase64 = matches[2].replace(/\s/g, '');
+          fileBuffer = Buffer.from(rawBase64, 'base64');
+          filename = `selfie-station-${user.username}-${Date.now()}.${ext}`;
+
+          if (hasTelegram) {
+            // Lewatkan penyimpanan lokal jika Telegram aktif (menghemat disk space)
+            fotoUrl = 'telegram';
+          } else {
+            const filepath = path.join(uploadDir, filename);
+            await fs.promises.writeFile(filepath, fileBuffer);
+            fotoUrl = `/uploads/${filename}`;
+          }
         }
+      } catch (err) {
+        console.error('Gagal menulis file selfie stasiun:', err);
       }
-    } catch (err) {
-      console.error('Gagal menulis file selfie stasiun:', err);
     }
   }
 
@@ -175,7 +183,7 @@ async function checkinStation(pool, user, status, foto_base64, hasTelegram) {
     ]
   );
 
-  return { newRecord, fileBuffer, filename };
+  return { newRecord, fileBuffer, filename, mimeType };
 }
 
 module.exports = {

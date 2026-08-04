@@ -44,7 +44,13 @@ export default function SelfieCaptureView({
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (err: any) {
+          if (err?.name !== "AbortError") {
+            console.error("Gagal play video selfie:", err);
+          }
+        }
       }
     } catch (err) {
       console.error("Gagal membuka kamera selfie stasiun:", err);
