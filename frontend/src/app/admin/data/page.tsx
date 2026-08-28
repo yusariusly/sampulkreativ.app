@@ -883,7 +883,7 @@ export default function AdminDataPage() {
                     <div className="bg-green-50 border border-green-100 rounded-xl px-3 py-1.5 text-center">
                       <p className="text-[10px] text-green-700 font-bold uppercase tracking-wider">Hadir</p>
                       <p className="text-lg font-black text-green-800 leading-tight">
-                        {userHistoryLogs.filter(l => l.status === 'Hadir' || l.status === 'Terlambat').length}
+                        {userHistoryLogs.filter(l => l.status === 'Hadir' || l.status === 'Terlambat' || l.status === 'WFH' || l.status === 'Remote').length}
                       </p>
                     </div>
                     <div className="bg-orange-50 border border-orange-100 rounded-xl px-3 py-1.5 text-center">
