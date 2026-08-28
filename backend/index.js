@@ -4485,8 +4485,25 @@ app.post('/api/remote/requests/:id/admin-approve', validateDeviceSession, async 
       return res.status(403).json({ error: 'Akses ditolak. Hanya admin yang dapat menyetujui.' });
     }
 
-    const expiredAt = remoteService.getJakartaExpiredAt(new Date());
     const todayJakarta = remoteService.getJakartaDate(new Date());
+
+    // Admin has superuser authority to approve any pending WFH request
+    const [existingRows] = await pool.query(
+      "SELECT * FROM remote_requests WHERE id = $1 AND status = 'PENDING'",
+      [id]
+    );
+
+    if (!existingRows || existingRows.length === 0) {
+      return res.status(400).json({ 
+        error: 'Persetujuan gagal. Pengajuan tidak ditemukan atau sudah diproses.' 
+      });
+    }
+
+    const targetReq = existingRows[0];
+    const reqDateJakarta = remoteService.getJakartaDate(new Date(targetReq.tanggal));
+    
+    // expired_at must always be greater than action_at (NOW()) to satisfy table constraint
+    const expiredAt = remoteService.getJakartaExpiredAt(new Date());
 
     const [result] = await pool.query(
       `UPDATE remote_requests 
@@ -4495,20 +4512,20 @@ app.post('/api/remote/requests/:id/admin-approve', validateDeviceSession, async 
            action_at = NOW(), 
            expired_at = $1,
            token_hash = NULL
-       WHERE id = $2 AND status = 'PENDING' AND tanggal >= $3
+       WHERE id = $2 AND status = 'PENDING'
        RETURNING *`,
-      [expiredAt, id, todayJakarta]
+      [expiredAt, id]
     );
 
     if (!result || result.length === 0) {
       return res.status(400).json({ 
-        error: 'Persetujuan gagal. Pengajuan tidak ditemukan, sudah diproses, atau kedaluwarsa.' 
+        error: 'Persetujuan gagal. Pengajuan tidak ditemukan atau sudah diproses.' 
       });
     }
 
     const requestRow = result[0];
 
-    // AUTO CLOCK-IN: Insert 'Hadir' record for WFH
+    // AUTO CLOCK-IN: Insert 'WFH' record and cleanup any conflicting auto-alpa
     try {
       const [userRows] = await pool.query("SELECT username, nama_lengkap FROM users WHERE id = ?", [requestRow.user_id]);
       const employeeName = userRows[0]?.nama_lengkap || 'Karyawan';
@@ -4517,13 +4534,33 @@ app.post('/api/remote/requests/:id/admin-approve', validateDeviceSession, async 
       const crypto = require('crypto');
       const newAbsensiId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
-      const clockInTime = requestRow.created_at ? new Date(requestRow.created_at).toISOString() : new Date().toISOString();
+      const clockInTime = requestRow.created_at ? new Date(requestRow.created_at).toISOString() : new Date(requestRow.tanggal).toISOString();
 
+      // Clean up auto-alpa on that date if any
       await pool.query(
-        `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
-         VALUES (?, ?, ?, ?, ?, 'wfh-auto-clock-in', NULL, NULL, 'WFH', 0)`,
-        [newAbsensiId, requestRow.user_id, employeeUsername, employeeName, clockInTime]
+        `DELETE FROM absensi 
+         WHERE user_id = $1 
+           AND status = 'Alpa' 
+           AND (waktu_absen AT TIME ZONE 'Asia/Jakarta')::date = ($2::timestamptz AT TIME ZONE 'Asia/Jakarta')::date`,
+        [requestRow.user_id, clockInTime]
       );
+
+      // Check if WFH record already exists to avoid duplicate
+      const [existingAbsensi] = await pool.query(
+        `SELECT id FROM absensi 
+         WHERE user_id = $1 
+           AND status = 'WFH' 
+           AND (waktu_absen AT TIME ZONE 'Asia/Jakarta')::date = ($2::timestamptz AT TIME ZONE 'Asia/Jakarta')::date`,
+        [requestRow.user_id, clockInTime]
+      );
+
+      if (existingAbsensi.length === 0) {
+        await pool.query(
+          `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
+           VALUES (?, ?, ?, ?, ?, 'wfh-auto-clock-in', NULL, NULL, 'WFH', 0)`,
+          [newAbsensiId, requestRow.user_id, employeeUsername, employeeName, clockInTime]
+        );
+      }
     } catch (absensiErr) {
       console.error("Gagal otomatis clock-in setelah WFH disetujui via admin:", absensiErr);
     }
