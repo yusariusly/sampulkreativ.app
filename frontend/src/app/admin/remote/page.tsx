@@ -121,6 +121,15 @@ export default function AdminRemotePage() {
 
   const isRequestActive = (req: RemoteRequest) => {
     if (req.status !== "APPROVED") return false;
+    let reqDateStr = "";
+    try {
+      reqDateStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date(req.tanggal));
+    } catch {
+      reqDateStr = String(req.tanggal).slice(0, 10);
+    }
+    const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+    // If request execution date was before today, it is completed/expired
+    if (reqDateStr < todayStr) return false;
     return new Date(req.expired_at).getTime() > Date.now();
   };
 
