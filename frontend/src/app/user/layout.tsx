@@ -86,11 +86,35 @@ export default function UserLayout({
   const [adminPassword, setAdminPassword] = useState("");
   const [adminError, setAdminError] = useState("");
   const [adminLoading, setAdminLoading] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ role?: string; id?: string | number } | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const [isImpersonating, setIsImpersonating] = useState(false);
+
+  const handleReturnToAdmin = useCallback(() => {
+    if (typeof window !== "undefined") {
+      const adminBackup = localStorage.getItem("v2_admin_backup");
+      const adminDeviceBackup = localStorage.getItem("v2_admin_device_backup");
+      if (adminBackup) {
+        localStorage.setItem("v2_user", adminBackup);
+      }
+      if (adminDeviceBackup) {
+        localStorage.setItem("v2_device_id", adminDeviceBackup);
+      } else {
+        localStorage.removeItem("v2_device_id");
+      }
+      localStorage.removeItem("v2_is_impersonating");
+      localStorage.removeItem("v2_admin_backup");
+      localStorage.removeItem("v2_admin_device_backup");
+      router.push("/admin/users");
+    }
+  }, [router]);
 
   useEffect(() => {
     setIsMounted(true);
     if (typeof window !== "undefined") {
+      const impersonatingFlag = localStorage.getItem("v2_is_impersonating") === "true";
+      setIsImpersonating(impersonatingFlag);
+
       const storedUserStr = localStorage.getItem("v2_user");
       let storedUser = null;
       if (storedUserStr) {
@@ -103,6 +127,13 @@ export default function UserLayout({
         } catch {
           // handled silently
         }
+      }
+
+      // If in admin impersonation mode, allow immediate authorized access
+      if (impersonatingFlag && storedUser) {
+        setCurrentUser(storedUser);
+        setAuthorized(true);
+        return;
       }
 
       const deviceId = localStorage.getItem("v2_device_id");
@@ -227,6 +258,22 @@ export default function UserLayout({
     <div id="user-layout-root" className="h-[100dvh] max-h-[100dvh] bg-[#F8FAFC] flex justify-center overflow-hidden font-sans">
       {/* Centered Mobile Container */}
       <div id="user-layout-container" className="w-full max-w-md bg-[#F8FAFC] h-full max-h-full flex flex-col shadow-xs relative overflow-hidden">
+        {/* Admin Impersonation Top Banner */}
+        {isImpersonating && (
+          <div className="bg-amber-500 text-white px-3.5 py-2 flex items-center justify-between text-[11px] font-bold z-50 select-none flex-shrink-0 shadow-sm border-b border-amber-600/30">
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-sm leading-none">👑</span>
+              <span className="truncate">Mode Admin: @{currentUser?.username || "user"}</span>
+            </div>
+            <button
+              onClick={handleReturnToAdmin}
+              className="bg-white/25 hover:bg-white/35 active:scale-95 text-white px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 shrink-0 shadow-2xs"
+            >
+              <span>← Kembali ke Admin</span>
+            </button>
+          </div>
+        )}
+
         {/* Top Navbar */}
         {isBaseScreen && (
           <Suspense fallback={

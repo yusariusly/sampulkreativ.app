@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { Camera, ArrowLeft } from "lucide-react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { Camera, ArrowLeft, RefreshCw } from "lucide-react";
 
 // Konfigurasi standar untuk resolusi dan kompresi selfie
 const CAMERA_PRESET = {
@@ -32,18 +32,36 @@ export default function SelfieCaptureView({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
   const [cameraLoading, setCameraLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const startSelfieCamera = async () => {
+  const stopSelfieCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const startSelfieCamera = useCallback(async () => {
+    stopSelfieCamera();
+    setCameraLoading(true);
     try {
       const constraints = {
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { 
+          facingMode: cameraFacing, 
+          width: { ideal: 1280 }, 
+          height: { ideal: 720 } 
+        },
       };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
         try {
           await videoRef.current.play();
         } catch (err: any) {
@@ -57,22 +75,12 @@ export default function SelfieCaptureView({
     } finally {
       setCameraLoading(false);
     }
-  };
-
-  const stopSelfieCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  };
+  }, [cameraFacing]);
 
   useEffect(() => {
     startSelfieCamera();
     return () => stopSelfieCamera();
-  }, []);
+  }, [startSelfieCamera]);
 
   const handleCapture = () => {
     const video = videoRef.current;
@@ -96,16 +104,18 @@ export default function SelfieCaptureView({
         // Bersihkan canvas
         ctx.clearRect(0, 0, targetWidth, targetHeight);
 
-        // Lakukan pencerminan balik (horizontal flip) agar hasil foto normal (tidak terbalik)
-        ctx.translate(targetWidth, 0);
-        ctx.scale(-1, 1);
+        // Lakukan pencerminan horizontal hanya jika kamera depan (user)
+        if (cameraFacing === "user") {
+          ctx.translate(targetWidth, 0);
+          ctx.scale(-1, 1);
+        }
 
         ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
 
         // Reset transformasi canvas ke default
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-        // Kompresi kualitas JPEG preset (sangat jernih di Telegram, payload kecil)
+        // Kompresi kualitas JPEG preset
         const base64Image = canvas.toDataURL("image/jpeg", CAMERA_PRESET.quality);
         onCapture(base64Image);
       } else {
@@ -114,15 +124,17 @@ export default function SelfieCaptureView({
     }
   };
 
-
+  const handleToggleFacing = () => {
+    setCameraFacing((prev) => (prev === "user" ? "environment" : "user"));
+  };
 
   return (
     <div className="absolute inset-0 w-full h-full bg-slate-950 flex items-center justify-center">
-      {/* 1. Full Screen Video Feed (Mirrored visually for natural alignment) */}
+      {/* 1. Full Screen Video Feed */}
       <video
         ref={videoRef}
         className="absolute inset-0 w-full h-full object-cover z-0"
-        style={{ transform: "scaleX(-1)" }}
+        style={cameraFacing === "user" ? { transform: "scaleX(-1)" } : undefined}
         muted
         playsInline
       />
@@ -132,11 +144,23 @@ export default function SelfieCaptureView({
       {cameraLoading && (
         <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center z-20 gap-3">
           <div className="w-8 h-8 border-3 border-[#2AB0B2]/30 border-t-[#2AB0B2] rounded-full animate-spin" />
-          <p className="text-xs text-slate-400 font-medium">Mempersiapkan kamera selfie...</p>
+          <p className="text-xs text-slate-400 font-medium">Mempersiapkan kamera...</p>
         </div>
       )}
 
-      {/* 2. Floating User Console & Trigger Buttons */}
+      {/* 2. Floating Flip Camera Button (Always Visible) */}
+      <button
+        type="button"
+        onClick={handleToggleFacing}
+        disabled={cameraLoading || submitting}
+        className="absolute bottom-6 right-6 z-30 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-white backdrop-blur-md border border-slate-700 shadow-2xl transition-all active:scale-95 cursor-pointer text-xs font-bold disabled:opacity-50 pointer-events-auto"
+        title="Balik Kamera Depan / Belakang"
+      >
+        <RefreshCw size={16} className="text-[#2AB0B2]" />
+        <span>{cameraFacing === "user" ? "Kamera Depan" : "Kamera Belakang"}</span>
+      </button>
+
+      {/* 3. Floating User Console & Trigger Buttons */}
       {!cameraLoading && (
         <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md max-h-[90vh] overflow-y-auto z-20 bg-slate-900/90 backdrop-blur-md p-4 sm:p-6 rounded-3xl border border-slate-800 shadow-2xl flex flex-col gap-3 sm:gap-4 text-center">
           <div>
@@ -178,7 +202,7 @@ export default function SelfieCaptureView({
             <button
               onClick={onCancel}
               disabled={submitting}
-              className="flex items-center justify-center gap-1.5 w-full py-2 sm:py-2.5 border border-slate-700 hover:bg-slate-800 active:scale-[0.99] text-slate-400 hover:text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50"
+              className="flex items-center justify-center gap-1.5 w-full py-2 sm:py-2.5 border border-slate-700 hover:bg-slate-800 active:scale-[0.99] text-slate-400 hover:text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50 cursor-pointer"
             >
               <ArrowLeft size={13} />
               <span>Kembali ke Pindai QR</span>

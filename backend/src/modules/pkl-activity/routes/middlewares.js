@@ -38,6 +38,13 @@ const validateDeviceSession = async (req, res, next) => {
 
     const user = rows[0];
 
+    // Bypass jika admin sedang melakukan impersonasi / preview
+    const isImpersonating = req.headers['x-admin-impersonate'] === 'true' || device_id === 'admin-impersonation-device';
+    if (isImpersonating) {
+      req.user = user;
+      return next();
+    }
+
     // Hanya validasi device session untuk employee, student, atau mentor role
     if (['employee', 'student', 'mentor'].includes(user.role)) {
       if (user.is_active !== 1) {

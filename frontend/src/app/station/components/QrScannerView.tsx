@@ -225,7 +225,19 @@ export default function QrScannerView({
         </div>
       )}
 
-      {/* 3. Selector Perangkat Kamera Floating */}
+      {/* 3. Dedicated Flip Camera Button (Always Visible) */}
+      <button
+        type="button"
+        onClick={handleToggleFacing}
+        disabled={cameraLoading}
+        className="absolute bottom-6 right-6 z-30 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-white backdrop-blur-md border border-slate-700 shadow-2xl transition-all active:scale-95 cursor-pointer text-xs font-bold disabled:opacity-50 pointer-events-auto"
+        title="Balik Kamera Depan / Belakang"
+      >
+        <RefreshCw size={15} className="text-[#2AB0B2]" />
+        <span>{cameraFacing === "user" ? "Kamera Depan" : "Kamera Belakang"}</span>
+      </button>
+
+      {/* 4. Selector Perangkat Kamera Floating (Jika ada multi kamera) */}
       {cameras.length > 1 && (
         <div className="absolute bottom-6 left-6 z-30 bg-slate-900/80 backdrop-blur-md p-2 rounded-2xl border border-slate-850 flex items-center gap-2 max-w-[260px] shadow-2xl">
           <Camera size={15} className="text-[#2AB0B2] ml-1 flex-shrink-0" />
@@ -240,13 +252,6 @@ export default function QrScannerView({
               </option>
             ))}
           </select>
-          <button
-            onClick={handleToggleFacing}
-            title="Ganti Mode Kamera"
-            className="p-2 rounded-xl bg-slate-850 hover:bg-slate-800 text-slate-300 transition-colors flex-shrink-0"
-          >
-            <RefreshCw size={12} />
-          </button>
         </div>
       )}
 

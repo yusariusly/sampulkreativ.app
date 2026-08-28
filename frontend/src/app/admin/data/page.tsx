@@ -39,10 +39,19 @@ export default function AdminDataPage() {
   const [userSearchQuery, setUserSearchQuery] = useState("");
 
   const getLocalDateString = (date: Date) => {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(date);
+    } catch (e) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
   };
 
   const [selectedDate, setSelectedDate] = useState(getLocalDateString(new Date()));
@@ -179,7 +188,13 @@ export default function AdminDataPage() {
     }> = {};
     
     userLogs.forEach((log) => {
-      const datePart = (log.waktu_absen || '').slice(0, 10);
+      if (!log.waktu_absen) return;
+      let datePart = '';
+      try {
+        datePart = getLocalDateString(new Date(log.waktu_absen));
+      } catch (e) {
+        datePart = (log.waktu_absen || '').slice(0, 10);
+      }
       if (!datePart) return;
 
       if (!groups[datePart]) {

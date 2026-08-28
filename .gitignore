@@ -1,17 +1,36 @@
 node_modules/
 backend/node_modules/
 frontend/node_modules/
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-backend/.env
-frontend/.env
+
+# Environment files
+.env*
+!.env.example
+backend/.env*
+frontend/.env*
+
+# Build outputs
 .next/
 out/
 build/
+dist/
 .vercel/
 *.log
 .DS_Store
 .vercel
+
+# Uploads and backups
+backend/public/uploads/
+backend/backups/
+
+# Scratch & test scripts in backend root
+backend/check_*.js
+backend/test_*.js
+backend/fix_*.js
+backend/tz_*.js
+backend/populate_*.js
+backend/migrate_*.js
+backend/restore_*.js
+backend/rollback_*.js
+backend/delete_*.js
+backend/verify_*.js
+backend/list_*.js

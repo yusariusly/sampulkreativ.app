@@ -577,7 +577,8 @@ let connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgr
 
 const pgPool = new mysql.Pool({
   connectionString,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  options: '-c search_path=public'
 });
 
 const pool = {
@@ -894,6 +895,15 @@ async function initDb() {
     `);
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS holidays (
+        id VARCHAR(50) PRIMARY KEY,
+        tanggal DATE NOT NULL UNIQUE,
+        keterangan VARCHAR(255) NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS payroll_config (
         user_id VARCHAR(50) PRIMARY KEY,
         gaji_pokok DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
@@ -1089,6 +1099,7 @@ const validateDeviceSession = async (req, res, next) => {
   try {
     const user_id = req.body.user_id || req.query.user_id || req.headers['x-user-id'];
     const device_id = req.body.device_id || req.query.device_id || req.headers['x-device-id'];
+    const isImpersonating = req.headers['x-admin-impersonate'] === 'true' || device_id === 'admin-impersonation-device';
 
     if (!user_id) {
       return res.status(400).json({ error: 'User ID wajib disertakan' });
@@ -1104,6 +1115,12 @@ const validateDeviceSession = async (req, res, next) => {
     }
 
     const user = rows[0];
+
+    // If in admin preview/impersonation mode, allow immediate access
+    if (isImpersonating) {
+      req.user = user;
+      return next();
+    }
 
     // Only validate device session for employee, student, or mentor roles
     if (['employee', 'student', 'mentor'].includes(user.role)) {
@@ -1481,46 +1498,74 @@ app.get('/api/auth/check-device', async (req, res) => {
 
 const fillAlpaForUser = async (userId) => {
   try {
-    const [userRows] = await pool.query('SELECT username, nama_lengkap, created_at FROM users WHERE id = ?', [userId]);
+    const [userRows] = await pool.query(`
+      SELECT u.username, u.nama_lengkap, u.created_at, s.start_date AS student_start_date, u.start_date AS user_start_date 
+      FROM users u
+      LEFT JOIN pkl_students s ON u.id = s.user_id
+      WHERE u.id = ?
+    `, [userId]);
     if (userRows.length === 0) return;
     const user = userRows[0];
 
-    const signupDate = user.created_at ? new Date(user.created_at) : new Date();
-    signupDate.setHours(0, 0, 0, 0);
+    // Priority start date: student start_date -> user start_date -> created_at
+    const effectiveStartStr = user.student_start_date || user.user_start_date || user.created_at;
+    let startDateObj = effectiveStartStr ? new Date(effectiveStartStr) : new Date();
+    startDateObj.setHours(0, 0, 0, 0);
 
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     yesterday.setHours(0, 0, 0, 0);
 
-    if (signupDate.getTime() > yesterday.getTime()) {
+    if (startDateObj.getTime() > yesterday.getTime()) {
       return;
     }
 
     const [attnRows] = await pool.query('SELECT waktu_absen FROM absensi WHERE user_id = ?', [userId]);
     const existingDates = new Set(
       attnRows.map(row => {
-        const d = new Date(row.waktu_absen);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        if (!row.waktu_absen) return '';
+        try {
+          return new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Jakarta',
+            year: 'numeric', month: '2-digit', day: '2-digit'
+          }).format(new Date(row.waktu_absen));
+        } catch (e) {
+          const d = new Date(row.waktu_absen);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+      })
+    );
+
+    const [holidayRows] = await pool.query('SELECT tanggal FROM holidays');
+    const holidayDates = new Set(
+      holidayRows.map(h => {
+        if (h.tanggal instanceof Date) {
+          return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(h.tanggal);
+        }
+        return String(h.tanggal).slice(0, 10);
       })
     );
 
     const missingRecords = [];
-    let current = new Date(signupDate);
+    let current = new Date(startDateObj);
     while (current.getTime() <= yesterday.getTime()) {
-      const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+      const dateStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric', month: '2-digit', day: '2-digit'
+      }).format(current);
+
       const dayOfWeek = current.getDay();
       
-      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !existingDates.has(dateStr)) {
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr) && !existingDates.has(dateStr)) {
         const recordId = `alpa-${userId}-${dateStr}`;
-        const waktuAbsen = new Date(current);
-        waktuAbsen.setHours(9, 0, 0, 0);
+        const isoWaktuAbsen = `${dateStr}T09:00:00.000+07:00`;
 
         missingRecords.push({
           id: recordId,
           user_id: userId,
           username: user.username,
           nama_lengkap: user.nama_lengkap,
-          waktu_absen: waktuAbsen,
+          waktu_absen: isoWaktuAbsen,
           foto_url: 'placeholder',
           latitude: null,
           longitude: null,
@@ -3174,6 +3219,80 @@ app.post('/api/settings', async (req, res) => {
   }
 });
 
+// 6.5 Holidays (Tanggal Merah) API
+app.get('/api/holidays', async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, tanggal, keterangan, created_at FROM holidays ORDER BY tanggal ASC");
+    const mapped = rows.map(h => {
+      let tanggalStr = h.tanggal;
+      if (h.tanggal instanceof Date) {
+        tanggalStr = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Jakarta',
+          year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(h.tanggal);
+      } else if (typeof h.tanggal === 'string') {
+        tanggalStr = h.tanggal.slice(0, 10);
+      }
+      return {
+        id: h.id,
+        tanggal: tanggalStr,
+        keterangan: h.keterangan,
+        created_at: h.created_at
+      };
+    });
+    res.json(mapped);
+  } catch (error) {
+    console.error('Gagal mengambil daftar tanggal merah:', error);
+    res.status(500).json({ error: 'Gagal mengambil daftar tanggal merah' });
+  }
+});
+
+app.post('/api/holidays', async (req, res) => {
+  try {
+    const { tanggal, keterangan } = req.body;
+    if (!tanggal || !keterangan) {
+      return res.status(400).json({ error: 'Tanggal dan keterangan libur wajib diisi' });
+    }
+    const formattedDate = tanggal.slice(0, 10);
+    const id = `hol-${formattedDate}`;
+    await pool.query(
+      `INSERT INTO holidays (id, tanggal, keterangan, created_at)
+       VALUES (?, ?, ?, NOW())
+       ON CONFLICT (tanggal) DO UPDATE SET keterangan = EXCLUDED.keterangan`,
+      [id, formattedDate, keterangan.trim()]
+    );
+
+    // Bersihkan auto-alpa palsu yang sempat ter-generate di tanggal ini (hanya yang berstatus placeholder alpa otomatis)
+    try {
+      await pool.query(
+        `DELETE FROM absensi 
+         WHERE DATE(waktu_absen AT TIME ZONE 'Asia/Jakarta') = $1 
+           AND id LIKE 'alpa-%' 
+           AND foto_url = 'placeholder'`,
+        [formattedDate]
+      );
+    } catch (cleanErr) {
+      console.warn("Peringatan pembersihan auto-alpa saat tandai libur:", cleanErr.message);
+    }
+
+    res.json({ success: true, message: 'Tanggal merah berhasil disimpan', id, tanggal: formattedDate, keterangan: keterangan.trim() });
+  } catch (error) {
+    console.error('Gagal menyimpan tanggal merah:', error);
+    res.status(500).json({ error: 'Gagal menyimpan tanggal merah' });
+  }
+});
+
+app.delete('/api/holidays/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM holidays WHERE id = ? OR tanggal::text = ?', [id, id]);
+    res.json({ success: true, message: 'Tanggal merah berhasil dihapus' });
+  } catch (error) {
+    console.error('Gagal menghapus tanggal merah:', error);
+    res.status(500).json({ error: 'Gagal menghapus tanggal merah' });
+  }
+});
+
 // 7. Change Password
 app.post('/api/users/change-password', async (req, res) => {
   try {
@@ -3372,17 +3491,28 @@ async function syncUserKieDebt(userId) {
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
     const todayDate = parseJakartaDate(todayStr);
 
+    // Fetch PKL details (start_date, end_date)
+    const [pklRows] = await pool.query(
+      "SELECT start_date, end_date FROM pkl_students WHERE user_id = ?",
+      [userId]
+    );
+
     // Determine calculation start date
     let startDate;
     if (user.kie_start_date) {
       startDate = parseJakartaDate(user.kie_start_date);
     } else {
-      const [pklRows] = await pool.query(
-        "SELECT start_date FROM pkl_students WHERE user_id = ?",
-        [userId]
-      );
       if (pklRows.length === 0) return;
       startDate = parseJakartaDate(pklRows[0].start_date);
+    }
+
+    // Determine calculation end date (stops at PKL end_date if student has already completed PKL)
+    let endDate = todayDate;
+    if (pklRows.length > 0 && pklRows[0].end_date) {
+      const pklEndDate = parseJakartaDate(pklRows[0].end_date);
+      if (pklEndDate.getTime() < todayDate.getTime()) {
+        endDate = pklEndDate;
+      }
     }
 
     // The user wants to include TODAY in the debt calculation, even if the day is not over yet.
@@ -3403,22 +3533,35 @@ async function syncUserKieDebt(userId) {
       subMap[dateStr] = (subMap[dateStr] || 0) + parseInt(s.count);
     });
 
+    // Fetch all registered holidays
+    const [holidayRows] = await pool.query('SELECT tanggal FROM holidays');
+    const holidaySet = new Set(
+      holidayRows.map(h => {
+        if (h.tanggal instanceof Date) {
+          return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(h.tanggal);
+        }
+        return String(h.tanggal).slice(0, 10);
+      })
+    );
+
     let C = 0;
     let totalTarget = 0;
     let cur = new Date(startDate.getTime());
 
-    while (cur.getTime() <= todayDate.getTime()) {
-      const day = cur.getUTCDay();
+    while (cur.getTime() <= endDate.getTime()) {
+      const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(cur);
+      const day = cur.getDay();
       const isWeekday = (day !== 0 && day !== 6);
-      const targetToday = isWeekday ? 4 : 0;
+      const isHoliday = holidaySet.has(dateStr);
+      
+      const targetToday = (isWeekday && !isHoliday) ? 4 : 0;
       totalTarget += targetToday;
 
-      const dateStr = cur.toISOString().split('T')[0];
       const subToday = subMap[dateStr] || 0;
 
       C = Math.min(C + subToday, totalTarget);
 
-      cur.setTime(cur.getTime() + 24 * 60 * 60 * 1000);
+      cur.setDate(cur.getDate() + 1);
     }
 
     const currentKieDebt = Math.max(0, totalTarget - C);
@@ -3740,7 +3883,7 @@ app.get('/api/kie/today-count', validateDeviceSession, async (req, res) => {
     );
 
     const [submissions] = await pool.query(
-      "SELECT id, api_key, submitted_at FROM kie_submissions WHERE user_id = ? ORDER BY submitted_at DESC",
+      "SELECT id, api_key, submitted_at AT TIME ZONE 'UTC' as submitted_at FROM kie_submissions WHERE user_id = ? ORDER BY submitted_at DESC",
       [user.id]
     );
 
@@ -3787,7 +3930,7 @@ app.get('/api/kie/admin/users-submissions', async (req, res) => {
 
     // Fetch page of users
     const [users] = await pool.query(
-      `SELECT u.id, u.username, u.nama_lengkap, u.role, u.foto_profile, u.email, u.kie_debt, u.telegram_chat_id, u.telegram_chat_name, u.created_at, COALESCE(u.kie_start_date, p.start_date) as pkl_start_date
+      `SELECT u.id, u.username, u.nama_lengkap, u.role, u.foto_profile, u.email, u.kie_debt, u.telegram_chat_id, u.telegram_chat_name, u.created_at, u.kie_start_date, p.start_date as pkl_start_date, p.end_date as pkl_end_date
        FROM users u
        LEFT JOIN pkl_students p ON u.id = p.user_id
        WHERE u.${whereClause.replace('role', 'role').replace('kie_debt', 'kie_debt')} 
@@ -3803,7 +3946,7 @@ app.get('/api/kie/admin/users-submissions', async (req, res) => {
     // Get submissions for these users
     const userIds = users.map(u => u.id);
     const [submissions] = await pool.query(
-      `SELECT id, user_id, api_key, submitted_at 
+      `SELECT id, user_id, api_key, submitted_at AT TIME ZONE 'UTC' as submitted_at 
        FROM kie_submissions 
        WHERE user_id IN (?) 
        ORDER BY submitted_at DESC`,
@@ -4296,10 +4439,12 @@ app.post('/api/remote/requests/:id/approve', async (req, res) => {
       
       const newAbsensiId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
+      const clockInTime = requestRow.created_at ? new Date(requestRow.created_at).toISOString() : new Date().toISOString();
+
       await pool.query(
         `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
-         VALUES (?, ?, ?, ?, NOW(), 'wfh-auto-clock-in', NULL, NULL, 'Hadir', 0)`,
-        [newAbsensiId, requestRow.user_id, employeeUsername, employeeName]
+         VALUES (?, ?, ?, ?, ?, 'wfh-auto-clock-in', NULL, NULL, 'Hadir', 0)`,
+        [newAbsensiId, requestRow.user_id, employeeUsername, employeeName, clockInTime]
       );
     } catch (absensiErr) {
       console.error("Gagal otomatis clock-in setelah WFH disetujui via email:", absensiErr);
@@ -4353,10 +4498,12 @@ app.post('/api/remote/requests/:id/admin-approve', validateDeviceSession, async 
       const crypto = require('crypto');
       const newAbsensiId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
+      const clockInTime = requestRow.created_at ? new Date(requestRow.created_at).toISOString() : new Date().toISOString();
+
       await pool.query(
         `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
          VALUES (?, ?, ?, ?, ?, 'wfh-auto-clock-in', NULL, NULL, 'Hadir', 0)`,
-        [newAbsensiId, requestRow.user_id, employeeUsername, employeeName, new Date().toISOString()]
+        [newAbsensiId, requestRow.user_id, employeeUsername, employeeName, clockInTime]
       );
     } catch (absensiErr) {
       console.error("Gagal otomatis clock-in setelah WFH disetujui via admin:", absensiErr);
@@ -4454,7 +4601,22 @@ app.post('/api/remote/requests/:id/cancel', validateDeviceSession, async (req, r
       });
     }
 
-    res.json({ success: true, message: 'Permohonan remote working berhasil dibatalkan.', request: remoteService.wfhRequestDto(result[0]) });
+    const cancelledRequest = result[0];
+
+    // If an approved request is cancelled, remove the auto-generated clock-in record so employee can clock-in normally at the office
+    try {
+      await pool.query(
+        `DELETE FROM absensi 
+         WHERE user_id = $1 
+           AND DATE(waktu_absen) = $2 
+           AND foto_url = 'wfh-auto-clock-in'`,
+        [cancelledRequest.user_id, cancelledRequest.tanggal]
+      );
+    } catch (cleanErr) {
+      console.error("Gagal membersihkan auto-clock-in saat WFH dibatalkan:", cleanErr);
+    }
+
+    res.json({ success: true, message: 'Permohonan remote working berhasil dibatalkan.', request: remoteService.wfhRequestDto(cancelledRequest) });
   } catch (error) {
     console.error('Error cancelling WFH:', error);
     res.status(500).json({ error: 'Gagal memproses pembatalan remote' });
@@ -4912,14 +5074,16 @@ app.use('/api/v1', pklActivityRouter);
 // CERTIFICATE GRADE API ROUTES
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ── Helper: Count working days (Mon-Fri) in a date range ─────────────────────
-function countWorkingDays(startDate, endDate) {
+// ── Helper: Count working days (Mon-Fri, excluding holidays) in a date range ─────────────────────
+function countWorkingDays(startDate, endDate, holidaySet = null) {
   let count = 0;
   const cur = new Date(startDate);
   const end = new Date(endDate);
   while (cur <= end) {
     const day = cur.getDay();
-    if (day !== 0 && day !== 6) count++;
+    const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(cur);
+    const isHoliday = holidaySet ? holidaySet.has(dateStr) : false;
+    if (day !== 0 && day !== 6 && !isHoliday) count++;
     cur.setDate(cur.getDate() + 1);
   }
   return count;
@@ -5192,12 +5356,21 @@ app.get('/api/cert-grades', async (req, res) => {
     const todayStr = todayJakarta.toISOString().split('T')[0]; // 'YYYY-MM-DD'
 
     // Pre-calculate day-by-day cumulative targets and counted submissions
+    const [holidayRows] = await pool.query('SELECT tanggal FROM holidays');
+    const holidaySet = new Set(
+      holidayRows.map(h => {
+        if (h.tanggal instanceof Date) {
+          return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(h.tanggal);
+        }
+        return String(h.tanggal).slice(0, 10);
+      })
+    );
+
     const dailyRecords = {}; // dateStr -> { counted, cumulativeTarget }
     let C_run = 0;
     let cumulativeTarget = 0;
     let cur_day = new Date(startStr);
     const endLimitDate = new Date(endStr);
-    
 
     // Determine custom KIE start date (fallback to PKL start date if not set)
     const kieStartStr = student.kie_start_date ? formatDateStr(student.kie_start_date) : startStr;
@@ -5212,8 +5385,9 @@ app.get('/api/cert-grades', async (req, res) => {
       const dateStr = formatDateStr(cur_day);
       
       const isBeforeKieStart = dateStr < kieStartStr;
+      const isHoliday = holidaySet.has(dateStr);
       
-      const targetToday = (isWeekday && !isBeforeKieStart) ? 4 : 0;
+      const targetToday = (isWeekday && !isBeforeKieStart && !isHoliday) ? 4 : 0;
       cumulativeTarget += targetToday;
 
       const subToday = subMap[dateStr] || 0;
@@ -5255,7 +5429,7 @@ app.get('/api/cert-grades', async (req, res) => {
       const kieSubmitted = endRecord ? (endRecord.counted - startRecord.counted) : 0;
       const kiePct = kieTarget > 0 ? Math.min(100, (kieSubmitted / kieTarget) * 100) : 100;
 
-      const workingDays = countWorkingDays(new Date(curStart), new Date(actualEnd));
+      const workingDays = countWorkingDays(new Date(curStart), new Date(actualEnd), holidaySet);
 
       // Criterion scores for this month
       const monthScores = scoreMap[m] || {};

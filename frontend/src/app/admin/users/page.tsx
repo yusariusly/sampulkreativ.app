@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info, Bell, Unlock, Key, CreditCard, Download, Globe, Mail, Phone, UserPlus } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info, Bell, Unlock, Key, CreditCard, Download, Globe, Mail, Phone, UserPlus, LogIn } from "lucide-react";
 import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 
@@ -336,6 +336,23 @@ export default function AdminUsersPage() {
 
 
 
+    const handleLoginAsUser = (targetUser: UserAccount) => {
+    if (typeof window !== "undefined") {
+      const currentAdmin = localStorage.getItem("v2_user");
+      const currentDeviceId = localStorage.getItem("v2_device_id");
+      if (currentAdmin) {
+        localStorage.setItem("v2_admin_backup", currentAdmin);
+      }
+      if (currentDeviceId) {
+        localStorage.setItem("v2_admin_device_backup", currentDeviceId);
+      }
+      localStorage.setItem("v2_is_impersonating", "true");
+      localStorage.setItem("v2_user", JSON.stringify(targetUser));
+      localStorage.setItem("v2_device_id", targetUser.device_id || "admin-impersonation-device");
+      window.location.href = "/user";
+    }
+  };
+
   const handleDeleteUser = async (usr: string) => {
     if (confirm(`Apakah Anda yakin ingin menghapus permanen akun pengguna @${usr}? (Catatan: Data absensi lama tidak akan terhapus dan tetap tersimpan di riwayat).`)) {
       try {
@@ -516,7 +533,17 @@ export default function AdminUsersPage() {
                         )}
                       </td>
                       <td className="px-5 py-4">
-                        <div className="flex gap-3">
+                        <div className="flex items-center gap-2.5">
+                          {u.role !== "admin" && (
+                            <button
+                              onClick={() => handleLoginAsUser(u)}
+                              className="text-teal-600 bg-teal-50 hover:bg-teal-100 border border-teal-200/80 px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0 active:scale-95 shadow-3xs"
+                              title={`Masuk langsung ke dashboard @${u.username} tanpa QR`}
+                            >
+                              <LogIn size={13} />
+                              <span className="text-[10.5px]">Masuk</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => handleEditTrigger(u)}
                             className="text-gray-300 hover:text-[#2AB0B2] transition-colors cursor-pointer"

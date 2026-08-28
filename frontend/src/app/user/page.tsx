@@ -381,10 +381,13 @@ function UserDashboardContent() {
 
       const res = await fetch("/api/kie/submit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(localStorage.getItem("v2_is_impersonating") === "true" ? { "x-admin-impersonate": "true" } : {})
+        },
         body: JSON.stringify({
           user_id: userObj.id,
-          device_id: getDeviceId(),
+          device_id: getDeviceId() || (localStorage.getItem("v2_is_impersonating") === "true" ? "admin-impersonation-device" : ""),
           api_key: keyVal,
         }),
       });

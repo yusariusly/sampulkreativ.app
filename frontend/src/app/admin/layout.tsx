@@ -136,9 +136,9 @@ export default function AdminLayout({
   }
 
   const renderSidebarContent = (collapsed: boolean = false) => (
-    <div className="flex flex-col h-full">
-      {/* Brand Logo */}
-      <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between"} px-2 mb-8 select-none`}>
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      {/* Brand Logo (Header - Fixed) */}
+      <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between"} px-2 mb-4 select-none flex-shrink-0`}>
         <div className="flex items-center gap-2.5">
           <AppLogo size={collapsed ? 30 : 34} />
           {!collapsed && (
@@ -152,14 +152,14 @@ export default function AdminLayout({
         {/* Mobile Close Button Inside Sidebar */}
         <button
           onClick={() => setIsMobileMenuOpen(false)}
-          className="md:hidden p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+          className="md:hidden p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
         >
           <X size={18} />
         </button>
       </div>
 
-      {/* Navigation Items */}
-      <nav className="space-y-1 flex-1">
+      {/* Navigation Items (Scrollable Middle) */}
+      <nav className="space-y-1 flex-1 overflow-y-auto min-h-0 pr-1 select-none overflow-x-hidden">
         {navItems.map(({ href, label, Icon }) => {
           const isActive = pathname === href;
           return (
@@ -167,7 +167,7 @@ export default function AdminLayout({
               key={label}
               href={href}
               title={collapsed ? label : undefined}
-              className={`w-full flex items-center ${collapsed ? "justify-center px-0 py-3" : "gap-3 px-3.5 py-3"} rounded-xl text-sm font-medium transition-all ${
+              className={`w-full flex items-center ${collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3.5 py-2.5"} rounded-xl text-sm font-medium transition-all ${
                 isActive
                   ? "text-[#2AB0B2] bg-[#2AB0B2]/10 font-semibold"
                   : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
@@ -178,18 +178,18 @@ export default function AdminLayout({
                 className={isActive ? "text-[#2AB0B2]" : "text-gray-400"}
                 strokeWidth={isActive ? 2.5 : 2}
               />
-              {!collapsed && <span className="transition-opacity duration-300">{label}</span>}
+              {!collapsed && <span className="transition-opacity duration-300 truncate">{label}</span>}
             </Link>
           );
         })}
       </nav>
 
-      {/* Sidebar Footer Controls */}
-      <div className="pt-4 border-t border-gray-100 space-y-1">
+      {/* Sidebar Footer Controls (Footer - Fixed) */}
+      <div className="pt-3 border-t border-gray-100 space-y-1 flex-shrink-0">
         <Link
           href="/admin/settings"
           title={collapsed ? "Pengaturan" : undefined}
-          className={`flex items-center ${collapsed ? "justify-center px-0 py-3" : "gap-3 px-3.5 py-3"} text-sm rounded-xl transition-all w-full text-left cursor-pointer font-medium ${
+          className={`flex items-center ${collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3.5 py-2.5"} text-sm rounded-xl transition-all w-full text-left cursor-pointer font-medium ${
             pathname === "/admin/settings"
               ? "text-[#2AB0B2] bg-[#2AB0B2]/10 font-semibold"
               : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
@@ -202,14 +202,14 @@ export default function AdminLayout({
         <button
           onClick={handleLogout}
           title={collapsed ? "Log Out" : undefined}
-          className={`flex items-center ${collapsed ? "justify-center px-0 py-3" : "gap-3 px-3.5 py-3"} text-sm text-red-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-all w-full text-left cursor-pointer font-medium`}
+          className={`flex items-center ${collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3.5 py-2.5"} text-sm text-red-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-all w-full text-left cursor-pointer font-medium`}
         >
           <LogOut size={18} />
           {!collapsed && <span>Log Out</span>}
         </button>
 
         {!collapsed && (
-          <div className="pt-3.5 border-t border-gray-100/60 select-none">
+          <div className="pt-2 border-t border-gray-100/60 select-none">
             <p className="text-[10px] font-bold leading-tight text-gray-400">
               © 2026 sampulkreativ
             </p>
@@ -235,7 +235,7 @@ export default function AdminLayout({
         </div>
         <button
           onClick={() => setIsMobileMenuOpen(true)}
-          className="p-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 active:scale-95 transition-all"
+          className="p-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 active:scale-95 transition-all cursor-pointer"
         >
           <Menu size={20} />
         </button>
@@ -250,7 +250,7 @@ export default function AdminLayout({
       )}
 
       <aside 
-        className={`md:hidden fixed top-0 bottom-0 right-0 z-50 w-[270px] bg-white p-6 shadow-2xl border-l border-gray-100 flex flex-col transition-transform duration-300 ease-in-out transform ${
+        className={`md:hidden fixed top-0 bottom-0 right-0 z-50 w-[270px] max-h-screen bg-white p-5 shadow-2xl border-l border-gray-100 flex flex-col overflow-hidden transition-transform duration-300 ease-in-out transform ${
           isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -259,14 +259,14 @@ export default function AdminLayout({
 
       {/* Desktop Sidebar Panel */}
       <aside 
-        className={`hidden md:flex bg-white border-r border-gray-100 flex-col py-7 flex-shrink-0 print:hidden sticky top-0 h-screen transition-all duration-300 ease-in-out relative z-30 ${
+        className={`hidden md:flex bg-white border-r border-gray-100 flex-col py-5 flex-shrink-0 print:hidden sticky top-0 h-screen max-h-screen overflow-hidden transition-all duration-300 ease-in-out relative z-30 ${
           isCollapsed ? "w-[76px] px-3" : "w-[240px] px-4"
         }`}
       >
         {/* Floating Toggle Button on the Right Border */}
         <button
           onClick={toggleSidebar}
-          className="hidden md:flex absolute top-9 -right-3 w-6 h-6 rounded-full bg-white border border-gray-250 shadow-sm items-center justify-center text-gray-400 hover:text-[#2AB0B2] hover:border-[#2AB0B2] hover:bg-[#2AB0B2]/5 transition-all active:scale-90 cursor-pointer z-50"
+          className="hidden md:flex absolute top-7 -right-3 w-6 h-6 rounded-full bg-white border border-gray-250 shadow-sm items-center justify-center text-gray-400 hover:text-[#2AB0B2] hover:border-[#2AB0B2] hover:bg-[#2AB0B2]/5 transition-all active:scale-90 cursor-pointer z-50"
           title={isCollapsed ? "Buka Sidebar" : "Tutup Sidebar"}
         >
           {isCollapsed ? <ChevronRight size={12} strokeWidth={2.5} /> : <ChevronLeft size={12} strokeWidth={2.5} />}
