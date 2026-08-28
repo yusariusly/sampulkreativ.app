@@ -7,6 +7,8 @@ const TEAL = "#2AB0B2";
 
 const STATUS_STYLES: Record<string, string> = {
   Hadir: "bg-green-500 text-white",
+  WFH: "bg-indigo-600 text-white",
+  Remote: "bg-indigo-600 text-white",
   Libur: "bg-[#F6C13B] text-white",
   Alpa: "bg-red-500 text-white",
   Sakit: "bg-blue-500 text-white",
@@ -30,6 +32,7 @@ export default function AdminDataPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [holidays, setHolidays] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<"daily" | "user">("daily");
 
   // User list view state
@@ -98,6 +101,18 @@ export default function AdminDataPage() {
     setTimeout(() => {
       setNotification("");
     }, 3500);
+  };
+
+    const fetchHolidays = async () => {
+    try {
+      const res = await fetch("/api/holidays");
+      if (res.ok) {
+        const data = await res.json();
+        setHolidays(data);
+      }
+    } catch (err) {
+      console.error("Gagal memuat daftar tanggal merah:", err);
+    }
   };
 
   const fetchUsers = async () => {
@@ -224,7 +239,7 @@ export default function AdminDataPage() {
       const mm = String(timeObj.getMinutes()).padStart(2, "0");
       const timeStr = `${hh}:${mm} WIB`;
 
-      if (log.status === 'Hadir' || log.status === 'Terlambat') {
+      if (log.status === 'Hadir' || log.status === 'Terlambat' || log.status === 'WFH' || log.status === 'Remote') {
         grp.checkInTime = timeStr;
       } else if (log.status === 'Pulang') {
         grp.checkOutTime = timeStr;
@@ -232,9 +247,9 @@ export default function AdminDataPage() {
       
       if (log.status === 'Pulang') {
         grp.status = 'Pulang';
-      } else if (['Izin', 'Sakit', 'Alpa'].includes(log.status)) {
+      } else if (['Izin', 'Sakit', 'Alpa', 'WFH', 'Remote'].includes(log.status)) {
         grp.status = log.status;
-      } else if (!['Pulang', 'Izin', 'Sakit', 'Alpa'].includes(grp.status)) {
+      } else if (!['Pulang', 'Izin', 'Sakit', 'Alpa', 'WFH', 'Remote'].includes(grp.status)) {
         grp.status = log.status;
       }
       
@@ -249,6 +264,7 @@ export default function AdminDataPage() {
   useEffect(() => {
     fetchLogs();
     fetchUsers();
+    fetchHolidays();
   }, []);
 
   useEffect(() => {
@@ -495,7 +511,9 @@ export default function AdminDataPage() {
                     className="w-full pl-3.5 pr-10 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] focus:ring-2 focus:ring-[#2AB0B2]/10 outline-none bg-white text-gray-700 transition-all cursor-pointer font-semibold shadow-xs appearance-none"
                   >
                     <option>Belum Absen</option>
+                    <option>Libur</option>
                     <option>Hadir</option>
+                    <option>WFH</option>
                     <option>Pulang</option>
                     <option>Izin</option>
                     <option>Sakit</option>
@@ -615,7 +633,30 @@ export default function AdminDataPage() {
 
       {/* Conditional Layout Rendering */}
       {viewMode === "daily" ? (
-        /* Main Table Card containing integrated Toolbar (Daily View) */
+        <>
+        {/* Tanggal Merah / Libur Alert Banner */}
+        {(() => {
+          const currentHoliday = holidays.find(h => String(h.tanggal).slice(0, 10) === selectedDate);
+          if (!currentHoliday) return null;
+          return (
+            <div className="mb-4 bg-amber-50 border border-amber-200/80 rounded-2xl p-4 flex items-center justify-between shadow-xs select-none animate-in fade-in duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-xl shrink-0">
+                  🏖️
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-amber-950 leading-tight">Tanggal Merah / Libur Nasional</h4>
+                  <p className="text-xs text-amber-700 font-medium mt-0.5">{currentHoliday.keterangan} — Seluruh Karyawan & Siswa PKL Libur</p>
+                </div>
+              </div>
+              <span className="px-3 py-1 bg-amber-400 text-amber-950 text-xs font-black rounded-full uppercase tracking-wider shrink-0 shadow-2xs">
+                Libur
+              </span>
+            </div>
+          );
+        })()}
+
+        {/* Main Table Card containing integrated Toolbar (Daily View) */}
         <div className="bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
           {/* Table Toolbar / Controls */}
           <div className="p-4 bg-gray-50/50 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3 select-none">
@@ -733,8 +774,20 @@ export default function AdminDataPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="text-center py-8 text-sm text-gray-400 font-medium">
-                      Tidak ada log absensi yang cocok dengan kata kunci
+                    <td colSpan={5} className="text-center py-10 text-sm font-medium">
+                      {(() => {
+                        const currentHoliday = holidays.find(h => String(h.tanggal).slice(0, 10) === selectedDate);
+                        if (currentHoliday) {
+                          return (
+                            <div className="flex flex-col items-center justify-center gap-2 py-4 text-amber-800 select-none">
+                              <span className="text-3xl">🎉</span>
+                              <span className="font-bold text-base text-amber-950">Hari Ini Tanggal Merah ({currentHoliday.keterangan})</span>
+                              <span className="text-xs text-amber-600 max-w-sm">Tidak ada catatan kehadiran yang masuk karena seluruh staf dan siswa libur.</span>
+                            </div>
+                          );
+                        }
+                        return <span className="text-gray-400">Tidak ada log absensi yang cocok dengan kata kunci</span>;
+                      })()}
                     </td>
                   </tr>
                 )}
@@ -742,6 +795,7 @@ export default function AdminDataPage() {
             </table>
           </div>
         </div>
+        </>
       ) : (
         /* Split Pane User History View */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

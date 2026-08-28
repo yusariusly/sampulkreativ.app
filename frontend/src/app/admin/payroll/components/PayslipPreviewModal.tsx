@@ -22,6 +22,7 @@ interface SlipDetails {
   tunjangan_makan: number;
   tunjangan_transport: number;
   bonus: number;
+  potongan_wfh?: number;
   potongan_alpha: number;
   potongan_sakit: number;
   potongan_izin: number;
@@ -307,9 +308,9 @@ export default function PayslipPreviewModal({
                   <td className="border-r border-black p-1.5 text-center"></td>
                   <td className="border-r border-black p-1.5 text-left">Bonus Kinerja</td>
                   <td className="border-r border-black p-1.5 text-right font-bold">{formatRupiah(slip.bonus)}</td>
-                  <td className="border-r border-black p-1.5 text-left"></td>
-                  <td className="border-r border-black p-1.5 text-center"></td>
-                  <td className="p-1.5 text-right"></td>
+                  <td className="border-r border-black p-1.5 text-left">WFH (Makan/Trans.)</td>
+                  <td className="border-r border-black p-1.5 text-center font-semibold">{slip.hari_remote}</td>
+                  <td className="p-1.5 text-right">{formatRupiah(slip.potongan_wfh || 0)}</td>
                 </tr>
                 {/* Subtotals Row */}
                 <tr className="border-b border-black font-bold">

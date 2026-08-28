@@ -1536,14 +1536,24 @@ const fillAlpaForUser = async (userId) => {
       })
     );
 
-    const [holidayRows] = await pool.query('SELECT tanggal FROM holidays');
+    // Auto-cleanup any invalid auto-alpa records on registered holidays or weekends
+    try {
+      await pool.query(`
+        DELETE FROM absensi 
+        WHERE id LIKE 'alpa-%' 
+          AND foto_url = 'placeholder'
+          AND (
+            (waktu_absen AT TIME ZONE 'Asia/Jakarta')::date IN (SELECT tanggal FROM holidays)
+            OR EXTRACT(DOW FROM (waktu_absen AT TIME ZONE 'Asia/Jakarta')) IN (0, 6)
+          )
+      `);
+    } catch (cleanErr) {
+      console.warn("Peringatan pembersihan auto-alpa:", cleanErr.message);
+    }
+
+    const [holidayRows] = await pool.query('SELECT tanggal::text as tanggal_str FROM holidays');
     const holidayDates = new Set(
-      holidayRows.map(h => {
-        if (h.tanggal instanceof Date) {
-          return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(h.tanggal);
-        }
-        return String(h.tanggal).slice(0, 10);
-      })
+      holidayRows.map(h => String(h.tanggal_str).slice(0, 10))
     );
 
     const missingRecords = [];
@@ -2354,11 +2364,18 @@ app.get('/api/attendance/override/status', async (req, res) => {
     const user = userRows[0];
 
     const [rows] = await pool.query(
-      'SELECT status, waktu_absen FROM absensi WHERE user_id = ? AND DATE(waktu_absen) = ?',
+      "SELECT status, waktu_absen FROM absensi WHERE user_id = ? AND (waktu_absen AT TIME ZONE 'Asia/Jakarta')::date = ?",
       [user.id, date]
     );
 
     let status = 'Belum Absen';
+
+    if (rows.length === 0) {
+      const [holRows] = await pool.query('SELECT keterangan FROM holidays WHERE tanggal::text = ?', [date]);
+      if (holRows.length > 0) {
+        status = 'Libur';
+      }
+    }
     let checkInTime = null;
     let checkOutTime = null;
 
@@ -2366,6 +2383,8 @@ app.get('/api/attendance/override/status', async (req, res) => {
       const statuses = rows.map(r => r.status);
       if (statuses.includes('Pulang')) {
         status = 'Pulang';
+      } else if (statuses.includes('WFH')) {
+        status = 'WFH';
       } else if (statuses.includes('Izin')) {
         status = 'Izin';
       } else if (statuses.includes('Sakit')) {
@@ -3266,9 +3285,9 @@ app.post('/api/holidays', async (req, res) => {
     try {
       await pool.query(
         `DELETE FROM absensi 
-         WHERE DATE(waktu_absen AT TIME ZONE 'Asia/Jakarta') = $1 
-           AND id LIKE 'alpa-%' 
-           AND foto_url = 'placeholder'`,
+         WHERE id LIKE 'alpa-%' 
+           AND foto_url = 'placeholder'
+           AND (waktu_absen AT TIME ZONE 'Asia/Jakarta')::date = ?`,
         [formattedDate]
       );
     } catch (cleanErr) {
@@ -4443,7 +4462,7 @@ app.post('/api/remote/requests/:id/approve', async (req, res) => {
 
       await pool.query(
         `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
-         VALUES (?, ?, ?, ?, ?, 'wfh-auto-clock-in', NULL, NULL, 'Hadir', 0)`,
+         VALUES (?, ?, ?, ?, ?, 'wfh-auto-clock-in', NULL, NULL, 'WFH', 0)`,
         [newAbsensiId, requestRow.user_id, employeeUsername, employeeName, clockInTime]
       );
     } catch (absensiErr) {
@@ -4502,7 +4521,7 @@ app.post('/api/remote/requests/:id/admin-approve', validateDeviceSession, async 
 
       await pool.query(
         `INSERT INTO absensi (id, user_id, username, nama_lengkap, waktu_absen, foto_url, latitude, longitude, status, diubah_oleh_admin) 
-         VALUES (?, ?, ?, ?, ?, 'wfh-auto-clock-in', NULL, NULL, 'Hadir', 0)`,
+         VALUES (?, ?, ?, ?, ?, 'wfh-auto-clock-in', NULL, NULL, 'WFH', 0)`,
         [newAbsensiId, requestRow.user_id, employeeUsername, employeeName, clockInTime]
       );
     } catch (absensiErr) {

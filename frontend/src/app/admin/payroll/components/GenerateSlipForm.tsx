@@ -51,6 +51,7 @@ export default function GenerateSlipForm({
   const [tunjanganMakan, setTunjanganMakan] = useState(0);
   const [tunjanganTransport, setTunjanganTransport] = useState(0);
   const [bonus, setBonus] = useState(0);
+  const [potonganWfh, setPotonganWfh] = useState(0);
   const [potonganAlpha, setPotonganAlpha] = useState(0);
   const [potonganSakit, setPotonganSakit] = useState(0);
   const [potonganIzin, setPotonganIzin] = useState(0);
@@ -72,28 +73,48 @@ export default function GenerateSlipForm({
       const dailyStatus: Record<string, string> = {};
       
       logs.forEach((log: any) => {
-        const d = new Date(log.waktu_absen);
-        if (d.getFullYear() === selectedYear && d.getMonth() === selectedMonth) {
-          const key = d.toISOString().split("T")[0];
+        let dateStr = "";
+        try {
+          dateStr = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "Asia/Jakarta",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }).format(new Date(log.waktu_absen));
+        } catch {
+          dateStr = String(log.waktu_absen).slice(0, 10);
+        }
+
+        const [y, m] = dateStr.split("-").map(Number);
+        if (y === selectedYear && m === selectedMonth + 1) {
+          const key = dateStr;
           const st = log.status;
           if (!dailyStatus[key]) {
             dailyStatus[key] = st;
           } else {
             const cur = dailyStatus[key];
-            if (st === "Hadir" || st === "Terlambat") dailyStatus[key] = "Hadir";
-            else if (st === "Remote" && cur !== "Hadir" && cur !== "Terlambat") dailyStatus[key] = "Remote";
+            if (st === "WFH" || st === "Remote") {
+              dailyStatus[key] = "WFH";
+            } else if ((st === "Hadir" || st === "Terlambat") && cur !== "WFH" && cur !== "Remote") {
+              dailyStatus[key] = "Hadir";
+            } else if ((st === "Sakit" || st === "Izin") && cur !== "Hadir" && cur !== "Terlambat" && cur !== "WFH" && cur !== "Remote") {
+              dailyStatus[key] = st;
+            }
           }
         }
       });
 
-      let kantor = 0, remote = 0, sakit = 0, izin = 0, alpa = 0;
+      let remote = 0, sakit = 0, izin = 0, alpa = 0;
       Object.values(dailyStatus).forEach((st) => {
-        if (st === "Hadir" || st === "Terlambat") kantor++;
-        else if (st === "Remote") remote++;
+        if (st === "WFH" || st === "Remote") remote++;
         else if (st === "Sakit") sakit++;
         else if (st === "Izin") izin++;
         else if (st === "Alpa") alpa++;
       });
+
+      // Tanggal merah & hari kerja penuh 1 bulan otomatis dihitung hadir (Standar 22 Hari Kerja)
+      const standardWorkingDays = 22;
+      const kantor = Math.max(0, standardWorkingDays - (remote + sakit + izin + alpa));
 
       setHariKantor(kantor);
       setHariRemote(remote);
@@ -101,19 +122,28 @@ export default function GenerateSlipForm({
       setHariIzin(izin);
       setHariAlpha(alpa);
 
-      // Pre-fill calculation values based on user configuration and formulas
-      const gp = (kantor + remote + sakit + izin) * Number(employee.gaji_pokok);
-      const makan = (kantor + remote + sakit + izin) * Number(employee.tunjangan_makan);
-      const transport = (kantor + remote + sakit + izin) * Number(employee.tunjangan_transport);
+      // Pre-fill calculation values: 
+      // 1. Pendapatan Standar 1 Bulan Penuh (22 Hari Kerja)
+      const gp = standardWorkingDays * Number(employee.gaji_pokok);
+      const makan = standardWorkingDays * Number(employee.tunjangan_makan);
+      const transport = standardWorkingDays * Number(employee.tunjangan_transport);
       const bns = Number(employee.bonus || 0);
-      const alphaDed = alpa * Number(employee.gaji_pokok);
+
+      // 2. Rincian Potongan Otomatis Sesuai Absensi:
+      // - WFH: Tidak mendapatkan tunjangan makan & transport
+      const wfhDed = remote * (Number(employee.tunjangan_makan) + Number(employee.tunjangan_transport));
+      // - Sakit: Tidak mendapatkan tunjangan makan & transport
       const sakitDed = sakit * (Number(employee.tunjangan_makan) + Number(employee.tunjangan_transport));
+      // - Izin: Tidak mendapatkan tunjangan makan & transport
       const izinDed = izin * (Number(employee.tunjangan_makan) + Number(employee.tunjangan_transport));
+      // - Alpha: Dipotong penuh Gaji Pokok + Uang Makan + Transport
+      const alphaDed = alpa * (Number(employee.gaji_pokok) + Number(employee.tunjangan_makan) + Number(employee.tunjangan_transport));
 
       setGajiPokok(gp);
       setTunjanganMakan(makan);
       setTunjanganTransport(transport);
       setBonus(bns);
+      setPotonganWfh(wfhDed);
       setPotonganAlpha(alphaDed);
       setPotonganSakit(sakitDed);
       setPotonganIzin(izinDed);
@@ -139,7 +169,7 @@ export default function GenerateSlipForm({
   };
 
   const totalPendapatan = gajiPokok + tunjanganMakan + tunjanganTransport + bonus;
-  const totalPotongan = potonganAlpha + potonganSakit + potonganIzin;
+  const totalPotongan = potonganAlpha + potonganWfh + potonganSakit + potonganIzin;
   const gajiBersih = totalPendapatan - totalPotongan;
 
   const handleRequestPreview = () => {
@@ -161,6 +191,7 @@ export default function GenerateSlipForm({
       tunjangan_makan: tunjanganMakan,
       tunjangan_transport: tunjanganTransport,
       bonus: bonus,
+      potongan_wfh: potonganWfh,
       potongan_alpha: potonganAlpha,
       potongan_sakit: potonganSakit,
       potongan_izin: potonganIzin,
@@ -289,15 +320,15 @@ export default function GenerateSlipForm({
               
               <div className="space-y-2.5 text-xs">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-500 font-semibold">Gaji Pokok ({hariKantor + hariRemote + hariSakit + hariIzin} Hari):</span>
+                  <span className="text-gray-500 font-semibold">Gaji Pokok (22 Hari Standar):</span>
                   <span className="font-bold text-slate-800">{formatRupiah(gajiPokok)}</span>
                 </div>
                  <div className="flex justify-between items-center">
-                  <span className="text-gray-500 font-semibold">Tunjangan Makan ({hariKantor + hariRemote + hariSakit + hariIzin} Hari):</span>
+                  <span className="text-gray-500 font-semibold">Tunjangan Makan (22 Hari Standar):</span>
                   <span className="font-bold text-slate-800">{formatRupiah(tunjanganMakan)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-500 font-semibold">Tunjangan Transport ({hariKantor + hariRemote + hariSakit + hariIzin} Hari):</span>
+                  <span className="text-gray-500 font-semibold">Tunjangan Transport (22 Hari Standar):</span>
                   <span className="font-bold text-slate-800">{formatRupiah(tunjanganTransport)}</span>
                 </div>
                 
@@ -321,17 +352,17 @@ export default function GenerateSlipForm({
               </h5>
 
               <div className="space-y-2.5 text-xs">
-                {/* Editable Alpha deduction */}
+                {/* Editable WFH deduction (uang makan & transport tidak didapat saat WFH) */}
                 <div className="flex items-center justify-between">
-                  <label className="text-gray-500 font-semibold">Potongan Alpha ({hariAlpha} Hari):</label>
+                  <label className="text-gray-500 font-semibold">Potongan WFH ({hariRemote} Hari):</label>
                   <input
                     type="text"
-                    value={formatDotNumber(potonganAlpha)}
-                    onChange={(e) => setPotonganAlpha(parseDotNumber(e.target.value))}
+                    value={formatDotNumber(potonganWfh)}
+                    onChange={(e) => setPotonganWfh(parseDotNumber(e.target.value))}
                     className="w-28 px-2.5 py-1 rounded-lg border border-gray-200 focus:border-[#2AB0B2] outline-none text-[11px] text-right font-bold text-slate-700 bg-white"
                   />
                 </div>
-                
+
                 {/* Editable Sakit deduction */}
                 <div className="flex items-center justify-between">
                   <label className="text-gray-500 font-semibold">Potongan Sakit ({hariSakit} Hari):</label>
@@ -350,6 +381,17 @@ export default function GenerateSlipForm({
                     type="text"
                     value={formatDotNumber(potonganIzin)}
                     onChange={(e) => setPotonganIzin(parseDotNumber(e.target.value))}
+                    className="w-28 px-2.5 py-1 rounded-lg border border-gray-200 focus:border-[#2AB0B2] outline-none text-[11px] text-right font-bold text-slate-700 bg-white"
+                  />
+                </div>
+
+                {/* Editable Alpha deduction */}
+                <div className="flex items-center justify-between">
+                  <label className="text-gray-500 font-semibold">Potongan Alpha ({hariAlpha} Hari):</label>
+                  <input
+                    type="text"
+                    value={formatDotNumber(potonganAlpha)}
+                    onChange={(e) => setPotonganAlpha(parseDotNumber(e.target.value))}
                     className="w-28 px-2.5 py-1 rounded-lg border border-gray-200 focus:border-[#2AB0B2] outline-none text-[11px] text-right font-bold text-slate-700 bg-white"
                   />
                 </div>

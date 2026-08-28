@@ -21,6 +21,7 @@ dist/
 # Uploads and backups
 backend/public/uploads/
 backend/backups/
+backups/
 
 # Scratch & test scripts in backend root
 backend/check_*.js

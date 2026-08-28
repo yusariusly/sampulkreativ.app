@@ -119,7 +119,7 @@ function evaluateRemotePermissions(facts) {
   const status = (wfh && !isExpired) ? wfh.status : null;
   const reportSubmitted = wfh ? wfh.report_submitted_at !== null : false;
 
-  const hasHadir = facts.absensi.some(a => a.status === 'Hadir' || a.status === 'Terlambat');
+  const hasHadir = facts.absensi.some(a => a.status === 'Hadir' || a.status === 'Terlambat' || a.status === 'WFH' || a.status === 'Remote');
   const hasPulang = facts.absensi.some(a => a.status === 'Pulang');
   const hasIzin = facts.absensi.some(a => a.status === 'Izin');
   const hasSakit = facts.absensi.some(a => a.status === 'Sakit');
