@@ -51,6 +51,9 @@ export default function StationPage() {
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [isWithinOfficeRange, setIsWithinOfficeRange] = useState<boolean | null>(null);
 
+  // Flag pembatas jarak kantor (Di-hide/bypass agar absensi stasiun admin tidak tergantung jarak lokasi)
+  const ENABLE_STATION_LOCATION_LOCK = false;
+
   // Jam & Hari Stasiun (WIB)
   const [currentTime, setCurrentTime] = useState<string>("");
   const [currentDate, setCurrentDate] = useState<string>("");
@@ -186,7 +189,7 @@ export default function StationPage() {
 
   // 5. Tangani hasil pindai QR
   const handleScanSuccess = async (token: string) => {
-    if (officeCoords && isWithinOfficeRange === false) {
+    if (ENABLE_STATION_LOCATION_LOCK && officeCoords && isWithinOfficeRange === false) {
       setErrorMessage(
         distanceFromOffice !== null
           ? `Perangkat stasiun berada di luar kantor (${distanceFromOffice}m). Maksimal 30 meter.`
@@ -222,7 +225,7 @@ export default function StationPage() {
 
   // 6. Tangani capture selfie & submit check-in
   const handleCaptureSelfie = async (base64Image: string) => {
-    if (officeCoords && isWithinOfficeRange === false) {
+    if (ENABLE_STATION_LOCATION_LOCK && officeCoords && isWithinOfficeRange === false) {
       setErrorMessage(
         distanceFromOffice !== null
           ? `Perangkat stasiun berada di luar jangkauan kantor (${distanceFromOffice} meter). Maksimal 30 meter.`
@@ -232,7 +235,7 @@ export default function StationPage() {
       return;
     }
 
-    if (officeCoords && !stationCoords) {
+    if (ENABLE_STATION_LOCATION_LOCK && officeCoords && !stationCoords) {
       setErrorMessage("Sinyal GPS belum terkunci. Mohon tunggu hingga lokasi kantor terdeteksi.");
       setCurrentState("WARNING");
       return;
@@ -306,7 +309,7 @@ export default function StationPage() {
             onScanSuccess={handleScanSuccess}
             scanError={cameraError}
             setScanError={setCameraError}
-            isActive={currentState === "SCANNING" && isWithinOfficeRange !== false && !gpsError}
+            isActive={currentState === "SCANNING" && (!ENABLE_STATION_LOCATION_LOCK || (isWithinOfficeRange !== false && !gpsError))}
           />
         ) : (
           currentUser && (
@@ -341,7 +344,8 @@ export default function StationPage() {
           <span>Dashboard</span>
         </button>
 
-        {/* Status GPS Kantor */}
+        {/* Status GPS Kantor (Di-hide agar tidak tampil di stasiun admin) */}
+        {ENABLE_STATION_LOCATION_LOCK && (
         <div className="flex items-center gap-2 px-3.5 py-2 bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl shadow-xl">
           <MapPin
             size={15}
@@ -378,6 +382,7 @@ export default function StationPage() {
             </span>
           </div>
         </div>
+        )}
       </div>
 
       {/* 3. Floating Date & Time Clock Widget (Top Right) */}
@@ -390,8 +395,8 @@ export default function StationPage() {
         </span>
       </div>
 
-      {/* 4. GPS Blocking Overlay jika di luar jangkauan atau GPS dinonaktifkan */}
-      {(isWithinOfficeRange === false || gpsError) && (
+      {/* 4. GPS Blocking Overlay jika di luar jangkauan atau GPS dinonaktifkan (Di-hide) */}
+      {ENABLE_STATION_LOCATION_LOCK && (isWithinOfficeRange === false || gpsError) && (
         <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-md z-35 flex flex-col items-center justify-center p-6 text-center">
           <div className="p-8 bg-slate-900/95 rounded-3xl border border-rose-500/30 shadow-2xl flex flex-col items-center max-w-sm w-full mx-auto animate-scale-in">
             <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-500 mb-4">

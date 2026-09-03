@@ -2328,33 +2328,36 @@ app.post('/api/attendance/station/checkin', async (req, res) => {
       return res.status(400).json({ error: 'Data absensi stasiun tidak lengkap.' });
     }
 
-    // Distance/Coordinate verification against office location
-    const [latSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'office_latitude'");
-    const [lngSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'office_longitude'");
-    
-    const officeLatStr = latSetting[0]?.key_value;
-    const officeLngStr = lngSetting[0]?.key_value;
-    const officeLat = officeLatStr ? parseFloat(officeLatStr.replace(',', '.')) : NaN;
-    const officeLng = officeLngStr ? parseFloat(officeLngStr.replace(',', '.')) : NaN;
+    // Distance/Coordinate verification against office location (di-bypass/hide agar absensi stasiun admin tidak tergantung jarak lokasi)
+    const ENFORCE_STATION_GPS = false; // Set true jika ingin mengaktifkan kembali validasi radius kantor
+    if (ENFORCE_STATION_GPS) {
+      const [latSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'office_latitude'");
+      const [lngSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'office_longitude'");
+      
+      const officeLatStr = latSetting[0]?.key_value;
+      const officeLngStr = lngSetting[0]?.key_value;
+      const officeLat = officeLatStr ? parseFloat(officeLatStr.replace(',', '.')) : NaN;
+      const officeLng = officeLngStr ? parseFloat(officeLngStr.replace(',', '.')) : NaN;
 
-    if (officeLatStr && officeLngStr && officeLatStr.trim() !== '' && officeLngStr.trim() !== '') {
-      if (!latitude || !longitude) {
-        return res.status(400).json({ error: 'GPS perangkat stasiun wajib diaktifkan untuk melakukan absensi.' });
-      }
+      if (officeLatStr && officeLngStr && officeLatStr.trim() !== '' && officeLngStr.trim() !== '') {
+        if (!latitude || !longitude) {
+          return res.status(400).json({ error: 'GPS perangkat stasiun wajib diaktifkan untuk melakukan absensi.' });
+        }
 
-      const distance = getDistanceInMeters(parseFloat(latitude), parseFloat(longitude), officeLat, officeLng);
-      console.log("[GPS_STATION_VERIFICATION]", {
-        officeLat,
-        officeLng,
-        stationLat: parseFloat(latitude),
-        stationLng: parseFloat(longitude),
-        distance
-      });
-
-      if (distance > 30) {
-        return res.status(400).json({ 
-          error: `Perangkat stasiun berada di luar jangkauan kantor (${Math.round(distance)} meter). Maksimal diperbolehkan: 30 meter.` 
+        const distance = getDistanceInMeters(parseFloat(latitude), parseFloat(longitude), officeLat, officeLng);
+        console.log("[GPS_STATION_VERIFICATION]", {
+          officeLat,
+          officeLng,
+          stationLat: parseFloat(latitude),
+          stationLng: parseFloat(longitude),
+          distance
         });
+
+        if (distance > 30) {
+          return res.status(400).json({ 
+            error: `Perangkat stasiun berada di luar jangkauan kantor (${Math.round(distance)} meter). Maksimal diperbolehkan: 30 meter.` 
+          });
+        }
       }
     }
 
