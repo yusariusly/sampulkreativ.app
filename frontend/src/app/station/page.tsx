@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Loader2, ShieldCheck, ArrowLeft } from "lucide-react";
+import { AlertCircle, Loader2, ShieldCheck, ArrowLeft, MapPin, RefreshCw } from "lucide-react";
 import QrScannerView from "./components/QrScannerView";
 import SelfieCaptureView from "./components/SelfieCaptureView";
 import SuccessView from "./components/SuccessView";
@@ -17,6 +17,19 @@ interface UserInfo {
   role: string;
 }
 
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3; // meters
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 export default function StationPage() {
   const router = useRouter();
   const { speak } = useSpeechSynthesis();
@@ -29,7 +42,15 @@ export default function StationPage() {
   const [nextStatus, setNextStatus] = useState<"Hadir" | "Terlambat" | "Pulang">("Hadir");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  
+
+  // Koordinat GPS & Lokasi Kantor
+  const [officeCoords, setOfficeCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [stationCoords, setStationCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [distanceFromOffice, setDistanceFromOffice] = useState<number | null>(null);
+  const [gpsLoading, setGpsLoading] = useState<boolean>(true);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [isWithinOfficeRange, setIsWithinOfficeRange] = useState<boolean | null>(null);
+
   // Jam & Hari Stasiun (WIB)
   const [currentTime, setCurrentTime] = useState<string>("");
   const [currentDate, setCurrentDate] = useState<string>("");
@@ -51,7 +72,92 @@ export default function StationPage() {
     }
   }, [router]);
 
-  // 2. Loop jam & tanggal stasiun (WIB)
+  // 2. Ambil Koordinat Kantor dari Settings
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.office_latitude && data.office_longitude) {
+          const lat = parseFloat(data.office_latitude.toString().replace(",", "."));
+          const lng = parseFloat(data.office_longitude.toString().replace(",", "."));
+          if (!isNaN(lat) && !isNaN(lng)) {
+            setOfficeCoords({ lat, lng });
+          }
+        }
+      })
+      .catch((err) => console.error("Gagal memuat setting koordinat kantor:", err));
+  }, []);
+
+  // 3. Deteksi GPS Perangkat Stasiun
+  const checkGeolocation = () => {
+    if (!navigator.geolocation) {
+      setGpsError("Perangkat/browser ini tidak mendukung sensor GPS.");
+      setGpsLoading(false);
+      setIsWithinOfficeRange(false);
+      return;
+    }
+
+    setGpsLoading(true);
+    setGpsError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setStationCoords({ lat, lng });
+        setGpsLoading(false);
+        setGpsError(null);
+
+        if (officeCoords) {
+          const dist = calculateDistance(lat, lng, officeCoords.lat, officeCoords.lng);
+          setDistanceFromOffice(Math.round(dist));
+          setIsWithinOfficeRange(dist <= 30);
+        } else {
+          setIsWithinOfficeRange(true);
+        }
+      },
+      (err) => {
+        setGpsLoading(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGpsError("Akses GPS ditolak. Izin lokasi wajib diaktifkan agar stasiun absen dapat memvalidasi posisi kantor.");
+        } else {
+          setGpsError("Gagal mendapatkan sinyal GPS. Pastikan sensor lokasi perangkat aktif.");
+        }
+        setIsWithinOfficeRange(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  useEffect(() => {
+    checkGeolocation();
+
+    if (navigator.geolocation) {
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setStationCoords({ lat, lng });
+          setGpsLoading(false);
+          setGpsError(null);
+
+          if (officeCoords) {
+            const dist = calculateDistance(lat, lng, officeCoords.lat, officeCoords.lng);
+            setDistanceFromOffice(Math.round(dist));
+            setIsWithinOfficeRange(dist <= 30);
+          }
+        },
+        (err) => {
+          console.warn("GPS watch warning:", err);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
+      );
+
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, [officeCoords]);
+
+  // 4. Loop jam & tanggal stasiun (WIB)
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
@@ -78,8 +184,18 @@ export default function StationPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // 3. Tangani hasil pindai QR
+  // 5. Tangani hasil pindai QR
   const handleScanSuccess = async (token: string) => {
+    if (officeCoords && isWithinOfficeRange === false) {
+      setErrorMessage(
+        distanceFromOffice !== null
+          ? `Perangkat stasiun berada di luar kantor (${distanceFromOffice}m). Maksimal 30 meter.`
+          : "Perangkat stasiun berada di luar jangkauan kantor."
+      );
+      setCurrentState("WARNING");
+      return;
+    }
+
     setScannedToken(token);
     setCurrentState("VERIFYING");
     setErrorMessage(null);
@@ -104,8 +220,24 @@ export default function StationPage() {
     }
   };
 
-  // 4. Tangani capture selfie & submit check-in
+  // 6. Tangani capture selfie & submit check-in
   const handleCaptureSelfie = async (base64Image: string) => {
+    if (officeCoords && isWithinOfficeRange === false) {
+      setErrorMessage(
+        distanceFromOffice !== null
+          ? `Perangkat stasiun berada di luar jangkauan kantor (${distanceFromOffice} meter). Maksimal 30 meter.`
+          : "Perangkat stasiun berada di luar jangkauan kantor."
+      );
+      setCurrentState("WARNING");
+      return;
+    }
+
+    if (officeCoords && !stationCoords) {
+      setErrorMessage("Sinyal GPS belum terkunci. Mohon tunggu hingga lokasi kantor terdeteksi.");
+      setCurrentState("WARNING");
+      return;
+    }
+
     setCurrentState("SUBMITTING");
     try {
       const response = await fetch("/api/attendance/station/checkin", {
@@ -115,6 +247,8 @@ export default function StationPage() {
           token: scannedToken,
           foto_base64: base64Image,
           status: nextStatus,
+          latitude: stationCoords?.lat ?? null,
+          longitude: stationCoords?.lng ?? null,
         }),
       });
 
@@ -142,14 +276,14 @@ export default function StationPage() {
     }
   };
 
-  // 5. Tangani penolakan/peringatan agar kembali ke mode scan setelah 3 detik
+  // 7. Tangani penolakan/peringatan agar kembali ke mode scan setelah 3.5 detik
   useEffect(() => {
     if (currentState === "WARNING") {
       const timer = setTimeout(() => {
         setCurrentState("SCANNING");
         setErrorMessage(null);
         setCurrentUser(null);
-      }, 3000);
+      }, 3500);
       return () => clearTimeout(timer);
     }
   }, [currentState]);
@@ -167,13 +301,12 @@ export default function StationPage() {
     <div className="w-screen h-screen relative bg-slate-950 overflow-hidden text-white flex items-center justify-center">
       {/* 1. Camera Feeds (Full Screen Background) */}
       <div className="absolute inset-0 w-full h-full z-0">
-        {/* Render Scanner ketika scanning, atau render selfie ketika butuh foto */}
         {currentState === "SCANNING" || currentState === "VERIFYING" ? (
           <QrScannerView
             onScanSuccess={handleScanSuccess}
             scanError={cameraError}
             setScanError={setCameraError}
-            isActive={currentState === "SCANNING"}
+            isActive={currentState === "SCANNING" && isWithinOfficeRange !== false && !gpsError}
           />
         ) : (
           currentUser && (
@@ -190,8 +323,8 @@ export default function StationPage() {
         )}
       </div>
 
-      {/* 2. Floating Header Widgets (Logo Brand & Kembali ke Admin) */}
-      <div className="absolute top-4 left-4 z-20 flex gap-2 pointer-events-auto">
+      {/* 2. Floating Header Widgets (Logo Brand, Kembali ke Admin, Status GPS) */}
+      <div className="absolute top-4 left-4 z-20 flex flex-wrap gap-2 pointer-events-auto">
         <div className="flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-slate-800 shadow-xl">
           <ShieldCheck size={18} className="text-[#2AB0B2] flex-shrink-0" />
           <div className="hidden sm:block">
@@ -207,6 +340,44 @@ export default function StationPage() {
           <ArrowLeft size={13} />
           <span>Dashboard</span>
         </button>
+
+        {/* Status GPS Kantor */}
+        <div className="flex items-center gap-2 px-3.5 py-2 bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl shadow-xl">
+          <MapPin
+            size={15}
+            className={`flex-shrink-0 ${
+              isWithinOfficeRange === true
+                ? "text-emerald-400 animate-pulse"
+                : isWithinOfficeRange === false
+                ? "text-rose-500"
+                : "text-amber-400 animate-bounce"
+            }`}
+          />
+          <div className="flex flex-col">
+            <span
+              className={`text-[9px] font-black tracking-wider uppercase leading-none ${
+                isWithinOfficeRange === true
+                  ? "text-emerald-400"
+                  : isWithinOfficeRange === false
+                  ? "text-rose-400"
+                  : "text-amber-400"
+              }`}
+            >
+              {gpsLoading
+                ? "Mencari GPS..."
+                : isWithinOfficeRange === true
+                ? "Lokasi Kantor Valid"
+                : "Di Luar Kantor"}
+            </span>
+            <span className="text-[8px] font-bold text-slate-400 mt-0.5 leading-none">
+              {distanceFromOffice !== null
+                ? `${distanceFromOffice}m dari kantor (Maks 30m)`
+                : gpsError
+                ? "GPS Nonaktif"
+                : "Menghubungkan satelit..."}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* 3. Floating Date & Time Clock Widget (Top Right) */}
@@ -219,7 +390,31 @@ export default function StationPage() {
         </span>
       </div>
 
-      {/* 4. Modal Overlays for State Transitions */}
+      {/* 4. GPS Blocking Overlay jika di luar jangkauan atau GPS dinonaktifkan */}
+      {(isWithinOfficeRange === false || gpsError) && (
+        <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-md z-35 flex flex-col items-center justify-center p-6 text-center">
+          <div className="p-8 bg-slate-900/95 rounded-3xl border border-rose-500/30 shadow-2xl flex flex-col items-center max-w-sm w-full mx-auto animate-scale-in">
+            <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-500 mb-4">
+              <MapPin size={32} />
+            </div>
+            <h3 className="text-base font-black text-white mb-2">Stasiun Di Luar Jangkauan Kantor</h3>
+            <p className="text-xs text-slate-400 leading-relaxed mb-6">
+              {gpsError
+                ? gpsError
+                : `Perangkat stasiun terdeteksi berjarak ${distanceFromOffice} meter dari kantor. Stasiun absensi hanya dapat dioperasikan di area kantor resmi Sampul Kreativ (radius maksimal 30 meter).`}
+            </p>
+            <button
+              onClick={checkGeolocation}
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#2AB0B2] hover:bg-[#209092] text-white text-xs font-bold rounded-xl transition-all shadow-lg active:scale-95"
+            >
+              <RefreshCw size={14} className={gpsLoading ? "animate-spin" : ""} />
+              <span>Coba Deteksi Ulang GPS</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Modal Overlays for State Transitions */}
       {/* A. Verifying State */}
       {currentState === "VERIFYING" && (
         <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center p-6 text-center">
@@ -237,7 +432,7 @@ export default function StationPage() {
           <div className="p-8 bg-slate-900/95 rounded-3xl border border-slate-800 shadow-2xl flex flex-col items-center max-w-xs w-full mx-auto animate-scale-in">
             <Loader2 className="animate-spin text-[#2AB0B2] mb-4" size={44} />
             <h4 className="text-sm font-bold text-white mb-1">Mencatat Absensi...</h4>
-            <p className="text-xs text-slate-400">Mengunggah foto dan mengirim laporan</p>
+            <p className="text-xs text-slate-400">Menyimpan koordinat kantor & foto selfie</p>
           </div>
         </div>
       )}

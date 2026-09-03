@@ -2322,9 +2322,39 @@ app.get('/api/attendance/station/verify', async (req, res) => {
 
 app.post('/api/attendance/station/checkin', async (req, res) => {
   try {
-    const { token, foto_base64, status } = req.body;
+    const { token, foto_base64, status, latitude, longitude } = req.body;
     if (!token || !foto_base64 || !status) {
       return res.status(400).json({ error: 'Data absensi stasiun tidak lengkap.' });
+    }
+
+    // Distance/Coordinate verification against office location
+    const [latSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'office_latitude'");
+    const [lngSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'office_longitude'");
+    
+    const officeLatStr = latSetting[0]?.key_value;
+    const officeLngStr = lngSetting[0]?.key_value;
+    const officeLat = officeLatStr ? parseFloat(officeLatStr.replace(',', '.')) : NaN;
+    const officeLng = officeLngStr ? parseFloat(officeLngStr.replace(',', '.')) : NaN;
+
+    if (officeLatStr && officeLngStr && officeLatStr.trim() !== '' && officeLngStr.trim() !== '') {
+      if (!latitude || !longitude) {
+        return res.status(400).json({ error: 'GPS perangkat stasiun wajib diaktifkan untuk melakukan absensi.' });
+      }
+
+      const distance = getDistanceInMeters(parseFloat(latitude), parseFloat(longitude), officeLat, officeLng);
+      console.log("[GPS_STATION_VERIFICATION]", {
+        officeLat,
+        officeLng,
+        stationLat: parseFloat(latitude),
+        stationLng: parseFloat(longitude),
+        distance
+      });
+
+      if (distance > 30) {
+        return res.status(400).json({ 
+          error: `Perangkat stasiun berada di luar jangkauan kantor (${Math.round(distance)} meter). Maksimal diperbolehkan: 30 meter.` 
+        });
+      }
     }
 
     const verifyResult = await stationService.verifyStationToken(pool, token);
@@ -2344,7 +2374,15 @@ app.post('/api/attendance/station/checkin', async (req, res) => {
     const chatId = chatIdSetting[0]?.key_value;
     const hasTelegram = botToken && chatId && botToken.trim() !== '' && chatId.trim() !== '';
 
-    const { newRecord, fileBuffer, filename, mimeType } = await stationService.checkinStation(pool, user, status, foto_base64, hasTelegram);
+    const { newRecord, fileBuffer, filename, mimeType } = await stationService.checkinStation(
+      pool, 
+      user, 
+      status, 
+      foto_base64, 
+      hasTelegram,
+      latitude,
+      longitude
+    );
 
     // Trigger Telegram Notification safely in background with Vercel waitUntil
     runBackgroundTask(

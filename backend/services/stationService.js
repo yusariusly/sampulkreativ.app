@@ -118,7 +118,7 @@ async function verifyStationToken(pool, token) {
 /**
  * Mencatat absensi stasiun ke database dan mengunggah selfie
  */
-async function checkinStation(pool, user, status, foto_base64, hasTelegram) {
+async function checkinStation(pool, user, status, foto_base64, hasTelegram, latitude = null, longitude = null) {
   let fotoUrl = '/uploads/placeholder.jpg';
   let fileBuffer = null;
   let filename = '';
@@ -160,8 +160,8 @@ async function checkinStation(pool, user, status, foto_base64, hasTelegram) {
     nama_lengkap: user.nama_lengkap,
     waktu_absen: new Date().toISOString(),
     foto_url: fotoUrl,
-    latitude: null,
-    longitude: null,
+    latitude: latitude !== undefined && latitude !== null ? parseFloat(latitude) : null,
+    longitude: longitude !== undefined && longitude !== null ? parseFloat(longitude) : null,
     status: status,
     diubah_oleh_admin: 0
   };
