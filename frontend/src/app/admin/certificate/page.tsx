@@ -41,32 +41,51 @@ function EmptyState({ message }: { message: string }) {
   return <div className="text-center py-12"><p className="text-sm text-slate-400 font-medium">{message}</p></div>;
 }
 
-/* ── INTERACTIVE CALENDAR DATE PICKER COMPONENT ── */
-function CalendarDatePicker({
-  value,
+/* ── VISUAL DATE RANGE CALENDAR PICKER (Plek Ketiplek Sesuai Desain) ── */
+function DateRangeCalendarPicker({
+  startDate,
+  endDate,
+  minDate,
+  maxDate,
   onChange,
 }: {
-  value: string;
-  onChange: (val: string) => void;
+  startDate: string;
+  endDate: string;
+  minDate: string;
+  maxDate: string;
+  onChange: (start: string, end: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  
+  // Selection state (click 1 for start, click 2 for end)
+  const [tentativeStart, setTentativeStart] = useState<string | null>(null);
+  const [tentativeEnd, setTentativeEnd] = useState<string | null>(null);
+  const [hoverDate, setHoverDate] = useState<string | null>(null);
 
-  const initialDate = value ? new Date(value) : new Date();
+  // Viewing month/year in calendar
+  const initialDate = startDate ? new Date(startDate) : (minDate ? new Date(minDate) : new Date());
   const [viewYear, setViewYear] = useState(initialDate.getFullYear() || 2026);
-  const [viewMonth, setViewMonth] = useState(initialDate.getMonth() || 0);
+  const [viewMonth, setViewMonth] = useState(initialDate.getMonth() || 5); // 0-indexed
 
   const popoverRef = useRef<HTMLDivElement>(null);
 
+  // Sync state when opened
   useEffect(() => {
-    if (value) {
-      const d = new Date(value);
-      if (!isNaN(d.getTime())) {
-        setViewYear(d.getFullYear());
-        setViewMonth(d.getMonth());
+    if (isOpen) {
+      setTentativeStart(startDate || null);
+      setTentativeEnd(endDate || null);
+      setHoverDate(null);
+      if (startDate) {
+        const d = new Date(startDate);
+        if (!isNaN(d.getTime())) {
+          setViewYear(d.getFullYear());
+          setViewMonth(d.getMonth());
+        }
       }
     }
-  }, [value]);
+  }, [isOpen, startDate, endDate]);
 
+  // Click outside to close
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
@@ -81,11 +100,25 @@ function CalendarDatePicker({
     };
   }, [isOpen]);
 
+  const monthNames = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+
+  // Calendar matrix calculations
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const firstDayIndex = new Date(viewYear, viewMonth, 1).getDay();
+  const firstDayIndex = new Date(viewYear, viewMonth, 1).getDay(); // 0 = Sun, 1 = Mon ...
+
+  // Min and Max navigation boundaries
+  const minD = minDate ? new Date(minDate) : null;
+  const maxD = maxDate ? new Date(maxDate) : null;
+
+  const canPrevMonth = !minD || (new Date(viewYear, viewMonth, 1) > new Date(minD.getFullYear(), minD.getMonth(), 1));
+  const canNextMonth = !maxD || (new Date(viewYear, viewMonth + 1, 1) <= new Date(maxD.getFullYear(), maxD.getMonth() + 1, 0));
 
   const handlePrevMonth = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!canPrevMonth) return;
     if (viewMonth === 0) {
       setViewMonth(11);
       setViewYear(y => y - 1);
@@ -96,6 +129,7 @@ function CalendarDatePicker({
 
   const handleNextMonth = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!canNextMonth) return;
     if (viewMonth === 11) {
       setViewMonth(0);
       setViewYear(y => y + 1);
@@ -104,103 +138,180 @@ function CalendarDatePicker({
     }
   };
 
-  const handleSelectDay = (day: number) => {
-    const mm = String(viewMonth + 1).padStart(2, "0");
-    const dd = String(day).padStart(2, "0");
-    onChange(`${viewYear}-${mm}-${dd}`);
-    setIsOpen(false);
+  // Date selection logic
+  const handleDateClick = (dateStr: string) => {
+    if (dateStr < minDate || dateStr > maxDate) return;
+
+    if (!tentativeStart || (tentativeStart && tentativeEnd)) {
+      // First click: select start date
+      setTentativeStart(dateStr);
+      setTentativeEnd(null);
+    } else {
+      // Second click: select end date
+      if (dateStr < tentativeStart) {
+        setTentativeStart(dateStr);
+        setTentativeEnd(null);
+      } else {
+        setTentativeEnd(dateStr);
+        onChange(tentativeStart, dateStr);
+        setIsOpen(false);
+      }
+    }
   };
 
-  const formattedDisplay = () => {
-    if (!value) return "Pilih Tanggal";
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return value;
-    return d.toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+  const formatDisplay = (dStr: string) => {
+    if (!dStr) return "";
+    const d = new Date(dStr);
+    if (isNaN(d.getTime())) return dStr;
+    return d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
   };
 
-  const monthNames = [
-    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-  ];
+  // Active range range calculation (considering hover)
+  const activeStart = tentativeStart || startDate;
+  const activeEnd = tentativeEnd || (tentativeStart && hoverDate && hoverDate >= tentativeStart ? hoverDate : endDate);
 
   return (
-    <div className="relative" ref={popoverRef}>
+    <div className="relative w-full" ref={popoverRef}>
+      {/* Trigger Button */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 bg-white hover:border-[#2AB0B2] hover:bg-slate-50/50 transition-all cursor-pointer shadow-3xs"
+        className="w-full flex items-center justify-between text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3.5 py-2.5 bg-white hover:border-[#2AB0B2] hover:bg-slate-50/70 transition-all cursor-pointer shadow-3xs"
       >
         <div className="flex items-center gap-2">
-          <Calendar size={13} className="text-[#2AB0B2]" />
-          <span>{formattedDisplay()}</span>
+          <Calendar size={14} className="text-[#2AB0B2]" />
+          <span className="text-slate-800 font-extrabold">
+            {formatDisplay(startDate)}
+          </span>
+          <span className="text-slate-400 font-normal">s/d</span>
+          <span className="text-slate-800 font-extrabold">
+            {formatDisplay(endDate)}
+          </span>
         </div>
-        <ChevronDown size={13} className={`text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        <div className="flex items-center gap-1 text-[11px] text-[#2AB0B2] font-extrabold bg-[#2AB0B2]/10 px-2 py-0.5 rounded-lg">
+          <span>Pilih di Kalender</span>
+          <ChevronDown size={12} className={`transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        </div>
       </button>
 
+      {/* ── DROPDOWN RANGE CALENDAR ── */}
       {isOpen && (
-        <div className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-slate-200/90 rounded-2xl shadow-2xl p-3.5 w-64 animate-in fade-in zoom-in-95 duration-150 select-none">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-2.5">
+        <div className="absolute left-0 top-full mt-2 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 w-[310px] animate-in fade-in zoom-in-95 duration-150 select-none">
+          {/* Header Month & Year */}
+          <div className="flex items-center justify-between mb-3">
             <button
               type="button"
               onClick={handlePrevMonth}
-              className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+              disabled={!canPrevMonth}
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronLeft size={14} />
+              <ChevronLeft size={16} />
             </button>
-            <div className="text-xs font-extrabold text-slate-800">
+            <div className="text-sm font-black text-slate-800 tracking-tight">
               {monthNames[viewMonth]} {viewYear}
             </div>
             <button
               type="button"
               onClick={handleNextMonth}
-              className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+              disabled={!canNextMonth}
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronRight size={14} />
+              <ChevronRight size={16} />
             </button>
           </div>
 
-          {/* Days of week */}
-          <div className="grid grid-cols-7 gap-1 text-center mb-1">
+          {/* PKL Boundary Notice */}
+          <div className="text-[10px] text-slate-500 bg-slate-50 border border-slate-200/80 rounded-xl p-2 mb-3 text-center leading-tight">
+            {!tentativeStart || (tentativeStart && tentativeEnd) ? (
+              <span>📌 <strong>Klik 1:</strong> Pilih tanggal mulai</span>
+            ) : (
+              <span className="text-[#2AB0B2] font-bold">🎯 <strong>Klik 2:</strong> Pilih tanggal selesai</span>
+            )}
+            <div className="text-[9px] text-slate-400 mt-0.5">
+              Batas PKL: {formatDisplay(minDate)} – {formatDisplay(maxDate)}
+            </div>
+          </div>
+
+          {/* Day of Week Headers */}
+          <div className="grid grid-cols-7 gap-0 text-center mb-1">
             {["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((d, i) => (
-              <span key={i} className="text-[9px] font-black text-slate-400 uppercase">
+              <span key={i} className="text-[10px] font-black text-slate-400 uppercase py-1">
                 {d}
               </span>
             ))}
           </div>
 
-          {/* Days Grid */}
-          <div className="grid grid-cols-7 gap-1">
+          {/* Calendar Day Cells (Exact Connected Range Styling) */}
+          <div className="grid grid-cols-7 gap-y-1 gap-x-0">
+            {/* Empty offset cells before day 1 */}
             {Array.from({ length: firstDayIndex }).map((_, i) => (
-              <div key={`empty-${i}`} className="h-7 w-7" />
+              <div key={`empty-${i}`} className="h-8" />
             ))}
 
+            {/* Days 1 to daysInMonth */}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
               const mm = String(viewMonth + 1).padStart(2, "0");
               const dd = String(day).padStart(2, "0");
               const cellDateStr = `${viewYear}-${mm}-${dd}`;
-              const isSelected = value === cellDateStr;
+
+              const isOutOfPkl = cellDateStr < minDate || cellDateStr > maxDate;
+              const isStart = cellDateStr === activeStart;
+              const isEnd = cellDateStr === activeEnd;
+              const isInRange = activeStart && activeEnd && cellDateStr > activeStart && cellDateStr < activeEnd;
+              const isRangeActive = activeStart && activeEnd && activeStart < activeEnd;
+
+              const colIndex = (firstDayIndex + i) % 7; // 0 = Sun, 6 = Sat
+              const isWeekStart = colIndex === 0 || day === 1;
+              const isWeekEnd = colIndex === 6 || day === daysInMonth;
 
               return (
-                <button
+                <div
                   key={day}
-                  type="button"
-                  onClick={() => handleSelectDay(day)}
-                  className={`h-7 w-7 rounded-lg text-[11px] font-bold flex items-center justify-center transition-all cursor-pointer ${
-                    isSelected
-                      ? "bg-[#2AB0B2] text-white shadow-xs font-extrabold"
-                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  onMouseEnter={() => tentativeStart && !tentativeEnd && setHoverDate(cellDateStr)}
+                  className={`relative h-8 flex items-center justify-center ${
+                    isInRange
+                      ? `bg-blue-100 text-blue-900 ${isWeekStart ? 'rounded-l-lg' : ''} ${isWeekEnd ? 'rounded-r-lg' : ''}`
+                      : ''
+                  } ${
+                    isStart && isRangeActive ? 'rounded-l-full bg-gradient-to-r from-transparent 50% to-blue-100 50%' : ''
+                  } ${
+                    isEnd && isRangeActive ? 'rounded-r-full bg-gradient-to-l from-transparent 50% to-blue-100 50%' : ''
                   }`}
                 >
-                  {day}
-                </button>
+                  <button
+                    type="button"
+                    disabled={isOutOfPkl}
+                    onClick={() => handleDateClick(cellDateStr)}
+                    className={`h-8 w-8 rounded-full text-xs flex items-center justify-center z-10 transition-all ${
+                      isOutOfPkl
+                        ? "text-slate-300 cursor-not-allowed opacity-30 select-none"
+                        : isStart || isEnd
+                        ? "bg-blue-600 text-white font-black shadow-sm cursor-pointer scale-105"
+                        : isInRange
+                        ? "text-blue-950 font-bold cursor-pointer hover:bg-blue-200/80"
+                        : "text-slate-700 hover:bg-slate-100 cursor-pointer font-semibold"
+                    }`}
+                  >
+                    {day}
+                  </button>
+                </div>
               );
             })}
+          </div>
+
+          {/* Quick Info / Done button */}
+          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+            <span className="text-slate-500 font-bold">
+              {startDate && endDate ? `Total: ${Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1)} hari` : ''}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="text-xs font-extrabold text-[#2AB0B2] hover:text-[#209092] px-2.5 py-1 rounded-lg hover:bg-[#2AB0B2]/10 cursor-pointer"
+            >
+              Tutup
+            </button>
           </div>
         </div>
       )}
@@ -1100,7 +1211,7 @@ export default function CertificatePage() {
                     className="p-4 rounded-2xl border border-slate-200 bg-slate-50/30 hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center gap-3"
                   >
                     {/* Month Label */}
-                    <div className="w-full sm:w-32">
+                    <div className="w-full sm:w-36">
                       <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
                         Nama Periode
                       </label>
@@ -1113,27 +1224,20 @@ export default function CertificatePage() {
                       />
                     </div>
 
-                    {/* Start Date */}
+                    {/* Unified Date Range Calendar Picker */}
                     <div className="flex-1">
                       <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                        Tanggal Mulai
+                        Rentang Periode Bulan (Kalender)
                       </label>
-                      <CalendarDatePicker
-                        value={m.start_date}
-                        onChange={val => handleMonthFieldChange(idx, 'start_date', val)}
-                      />
-                    </div>
-
-                    <div className="text-slate-400 text-xs hidden sm:block pt-5">s/d</div>
-
-                    {/* End Date */}
-                    <div className="flex-1">
-                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                        Tanggal Selesai
-                      </label>
-                      <CalendarDatePicker
-                        value={m.end_date}
-                        onChange={val => handleMonthFieldChange(idx, 'end_date', val)}
+                      <DateRangeCalendarPicker
+                        startDate={m.start_date}
+                        endDate={m.end_date}
+                        minDate={gradeData?.start_date || "2026-06-29"}
+                        maxDate={gradeData?.end_date || "2026-09-04"}
+                        onChange={(start, end) => {
+                          handleMonthFieldChange(idx, 'start_date', start);
+                          handleMonthFieldChange(idx, 'end_date', end);
+                        }}
                       />
                     </div>
 
