@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import CertificatePrintModal from "./CertificatePrintModal";
 import {
   Award, ChevronDown, Check, BookOpen, ClipboardList, Save,
   Settings, Plus, Trash2, Edit, X, Loader2, Star, Tag, MessageSquare,
@@ -8,7 +9,7 @@ import {
 } from "lucide-react";
 
 interface Curriculum { id: string; title: string; duration_months: number; student_count: number; }
-interface Student { student_id: string; student_name: string; start_date: string; end_date: string; }
+interface Student { student_id: string; student_name: string; school_name?: string; start_date: string; end_date: string; }
 interface Criterion { id: number; name: string; sort_order: number; }
 interface MonthData {
   month_number: number; month_label: string; month_start: string; month_end: string;
@@ -68,6 +69,7 @@ export default function CertificatePage() {
   const [isSavingKieOverride, setIsSavingKieOverride] = useState(false);
 
   // Month Range Edit Modal States
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
   const [editingMonthsList, setEditingMonthsList] = useState<{ month_number: number; month_label: string; start_date: string; end_date: string }[]>([]);
   const [savingCustomMonths, setSavingCustomMonths] = useState(false);
@@ -220,6 +222,7 @@ export default function CertificatePage() {
       const mapped = d.map((s: any) => ({
         student_id: s.student_id,
         student_name: s.nama_lengkap,
+        school_name: s.school_name || 'Politeknik Negeri Bandung',
         start_date: s.start_date ? new Date(s.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
         end_date: s.end_date ? new Date(s.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
       }));
@@ -753,7 +756,7 @@ export default function CertificatePage() {
 
                   {/* Print Button */}
                   <button
-                    onClick={() => window.print()}
+                    onClick={() => setIsPrintModalOpen(true)}
                     disabled={(gradeData.kie_overall_pct ?? 0) < 100}
                     className="w-full mt-5 bg-[#2AB0B2] text-white hover:bg-[#209092] disabled:bg-slate-200 disabled:text-slate-400 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
                   >
@@ -878,6 +881,16 @@ export default function CertificatePage() {
           </div>
         </div>
       )}
+
+      {/* ── MODAL: CETAK SERTIFIKAT ── */}
+      <CertificatePrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        student={currentStudent ?? null}
+        gradeData={gradeData}
+        criteria={activeCriteria}
+        notes={pendingNotes}
+      />
 
       {/* ── MODAL: ATUR PERIODE TANGGAL BULAN ── */}
       {isMonthModalOpen && (
