@@ -388,7 +388,7 @@ export default function CertificatePrintModal({
                     <td colspan="${2 + gradeData.months.length}" style="border: 1.5px solid #1E293B; padding: 7px 12px; font-size: 11px; font-weight: 900; color: #1E293B; text-align: right;">
                       Rata-rata Keseluruhan
                     </td>
-                    <td style="border: 1.5px solid #1E293B; padding: 7px 8px; text-align: center; font-size: 12px; font-weight: 900; color: #2AB0B2;">
+                    <td style="border: 1.5px solid #1E293B; padding: 7px 8px; text-align: center; font-size: 12px; font-weight: 900; color: #1E293B;">
                       ${overallScore}
                     </td>
                     <td style="border: 1.5px solid #1E293B; padding: 7px 8px; text-align: center; font-size: 11px; font-weight: 900; color: #1E293B;">
@@ -901,7 +901,7 @@ export default function CertificatePrintModal({
                         <td style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10.5px", fontWeight: 900, color: "#1E293B" }}>
                           {row.finalScore}
                         </td>
-                        <td style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10.5px", fontWeight: 900, color: row.predikat === 'A' ? '#059669' : row.predikat === 'B' ? '#D97706' : '#E11D48' }}>
+                        <td style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10.5px", fontWeight: 900, color: "#1E293B" }}>
                           {row.predikat}
                         </td>
                       </tr>
@@ -913,7 +913,7 @@ export default function CertificatePrintModal({
                       >
                         Rata-rata Keseluruhan
                       </td>
-                      <td style={{ border: "1.5px solid #1E293B", padding: "6px 6px", textAlign: "center", fontSize: "11px", fontWeight: 900, color: "#2AB0B2" }}>
+                      <td style={{ border: "1.5px solid #1E293B", padding: "6px 6px", textAlign: "center", fontSize: "11px", fontWeight: 900, color: "#1E293B" }}>
                         {overallScore}
                       </td>
                       <td style={{ border: "1.5px solid #1E293B", padding: "6px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, color: "#1E293B" }}>
