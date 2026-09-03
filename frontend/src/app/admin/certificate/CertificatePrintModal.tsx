@@ -227,59 +227,55 @@ export default function CertificatePrintModal({
         </style>
       </head>
       <body>
-        <!-- ══ PAGE 1: SISI DEPAN (100% PURE CSS LAYOUT) ══ -->
+        <!-- ══ PAGE 1: SISI DEPAN (100% PURE CSS TYPOGRAPHY ON CLEAN RIBBON TEMPLATE) ══ -->
         <div class="cert-page">
-          <img src="/cert_template_back.png" class="bg-img" alt="Frame Decoration" />
-          <div class="content-layer" style="display: flex; flex-direction: column; align-items: center; padding-top: 88px;">
+          <img src="/cert_template_front_clean.png" class="bg-img" alt="Template Graphic" />
+          <div class="content-layer">
             <!-- Title SERTIFIKAT -->
-            <div style="font-family: 'Montserrat', sans-serif; font-size: 38px; font-weight: 900; color: #1A3842; letter-spacing: 0.22em; text-transform: uppercase;">
+            <div style="position: absolute; left: 0; right: 0; top: 152px; text-align: center; font-family: 'Montserrat', sans-serif; font-size: 38px; font-weight: 900; color: #1A3842; letter-spacing: 0.22em; text-transform: uppercase;">
               SERTIFIKAT
             </div>
 
-            <!-- Ribbon PRAKTEK KERJA INDUSTRI -->
-            <div style="display: flex; align-items: center; justify-content: center; margin-top: 6px; margin-bottom: 8px;">
-              <div style="width: 24px; height: 28px; background: #E7C750; clip-path: polygon(0% 50%, 100% 0%, 100% 100%); margin-right: -2px;"></div>
-              <div style="background: #52B5BE; color: #FFFFFF; font-family: 'Montserrat', sans-serif; font-size: 14px; font-weight: 800; letter-spacing: 0.16em; padding: 5px 36px; text-transform: uppercase;">
-                PRAKTEK KERJA INDUSTRI
-              </div>
-              <div style="width: 24px; height: 28px; background: #E7C750; clip-path: polygon(0% 0%, 100% 50%, 0% 100%); margin-left: -2px;"></div>
+            <!-- Text PRAKTEK KERJA INDUSTRI (Di dalam pita asli) -->
+            <div style="position: absolute; left: 312px; width: 401px; top: 211px; height: 30px; display: flex; align-items: center; justify-content: center; font-family: 'Montserrat', sans-serif; font-size: 13.5px; font-weight: 800; color: #FFFFFF; letter-spacing: 0.16em; text-transform: uppercase;">
+              PRAKTEK KERJA INDUSTRI
             </div>
 
             <!-- Subtitle INDUSTRIAL PRACTICE CERTIFICATE -->
-            <div style="font-family: 'Montserrat', sans-serif; font-size: 11.5px; font-weight: 700; color: #9CB3B8; letter-spacing: 0.24em; text-transform: uppercase; margin-bottom: 12px;">
+            <div style="position: absolute; left: 0; right: 0; top: 247px; text-align: center; font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 700; color: #9CB3B8; letter-spacing: 0.22em; text-transform: uppercase;">
               INDUSTRIAL PRACTICE CERTIFICATE
             </div>
 
             <!-- No Sertifikat -->
-            <div style="font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 20px;">
+            <div style="position: absolute; left: 0; right: 0; top: 269px; text-align: center; font-size: 11.5px; font-weight: 700; color: #334155;">
               No: <span style="font-weight: 800; color: #1E293B; margin-left: 6px;">${certNumber}</span>
             </div>
 
             <!-- Sertifikat ini menyatakan bahwa -->
-            <div style="font-size: 12.5px; color: #64748B; margin-bottom: 12px;">
+            <div style="position: absolute; left: 0; right: 0; top: 305px; text-align: center; font-size: 12px; color: #64748B;">
               Sertifikat ini menyatakan bahwa:
             </div>
 
             <!-- Nama Siswa -->
-            <div style="margin-bottom: 14px;">
-              <span style="font-family: 'Montserrat', sans-serif; font-size: 26px; font-weight: 900; color: #0F172A; letter-spacing: 0.02em; border-bottom: 2.5px solid #0F172A; padding-bottom: 3px; display: inline-block;">
+            <div style="position: absolute; left: 0; right: 0; top: 331px; text-align: center;">
+              <span style="font-family: 'Montserrat', sans-serif; font-size: 25px; font-weight: 900; color: #0F172A; letter-spacing: 0.02em; border-bottom: 2px solid #0F172A; padding-bottom: 3px; display: inline-block;">
                 ${student.student_name}
               </span>
             </div>
 
             <!-- Asal Sekolah -->
-            <div style="font-size: 12.5px; color: #475569; margin-bottom: 14px;">
+            <div style="position: absolute; left: 0; right: 0; top: 384px; text-align: center; font-size: 12px; color: #475569;">
               Asal Sekolah : <strong style="color: #0F172A; font-weight: 800; margin-left: 4px;">${student.school_name || "Politeknik Negeri Bandung"}</strong>
             </div>
 
             <!-- Keterangan Selesai -->
-            <div style="font-size: 11.5px; color: #64748B; text-align: center; line-height: 1.6; max-width: 620px;">
+            <div style="position: absolute; left: 160px; right: 160px; top: 414px; text-align: center; font-size: 11px; color: #64748B; line-height: 1.55;">
               Dinyatakan selesai melaksanakan Praktek Kerja Industri di Perusahaan kami<br/>
               dan dengan nilai yang tercantum dibalik sertifikat ini.
             </div>
 
             <!-- Footer: Brand + Signature -->
-            <div style="position: absolute; bottom: 55px; left: 110px; right: 110px; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div style="position: absolute; bottom: 58px; left: 180px; right: 180px; display: flex; justify-content: space-between; align-items: flex-end;">
               <!-- Kiri: Logo + Alamat -->
               <div style="display: flex; align-items: center; gap: 12px;">
                 <img src="/logo.png" style="height: 44px; object-fit: contain;" alt="Sampulkreativ Logo" />
@@ -302,7 +298,7 @@ export default function CertificatePrintModal({
                 <div style="font-size: 11.5px; font-weight: 700; color: #1E293B; margin-bottom: 45px;">
                   ${certDate}
                 </div>
-                <div style="font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px; display: inline-block; width: 100%;">
+                <div style="font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px; display: inline-block; width: 100%;">
                   ${directorName}
                 </div>
                 <div style="font-size: 10.5px; color: #64748B; margin-top: 3px; font-weight: 600;">
@@ -468,17 +464,21 @@ export default function CertificatePrintModal({
               Halaman 1 — Sisi Depan (Sertifikat)
             </span>
             <div
-              className="relative w-[920px] h-[637px] bg-white rounded-xl shadow-2xl overflow-hidden select-none flex flex-col items-center"
+              className="relative w-[920px] h-[637px] bg-white rounded-xl shadow-2xl overflow-hidden select-none"
               style={{
-                backgroundImage: "url('/cert_template_back.png')",
+                backgroundImage: "url('/cert_template_front_clean.png')",
                 backgroundSize: "100% 100%",
                 backgroundRepeat: "no-repeat",
-                paddingTop: "76px",
               }}
             >
               {/* Title SERTIFIKAT */}
               <div
                 style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: "136px",
+                  textAlign: "center",
                   fontFamily: "'Montserrat', sans-serif",
                   fontSize: "34px",
                   fontWeight: 900,
@@ -490,52 +490,42 @@ export default function CertificatePrintModal({
                 SERTIFIKAT
               </div>
 
-              {/* Ribbon PRAKTEK KERJA INDUSTRI */}
-              <div className="flex items-center justify-center mt-1.5 mb-2">
-                <div
-                  style={{
-                    width: "22px",
-                    height: "25px",
-                    background: "#E7C750",
-                    clipPath: "polygon(0% 50%, 100% 0%, 100% 100%)",
-                    marginRight: "-2px",
-                  }}
-                />
-                <div
-                  style={{
-                    background: "#52B5BE",
-                    color: "#FFFFFF",
-                    fontFamily: "'Montserrat', sans-serif",
-                    fontSize: "12.5px",
-                    fontWeight: 800,
-                    letterSpacing: "0.15em",
-                    padding: "4px 30px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  PRAKTEK KERJA INDUSTRI
-                </div>
-                <div
-                  style={{
-                    width: "22px",
-                    height: "25px",
-                    background: "#E7C750",
-                    clipPath: "polygon(0% 0%, 100% 50%, 0% 100%)",
-                    marginLeft: "-2px",
-                  }}
-                />
+              {/* Text PRAKTEK KERJA INDUSTRI di dalam pita asli */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: "280px",
+                  width: "360px",
+                  top: "189px",
+                  height: "27px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontFamily: "'Montserrat', sans-serif",
+                  fontSize: "12px",
+                  fontWeight: 800,
+                  color: "#FFFFFF",
+                  letterSpacing: "0.16em",
+                  textTransform: "uppercase",
+                }}
+              >
+                PRAKTEK KERJA INDUSTRI
               </div>
 
               {/* Subtitle INDUSTRIAL PRACTICE CERTIFICATE */}
               <div
                 style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: "222px",
+                  textAlign: "center",
                   fontFamily: "'Montserrat', sans-serif",
-                  fontSize: "10.5px",
+                  fontSize: "10px",
                   fontWeight: 700,
                   color: "#9CB3B8",
                   letterSpacing: "0.22em",
                   textTransform: "uppercase",
-                  marginBottom: "10px",
                 }}
               >
                 INDUSTRIAL PRACTICE CERTIFICATE
@@ -544,26 +534,48 @@ export default function CertificatePrintModal({
               {/* No Sertifikat */}
               <div
                 style={{
-                  fontSize: "11px",
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: "241px",
+                  textAlign: "center",
+                  fontSize: "10.5px",
                   fontWeight: 700,
                   color: "#334155",
-                  marginBottom: "16px",
                 }}
               >
                 No: <span style={{ fontWeight: 800, color: "#1E293B", marginLeft: "4px" }}>{certNumber}</span>
               </div>
 
               {/* Sertifikat ini menyatakan bahwa */}
-              <div style={{ fontSize: "11.5px", color: "#64748B", marginBottom: "10px" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: "274px",
+                  textAlign: "center",
+                  fontSize: "11px",
+                  color: "#64748B",
+                }}
+              >
                 Sertifikat ini menyatakan bahwa:
               </div>
 
               {/* Nama Siswa */}
-              <div style={{ marginBottom: "12px" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: "297px",
+                  textAlign: "center",
+                }}
+              >
                 <span
                   style={{
                     fontFamily: "'Montserrat', sans-serif",
-                    fontSize: "23px",
+                    fontSize: "22px",
                     fontWeight: 900,
                     color: "#0F172A",
                     letterSpacing: "0.02em",
@@ -577,12 +589,33 @@ export default function CertificatePrintModal({
               </div>
 
               {/* Asal Sekolah */}
-              <div style={{ fontSize: "11.5px", color: "#475569", marginBottom: "12px" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: "345px",
+                  textAlign: "center",
+                  fontSize: "11px",
+                  color: "#475569",
+                }}
+              >
                 Asal Sekolah : <strong style={{ color: "#0F172A", fontWeight: 800, marginLeft: "4px" }}>{student.school_name || "Politeknik Negeri Bandung"}</strong>
               </div>
 
               {/* Keterangan Selesai */}
-              <div style={{ fontSize: "10.5px", color: "#64748B", textAlign: "center", lineHeight: 1.55, maxWidth: "560px" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  left: "140px",
+                  right: "140px",
+                  top: "372px",
+                  textAlign: "center",
+                  fontSize: "10px",
+                  color: "#64748B",
+                  lineHeight: 1.55,
+                }}
+              >
                 Dinyatakan selesai melaksanakan Praktek Kerja Industri di Perusahaan kami<br />
                 dan dengan nilai yang tercantum dibalik sertifikat ini.
               </div>
@@ -591,9 +624,9 @@ export default function CertificatePrintModal({
               <div
                 style={{
                   position: "absolute",
-                  bottom: "50px",
-                  left: "95px",
-                  right: "95px",
+                  bottom: "52px",
+                  left: "160px",
+                  right: "160px",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "flex-end",
