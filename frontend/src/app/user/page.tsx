@@ -951,15 +951,15 @@ function UserDashboardContent() {
   const savingsPercent = targetAmount > 0 ? Math.round((savedAmount / targetAmount) * 100) : 0;
 
   // KIE calculations
-  const baseTarget = 10 + kieDebt;
+  const baseTarget = 4 + kieDebt;
   const totalBoxes = Math.max(baseTarget, kieCount);
   const progressPercent = kieCount > 0 ? (kieCount / totalBoxes) * 100 : 0;
   const bgSizePercent = kieCount > 0 ? (totalBoxes / kieCount) * 100 : 100;
 
-  const stop1 = ((4 + kieDebt - 0.5) / totalBoxes) * 100;
-  const stop2 = ((4 + kieDebt + 0.5) / totalBoxes) * 100;
-  const stop3 = ((8 + kieDebt - 0.5) / totalBoxes) * 100;
-  const stop4 = ((8 + kieDebt + 0.5) / totalBoxes) * 100;
+  const stop1 = Math.max(0, ((1 + (kieDebt * 0.25) - 0.25) / totalBoxes) * 100);
+  const stop2 = Math.min(100, ((1 + (kieDebt * 0.25) + 0.25) / totalBoxes) * 100);
+  const stop3 = Math.max(0, ((3 + (kieDebt * 0.75) - 0.25) / totalBoxes) * 100);
+  const stop4 = Math.min(100, ((3 + (kieDebt * 0.75) + 0.25) / totalBoxes) * 100);
 
   const gradient = `linear-gradient(to right, #EF4444 0%, #EF4444 ${stop1}%, #F59E0B ${stop2}%, #F59E0B ${stop3}%, #10B981 ${stop4}%, #10B981 100%)`;
 
