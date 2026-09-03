@@ -95,7 +95,7 @@ export default function CertificatePrintModal({
           : 85);
 
     let predikat = "A";
-    if (avgScore < 70) predikat = "C";
+    if (avgScore < 75) predikat = "C";
     else if (avgScore < 85) predikat = "B";
 
     return {

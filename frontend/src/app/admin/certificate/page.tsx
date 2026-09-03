@@ -690,7 +690,15 @@ export default function CertificatePage() {
   const gradeColor = (g: number | null) => {
     if (!g && g !== 0) return "text-slate-400";
     const val = g <= 10 ? g * 10 : g;
-    return val >= 85 ? "text-emerald-600" : val >= 70 ? "text-amber-600" : "text-rose-600";
+    return val >= 85 ? "text-emerald-600" : val >= 75 ? "text-amber-600" : "text-rose-600";
+  };
+
+  const getPredicate = (score: number | null) => {
+    if (score === null || score === undefined) return null;
+    const val = score <= 10 ? score * 10 : score;
+    if (val >= 85) return { letter: "A", label: "Sangat Baik", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" };
+    if (val >= 75) return { letter: "B", label: "Baik", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" };
+    return { letter: "C", label: "Cukup", bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200" };
   };
 
   // Helper: compute live activity_avg from pending scores for a month
@@ -836,9 +844,23 @@ export default function CertificatePage() {
                               </td>
                             ))}
                             <td className="px-3 py-3.5 text-center bg-slate-50/50">
-                              {month.activity_avg !== null
-                                ? <span className={`font-black text-sm ${gradeColor(month.activity_avg)}`}>{month.activity_avg}</span>
-                                : <span className="text-slate-300">—</span>}
+                              {month.activity_avg !== null ? (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <span className={`font-black text-sm ${gradeColor(month.activity_avg)}`}>
+                                    {month.activity_avg}
+                                  </span>
+                                  {getPredicate(month.activity_avg) && (
+                                    <span
+                                      className={`text-[9px] font-black px-1.5 py-0.5 rounded border shadow-3xs ${getPredicate(month.activity_avg)?.bg} ${getPredicate(month.activity_avg)?.text} ${getPredicate(month.activity_avg)?.border}`}
+                                      title={`Predikat ${getPredicate(month.activity_avg)?.letter} (${getPredicate(month.activity_avg)?.label})`}
+                                    >
+                                      {getPredicate(month.activity_avg)?.letter}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
                             </td>
                             <td className="px-3 py-3.5 text-center">
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-1 rounded-md">
@@ -861,12 +883,52 @@ export default function CertificatePage() {
                                 : <span className="text-slate-300 text-xs">—</span>}
                             </td>
                           ))}
-                          <td className="px-3 py-3 text-center bg-slate-100/60" />
+                          <td className="px-3 py-3 text-center bg-slate-100/60">
+                            {gradeData.final_grade !== null ? (
+                              <div className="inline-flex items-center gap-1.5">
+                                <span className={`font-black text-sm ${gradeColor(gradeData.final_grade)}`}>
+                                  {gradeData.final_grade}
+                                </span>
+                                {getPredicate(gradeData.final_grade) && (
+                                  <span
+                                    className={`text-[9px] font-black px-1.5 py-0.5 rounded border shadow-3xs ${getPredicate(gradeData.final_grade)?.bg} ${getPredicate(gradeData.final_grade)?.text} ${getPredicate(gradeData.final_grade)?.border}`}
+                                  >
+                                    {getPredicate(gradeData.final_grade)?.letter}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-300 text-xs">—</span>
+                            )}
+                          </td>
                           <td className="px-3 py-3 text-center" />
                         </tr>
                       )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Keterangan Predikat Legend Bar */}
+                <div className="flex flex-wrap items-center justify-between px-5 py-2.5 bg-slate-50 border-t border-slate-200/80 text-[11px] gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Keterangan Status:
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-[10px] shadow-3xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        A (Sangat Baik): 85 – 100
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 font-extrabold text-[10px] shadow-3xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        B (Baik): 75 – 84
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-extrabold text-[10px] shadow-3xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                        C (Cukup): &lt; 75
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Final Grade Footer */}
@@ -893,9 +955,21 @@ export default function CertificatePage() {
                         )}
                       </div>
                     )}
-                    {gradeData.final_grade !== null
-                      ? <span className={`text-2xl font-black ${gradeColor(gradeData.final_grade)}`}>{gradeData.final_grade}</span>
-                      : <span className="text-slate-300 text-sm font-bold">Belum ada nilai</span>}
+                    {gradeData.final_grade !== null ? (
+                      <div className="flex items-center gap-2.5">
+                        <span className={`text-2xl font-black ${gradeColor(gradeData.final_grade)}`}>
+                          {gradeData.final_grade}
+                        </span>
+                        {getPredicate(gradeData.final_grade) && (
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black border shadow-3xs ${getPredicate(gradeData.final_grade)?.bg} ${getPredicate(gradeData.final_grade)?.text} ${getPredicate(gradeData.final_grade)?.border}`}>
+                            <span>Predikat {getPredicate(gradeData.final_grade)?.letter}</span>
+                            <span className="opacity-80 font-bold">({getPredicate(gradeData.final_grade)?.label})</span>
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-300 text-sm font-bold">Belum ada nilai</span>
+                    )}
                   </div>
                 </div>
               </div>
