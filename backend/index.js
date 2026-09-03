@@ -15,8 +15,17 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 let supabase = null;
 
+let wsTransport = null;
+try {
+  wsTransport = require('ws');
+} catch (e) {}
+
 if (supabaseUrl && supabaseKey) {
-  supabase = createClient(supabaseUrl, supabaseKey);
+  const sbOpts = { auth: { persistSession: false } };
+  if (wsTransport) {
+    sbOpts.realtime = { transport: wsTransport };
+  }
+  supabase = createClient(supabaseUrl, supabaseKey, sbOpts);
 } else {
   console.warn("⚠️ Warning: SUPABASE_URL atau SUPABASE_KEY belum dikonfigurasi di .env");
 }

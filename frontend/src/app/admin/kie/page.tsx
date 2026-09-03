@@ -768,6 +768,10 @@ export default function AdminKiePage() {
                                 const defObj = deficitLedger[dDate];
                                 if (defObj.remainingDeficit <= 0) continue;
 
+                                // Aturan Bisnis: Kelebihan setor pada sDate HANYA BISA melunasi hutang masa lalu / hari yang sama (sDate >= dDate).
+                                // Kelebihan di masa lalu TIDAK BISA dipakai untuk melunasi kekurangan setor di masa depan!
+                                if (sDate < dDate) continue;
+
                                 const alloc = Math.min(surObj.remainingSurplus, defObj.remainingDeficit);
                                 defObj.remainingDeficit -= alloc;
                                 defObj.paidBy.push({ dateStr: sDate, keys: alloc });
@@ -1108,7 +1112,13 @@ export default function AdminKiePage() {
                                                 }`}>
                                                   {cell.dayNum}
                                                 </span>
-                                                {extraMarker || (isHoliday && <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>)}
+                                                {extraMarker || (
+                                                    (defObj && defObj.remainingDeficit > 0) ? (
+                                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" title={`Hutang ${defObj.remainingDeficit} Keys`}></span>
+                                                    ) : (isHoliday ? (
+                                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" title="Tanggal Merah"></span>
+                                                    ) : null)
+                                                  )}
                                               </div>
                                               <div className={`text-[8px] px-1 py-0.2 rounded text-center truncate ${badgeColor}`}>
                                                 {badgeText}
