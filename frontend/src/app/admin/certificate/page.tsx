@@ -845,19 +845,9 @@ export default function CertificatePage() {
                             ))}
                             <td className="px-3 py-3.5 text-center bg-slate-50/50">
                               {month.activity_avg !== null ? (
-                                <div className="inline-flex items-center gap-1.5">
-                                  <span className={`font-black text-sm ${gradeColor(month.activity_avg)}`}>
-                                    {month.activity_avg}
-                                  </span>
-                                  {getPredicate(month.activity_avg) && (
-                                    <span
-                                      className={`text-[9px] font-black px-1.5 py-0.5 rounded border shadow-3xs ${getPredicate(month.activity_avg)?.bg} ${getPredicate(month.activity_avg)?.text} ${getPredicate(month.activity_avg)?.border}`}
-                                      title={`Predikat ${getPredicate(month.activity_avg)?.letter} (${getPredicate(month.activity_avg)?.label})`}
-                                    >
-                                      {getPredicate(month.activity_avg)?.letter}
-                                    </span>
-                                  )}
-                                </div>
+                                <span className={`font-black text-sm ${gradeColor(month.activity_avg)}`}>
+                                  {month.activity_avg}
+                                </span>
                               ) : (
                                 <span className="text-slate-300">—</span>
                               )}
@@ -885,18 +875,9 @@ export default function CertificatePage() {
                           ))}
                           <td className="px-3 py-3 text-center bg-slate-100/60">
                             {gradeData.final_grade !== null ? (
-                              <div className="inline-flex items-center gap-1.5">
-                                <span className={`font-black text-sm ${gradeColor(gradeData.final_grade)}`}>
-                                  {gradeData.final_grade}
-                                </span>
-                                {getPredicate(gradeData.final_grade) && (
-                                  <span
-                                    className={`text-[9px] font-black px-1.5 py-0.5 rounded border shadow-3xs ${getPredicate(gradeData.final_grade)?.bg} ${getPredicate(gradeData.final_grade)?.text} ${getPredicate(gradeData.final_grade)?.border}`}
-                                  >
-                                    {getPredicate(gradeData.final_grade)?.letter}
-                                  </span>
-                                )}
-                              </div>
+                              <span className={`font-black text-sm ${gradeColor(gradeData.final_grade)}`}>
+                                {gradeData.final_grade}
+                              </span>
                             ) : (
                               <span className="text-slate-300 text-xs">—</span>
                             )}
@@ -956,17 +937,9 @@ export default function CertificatePage() {
                       </div>
                     )}
                     {gradeData.final_grade !== null ? (
-                      <div className="flex items-center gap-2.5">
-                        <span className={`text-2xl font-black ${gradeColor(gradeData.final_grade)}`}>
-                          {gradeData.final_grade}
-                        </span>
-                        {getPredicate(gradeData.final_grade) && (
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black border shadow-3xs ${getPredicate(gradeData.final_grade)?.bg} ${getPredicate(gradeData.final_grade)?.text} ${getPredicate(gradeData.final_grade)?.border}`}>
-                            <span>Predikat {getPredicate(gradeData.final_grade)?.letter}</span>
-                            <span className="opacity-80 font-bold">({getPredicate(gradeData.final_grade)?.label})</span>
-                          </span>
-                        )}
-                      </div>
+                      <span className={`text-2xl font-black ${gradeColor(gradeData.final_grade)}`}>
+                        {gradeData.final_grade}
+                      </span>
                     ) : (
                       <span className="text-slate-300 text-sm font-bold">Belum ada nilai</span>
                     )}
