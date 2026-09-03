@@ -846,7 +846,7 @@ async function initDb() {
       }
 
       const [emptyUsers] = await pool.query(
-        "SELECT id, created_at FROM users WHERE role = 'employee' AND (no_karyawan IS NULL OR no_karyawan = '') ORDER BY created_at ASC, id ASC"
+        "SELECT id, created_at FROM users WHERE (role = 'employee' OR role = 'student') AND (no_karyawan IS NULL OR no_karyawan = '') ORDER BY created_at ASC, id ASC"
       );
       for (const u of emptyUsers) {
         const joinDate = u.created_at ? new Date(u.created_at) : new Date();
@@ -2668,7 +2668,7 @@ app.post('/api/users', async (req, res) => {
     }
 
     let noKaryawan = null;
-    if (dbRole === 'employee') {
+    if (dbRole === 'employee' || dbRole === 'student') {
       noKaryawan = await generateNoKaryawan();
     }
 
@@ -2835,7 +2835,7 @@ app.put('/api/users', async (req, res) => {
     }
 
     let generatedNoKaryawan = null;
-    if (targetRole === 'employee' && (!user.no_karyawan || user.no_karyawan.trim() === '')) {
+    if ((targetRole === 'employee' || targetRole === 'student') && (!user.no_karyawan || user.no_karyawan.trim() === '')) {
       generatedNoKaryawan = await generateNoKaryawan();
       updateFields += ', no_karyawan = ?';
       params.push(generatedNoKaryawan);
