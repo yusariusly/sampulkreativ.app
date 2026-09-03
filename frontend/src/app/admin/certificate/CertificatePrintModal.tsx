@@ -79,7 +79,8 @@ export default function CertificatePrintModal({
     const monthScores = gradeData.months.map(m => {
       const raw = m.criteria_scores[c.id];
       if (raw !== undefined && raw !== null) {
-        return Math.round(Number(raw) * 10);
+        const num = Number(raw);
+        return num <= 10 ? Math.round(num * 10) : Math.round(num);
       }
       return null;
     });
@@ -88,8 +89,10 @@ export default function CertificatePrintModal({
     const avgScore = filledScores.length > 0
       ? Math.round(filledScores.reduce((a, b) => a + b, 0) / filledScores.length)
       : (gradeData.criteria_averages[c.id] !== null && gradeData.criteria_averages[c.id] !== undefined
-          ? Math.round(Number(gradeData.criteria_averages[c.id]) * 10)
-          : 90);
+          ? (Number(gradeData.criteria_averages[c.id]) <= 10
+              ? Math.round(Number(gradeData.criteria_averages[c.id]) * 10)
+              : Math.round(Number(gradeData.criteria_averages[c.id])))
+          : 85);
 
     let predikat = "A";
     if (avgScore < 70) predikat = "C";

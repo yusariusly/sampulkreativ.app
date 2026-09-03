@@ -5372,9 +5372,22 @@ app.get('/api/cert-grades', async (req, res) => {
     );
     const settings = settingsRows[0] || { activity_weight: 50, kie_weight: 50, aspect_label: 'Kedisiplinan' };
 
-    // Get all active criteria
-    const [criteriaRows] = await pool.query(
-      'SELECT id, name, sort_order FROM cert_grade_criteria WHERE is_active = 1 ORDER BY sort_order ASC, id ASC'
+    // 5 Official Aspects from Poin PKL
+    const criteriaRows = [
+      { id: 1, name: 'Hasil Kerja', aspect_key: 'has_point', sort_order: 1 },
+      { id: 2, name: 'Inisiatif', aspect_key: 'ini_point', sort_order: 2 },
+      { id: 3, name: 'Kerapian', aspect_key: 'ker_point', sort_order: 3 },
+      { id: 4, name: 'Sikap', aspect_key: 'skp_point', sort_order: 4 },
+      { id: 5, name: 'Ketepatan Waktu', aspect_key: 'wkt_point', sort_order: 5 },
+    ];
+
+    // Fetch student's daily evaluations to auto-calculate scores (0 - 25 scaled to 0 - 100 via * 4)
+    const [dailyEvalRows] = await pool.query(
+      `SELECT evaluation_date, has_point, ini_point, ker_point, skp_point, wkt_point
+       FROM pkl_daily_evaluations
+       WHERE student_id = ?
+       ORDER BY evaluation_date ASC`,
+      [student_id]
     );
 
     // Get all criterion scores for this student+curriculum
@@ -5497,10 +5510,30 @@ app.get('/api/cert-grades', async (req, res) => {
 
         const workingDays = countWorkingDays(new Date(curStart), new Date(actualEnd), holidaySet);
 
-        const monthScores = scoreMap[m] || {};
+        // Filter daily evaluations within this month interval
+        const monthEvals = dailyEvalRows.filter(ev => {
+          const dStr = ev.evaluation_date instanceof Date
+            ? ev.evaluation_date.toISOString().split('T')[0]
+            : String(ev.evaluation_date).slice(0, 10);
+          return dStr >= curStart && dStr <= actualEnd;
+        });
+
+        const monthScores = {};
+        if (monthEvals.length > 0) {
+          criteriaRows.forEach(c => {
+            const sum = monthEvals.reduce((acc, row) => acc + Number(row[c.aspect_key] || 0), 0);
+            const avgDaily = sum / monthEvals.length;
+            monthScores[c.id] = Math.round(avgDaily * 4); // scale 0-25 to 0-100
+          });
+        } else {
+          criteriaRows.forEach(c => {
+            monthScores[c.id] = scoreMap[m]?.[c.id] !== undefined ? Math.round(Number(scoreMap[m][c.id]) * 10) : null;
+          });
+        }
+
         const filledScores = criteriaRows.map(c => monthScores[c.id] ?? null).filter(v => v !== null);
         const activityAvg = filledScores.length > 0
-          ? filledScores.reduce((s, v) => s + v, 0) / filledScores.length
+          ? Math.round(filledScores.reduce((s, v) => s + v, 0) / filledScores.length)
           : null;
 
         months.push({
@@ -5545,10 +5578,30 @@ app.get('/api/cert-grades', async (req, res) => {
 
         const workingDays = countWorkingDays(new Date(curStart), new Date(actualEnd), holidaySet);
 
-        const monthScores = scoreMap[m] || {};
+        // Filter daily evaluations within this month interval
+        const monthEvals = dailyEvalRows.filter(ev => {
+          const dStr = ev.evaluation_date instanceof Date
+            ? ev.evaluation_date.toISOString().split('T')[0]
+            : String(ev.evaluation_date).slice(0, 10);
+          return dStr >= curStart && dStr <= actualEnd;
+        });
+
+        const monthScores = {};
+        if (monthEvals.length > 0) {
+          criteriaRows.forEach(c => {
+            const sum = monthEvals.reduce((acc, row) => acc + Number(row[c.aspect_key] || 0), 0);
+            const avgDaily = sum / monthEvals.length;
+            monthScores[c.id] = Math.round(avgDaily * 4); // scale 0-25 to 0-100
+          });
+        } else {
+          criteriaRows.forEach(c => {
+            monthScores[c.id] = scoreMap[m]?.[c.id] !== undefined ? Math.round(Number(scoreMap[m][c.id]) * 10) : null;
+          });
+        }
+
         const filledScores = criteriaRows.map(c => monthScores[c.id] ?? null).filter(v => v !== null);
         const activityAvg = filledScores.length > 0
-          ? filledScores.reduce((s, v) => s + v, 0) / filledScores.length
+          ? Math.round(filledScores.reduce((s, v) => s + v, 0) / filledScores.length)
           : null;
 
         months.push({
@@ -5581,14 +5634,14 @@ app.get('/api/cert-grades', async (req, res) => {
     criteriaRows.forEach(c => {
       const vals = months.map(mo => mo.criteria_scores[c.id] ?? null).filter(v => v !== null);
       criteriaAverages[c.id] = vals.length > 0
-        ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 100) / 100
+        ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length)
         : null;
     });
 
     // Final certificate grade: average of monthly accumulations
     const filledMonths = months.filter(mo => mo.accumulation !== null);
     const finalGrade = filledMonths.length > 0
-      ? Math.round((filledMonths.reduce((s, mo) => s + mo.accumulation, 0) / filledMonths.length) * 100) / 100
+      ? Math.round(filledMonths.reduce((s, mo) => s + mo.accumulation, 0) / filledMonths.length)
       : null;
 
     // Overall KIE percentage: retrieve the final record on target boundary (todayStr or endStr)

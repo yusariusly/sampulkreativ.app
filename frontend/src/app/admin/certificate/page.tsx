@@ -409,7 +409,11 @@ export default function CertificatePage() {
 
   const currentCurriculum = curricula.find(c => c.id === selectedCurriculumId);
   const currentStudent = students.find(s => s.student_id === selectedStudentId);
-  const gradeColor = (g: number | null) => !g && g !== 0 ? "text-slate-400" : g >= 8.5 ? "text-emerald-600" : g >= 7.0 ? "text-amber-600" : "text-rose-600";
+  const gradeColor = (g: number | null) => {
+    if (!g && g !== 0) return "text-slate-400";
+    const val = g <= 10 ? g * 10 : g;
+    return val >= 85 ? "text-emerald-600" : val >= 70 ? "text-amber-600" : "text-rose-600";
+  };
 
   // Helper: compute live activity_avg from pending scores for a month
   const getLiveActivityAvg = (monthNumber: number, activeCriteria: Criterion[]) => {
@@ -524,7 +528,7 @@ export default function CertificatePage() {
                           <th key={c.id} className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap min-w-[90px]">{c.name}</th>
                         ))}
                         <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap bg-slate-100/60">Rata-rata Nilai</th>
-                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap">Simpan</th>
+                        <th className="text-center px-3 py-3 font-black text-slate-400 uppercase tracking-wider text-[9px] whitespace-nowrap">Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -548,29 +552,21 @@ export default function CertificatePage() {
                             </td>
                             {activeCriteria.map(c => (
                               <td key={c.id} className="px-3 py-3.5 text-center">
-                                <input
-                                  type="number" min="0" max="10" step="0.1"
-                                  value={pendingScores[month.month_number]?.[c.id] ?? (month.criteria_scores[c.id] !== undefined ? String(month.criteria_scores[c.id]) : "")}
-                                  onChange={e => setPendingScores(p => ({
-                                    ...p,
-                                    [month.month_number]: { ...(p[month.month_number] || {}), [c.id]: e.target.value }
-                                  }))}
-                                  placeholder="1–10"
-                                  className="w-[80px] text-center text-xs font-bold border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2] bg-white transition-all"
-                                />
+                                <span className="inline-block w-[64px] text-center text-xs font-black py-1.5 px-2 bg-slate-50 border border-slate-200/90 rounded-lg text-slate-800 shadow-3xs">
+                                  {month.criteria_scores[c.id] !== undefined ? month.criteria_scores[c.id] : "—"}
+                                </span>
                               </td>
                             ))}
                             <td className="px-3 py-3.5 text-center bg-slate-50/50">
-                              {liveAvg !== null
-                                ? <span className={`font-black text-sm ${gradeColor(liveAvg)}`}>{liveAvg.toFixed(2)}</span>
+                              {month.activity_avg !== null
+                                ? <span className={`font-black text-sm ${gradeColor(month.activity_avg)}`}>{month.activity_avg}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
                             <td className="px-3 py-3.5 text-center">
-                              <button onClick={() => saveMonthScores(month.month_number)} disabled={savingMonth === month.month_number}
-                                className="flex items-center gap-1 bg-[#2AB0B2] text-white px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer active:scale-95 disabled:opacity-40 mx-auto hover:bg-[#209092] transition-colors">
-                                {savingMonth === month.month_number ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
-                                <span>Simpan</span>
-                              </button>
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-1 rounded-md">
+                                <Check size={11} className="text-emerald-600" />
+                                <span>Sinkron</span>
+                              </span>
                             </td>
                           </tr>
                         );
@@ -583,7 +579,7 @@ export default function CertificatePage() {
                           {activeCriteria.map(c => (
                             <td key={c.id} className="px-3 py-3 text-center">
                               {gradeData.criteria_averages[c.id] !== null && gradeData.criteria_averages[c.id] !== undefined
-                                ? <span className={`font-black text-sm ${gradeColor(gradeData.criteria_averages[c.id])}`}>{gradeData.criteria_averages[c.id]?.toFixed(2)}</span>
+                                ? <span className={`font-black text-sm ${gradeColor(gradeData.criteria_averages[c.id])}`}>{gradeData.criteria_averages[c.id]}</span>
                                 : <span className="text-slate-300 text-xs">—</span>}
                             </td>
                           ))}
@@ -620,7 +616,7 @@ export default function CertificatePage() {
                       </div>
                     )}
                     {gradeData.final_grade !== null
-                      ? <span className={`text-2xl font-black ${gradeColor(gradeData.final_grade)}`}>{gradeData.final_grade.toFixed(2)}</span>
+                      ? <span className={`text-2xl font-black ${gradeColor(gradeData.final_grade)}`}>{gradeData.final_grade}</span>
                       : <span className="text-slate-300 text-sm font-bold">Belum ada nilai</span>}
                   </div>
                 </div>
