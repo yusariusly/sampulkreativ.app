@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Award, ChevronDown, Check, BookOpen, ClipboardList, Save,
   Settings, Plus, Trash2, Edit, X, Loader2, Star, Tag, MessageSquare,
+  Calendar, RotateCcw, CalendarDays,
 } from "lucide-react";
 
 interface Curriculum { id: string; title: string; duration_months: number; student_count: number; }
@@ -11,6 +12,7 @@ interface Student { student_id: string; student_name: string; start_date: string
 interface Criterion { id: number; name: string; sort_order: number; }
 interface MonthData {
   month_number: number; month_label: string; month_start: string; month_end: string;
+  is_custom?: boolean;
   criteria_scores: Record<number, number>;
   activity_avg: number | null; notes: string | null;
   kie_submitted: number; kie_target: number; kie_pct: number; working_days: number;
@@ -18,6 +20,7 @@ interface MonthData {
 }
 interface CertGradeData {
   num_months: number; start_date: string; end_date: string;
+  is_custom_months?: boolean;
   settings: { activity_weight: number; kie_weight: number; aspect_label: string };
   criteria: Criterion[];
   months: MonthData[];
@@ -63,6 +66,124 @@ export default function CertificatePage() {
   // KIE progress override state
   const [kieOverrideInput, setKieOverrideInput] = useState<string>("");
   const [isSavingKieOverride, setIsSavingKieOverride] = useState(false);
+
+  // Month Range Edit Modal States
+  const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
+  const [editingMonthsList, setEditingMonthsList] = useState<{ month_number: number; month_label: string; start_date: string; end_date: string }[]>([]);
+  const [savingCustomMonths, setSavingCustomMonths] = useState(false);
+  const [resettingCustomMonths, setResettingCustomMonths] = useState(false);
+
+  const openMonthEditModal = () => {
+    if (!gradeData) return;
+    setEditingMonthsList(
+      gradeData.months.map(m => ({
+        month_number: m.month_number,
+        month_label: m.month_label,
+        start_date: m.month_start,
+        end_date: m.month_end,
+      }))
+    );
+    setIsMonthModalOpen(true);
+  };
+
+  const handleMonthFieldChange = (index: number, field: 'month_label' | 'start_date' | 'end_date', value: string) => {
+    setEditingMonthsList(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const handleAddMonth = () => {
+    setEditingMonthsList(prev => {
+      const nextNum = prev.length + 1;
+      let nextStart = "";
+      if (prev.length > 0) {
+        const lastEnd = prev[prev.length - 1].end_date;
+        const d = new Date(lastEnd);
+        d.setDate(d.getDate() + 1);
+        nextStart = d.toISOString().split('T')[0];
+      }
+      return [
+        ...prev,
+        {
+          month_number: nextNum,
+          month_label: `Bulan ${nextNum}`,
+          start_date: nextStart,
+          end_date: nextStart,
+        }
+      ];
+    });
+  };
+
+  const handleRemoveMonth = (index: number) => {
+    if (editingMonthsList.length <= 1) {
+      alert("Minimal harus ada 1 periode bulan.");
+      return;
+    }
+    setEditingMonthsList(prev => {
+      const filtered = prev.filter((_, i) => i !== index);
+      return filtered.map((m, idx) => ({
+        ...m,
+        month_number: idx + 1,
+        month_label: m.month_label.startsWith("Bulan ") ? `Bulan ${idx + 1}` : m.month_label,
+      }));
+    });
+  };
+
+  const handleSaveCustomMonths = async () => {
+    if (!selectedStudentId || !selectedCurriculumId) return;
+    for (const m of editingMonthsList) {
+      if (!m.start_date || !m.end_date) {
+        alert("Semua tanggal mulai dan selesai wajib diisi.");
+        return;
+      }
+      if (m.start_date > m.end_date) {
+        alert(`Tanggal mulai ${m.month_label} tidak boleh lebih besar dari tanggal selesai.`);
+        return;
+      }
+    }
+
+    setSavingCustomMonths(true);
+    try {
+      const res = await fetch("/api/cert-student-months", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: selectedStudentId,
+          curriculum_id: selectedCurriculumId,
+          months: editingMonthsList,
+        }),
+      });
+      if (!res.ok) throw new Error("Gagal menyimpan periode bulan");
+      showSuccess("Periode bulan berhasil diperbarui!");
+      setIsMonthModalOpen(false);
+      fetchGrades(selectedStudentId, selectedCurriculumId);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Gagal menyimpan periode");
+    } finally {
+      setSavingCustomMonths(false);
+    }
+  };
+
+  const handleResetCustomMonths = async () => {
+    if (!selectedStudentId || !selectedCurriculumId) return;
+    if (!confirm("Apakah Anda yakin ingin mereset periode bulan ke hitungan otomatis sistem?")) return;
+    setResettingCustomMonths(true);
+    try {
+      const res = await fetch(`/api/cert-student-months/reset?student_id=${selectedStudentId}&curriculum_id=${selectedCurriculumId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Gagal mereset periode");
+      showSuccess("Periode bulan berhasil direset ke otomatis!");
+      setIsMonthModalOpen(false);
+      fetchGrades(selectedStudentId, selectedCurriculumId);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Gagal mereset");
+    } finally {
+      setResettingCustomMonths(false);
+    }
+  };
 
   // Criteria master data management
   const [criteria, setCriteria] = useState<Criterion[]>([]);
@@ -371,11 +492,25 @@ export default function CertificatePage() {
             <>
               {/* Multi-Criteria Grade Table */}
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-                  <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                    <ClipboardList size={16} className="text-[#2AB0B2]" />
-                    Nilai Bulanan — {currentStudent?.student_name}
-                  </h2>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-4 border-b border-slate-100 gap-3">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      <ClipboardList size={16} className="text-[#2AB0B2]" />
+                      Nilai Bulanan — {currentStudent?.student_name}
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={openMonthEditModal}
+                      className="flex items-center gap-1.5 text-[11px] font-bold text-[#2AB0B2] bg-[#2AB0B2]/10 hover:bg-[#2AB0B2]/20 px-2.5 py-1 rounded-xl transition-colors cursor-pointer border border-[#2AB0B2]/20 shadow-3xs active:scale-95"
+                      title="Atur rentang tanggal periode bulanan"
+                    >
+                      <Calendar size={12} />
+                      <span>Atur Periode Bulan</span>
+                      {gradeData?.is_custom_months && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ml-0.5" title="Kustom Aktif" />
+                      )}
+                    </button>
+                  </div>
                   <span className="text-[10px] font-semibold text-slate-400">
                     Bobot: Aktivitas {gradeData.settings.activity_weight}% · KIE {gradeData.settings.kie_weight}%
                   </span>
@@ -398,7 +533,22 @@ export default function CertificatePage() {
                         return (
                           <tr key={month.month_number} className="border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
                             <td className="px-5 py-3.5 whitespace-nowrap">
-                              <div className="font-bold text-slate-700">{month.month_label}</div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-700">{month.month_label}</span>
+                                <button
+                                  type="button"
+                                  onClick={openMonthEditModal}
+                                  className="p-1 rounded-md text-slate-400 hover:text-[#2AB0B2] hover:bg-[#2AB0B2]/10 transition-colors cursor-pointer"
+                                  title="Edit Tanggal Periode Bulan Ini"
+                                >
+                                  <Edit size={12} />
+                                </button>
+                                {month.is_custom && (
+                                  <span className="text-[8px] font-black px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                    Custom
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-[9px] text-slate-400 mt-0.5">{month.month_start} s/d {month.month_end}</div>
                             </td>
                             {activeCriteria.map(c => (
@@ -732,6 +882,155 @@ export default function CertificatePage() {
                 </div>
               ))}
               {!allTags.length && <EmptyState message="Belum ada tag apresiasi." />}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: ATUR PERIODE TANGGAL BULAN ── */}
+      {isMonthModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-[#2AB0B2]/10 rounded-2xl text-[#2AB0B2]">
+                  <CalendarDays size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                    Atur Periode Bulan Penilaian
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Siswa: <span className="font-bold text-slate-700">{currentStudent?.student_name}</span> ({currentStudent?.start_date} – {currentStudent?.end_date})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMonthModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+              <div className="p-3.5 bg-blue-50/60 border border-blue-100 rounded-2xl text-blue-900 text-xs leading-relaxed flex items-start gap-2.5">
+                <span className="text-blue-500 text-sm mt-0.5">💡</span>
+                <p>
+                  Atur rentang tanggal untuk setiap bulan penilaian sertifikat. Anda dapat menghapus baris bulan yang tidak diperlukan (misalnya siswa hanya magang 2 bulan) atau menyesuaikan tanggal mulai & selesai sesuai kebutuhan sekolah/kantor.
+                </p>
+              </div>
+
+              {/* Month rows */}
+              <div className="space-y-3">
+                {editingMonthsList.map((m, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-2xl border border-slate-200 bg-slate-50/30 hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center gap-3"
+                  >
+                    {/* Month Label */}
+                    <div className="w-full sm:w-32">
+                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                        Nama Periode
+                      </label>
+                      <input
+                        type="text"
+                        value={m.month_label}
+                        onChange={e => handleMonthFieldChange(idx, 'month_label', e.target.value)}
+                        placeholder="cth: Bulan 1"
+                        className="w-full text-xs font-bold text-slate-800 border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2]"
+                      />
+                    </div>
+
+                    {/* Start Date */}
+                    <div className="flex-1">
+                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                        Tanggal Mulai
+                      </label>
+                      <input
+                        type="date"
+                        value={m.start_date}
+                        onChange={e => handleMonthFieldChange(idx, 'start_date', e.target.value)}
+                        className="w-full text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2]"
+                      />
+                    </div>
+
+                    <div className="text-slate-400 text-xs hidden sm:block pt-5">s/d</div>
+
+                    {/* End Date */}
+                    <div className="flex-1">
+                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                        Tanggal Selesai
+                      </label>
+                      <input
+                        type="date"
+                        value={m.end_date}
+                        onChange={e => handleMonthFieldChange(idx, 'end_date', e.target.value)}
+                        className="w-full text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2]"
+                      />
+                    </div>
+
+                    {/* Delete Month Button */}
+                    <div className="pt-2 sm:pt-4 flex sm:block justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveMonth(idx)}
+                        disabled={editingMonthsList.length <= 1}
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Hapus bulan ini"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add Month Button */}
+              <button
+                type="button"
+                onClick={handleAddMonth}
+                className="w-full py-2.5 border-2 border-dashed border-slate-200 hover:border-[#2AB0B2] text-slate-600 hover:text-[#2AB0B2] rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer bg-slate-50/40 hover:bg-[#2AB0B2]/5"
+              >
+                <Plus size={14} />
+                <span>Tambah Periode Bulan</span>
+              </button>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 bg-slate-50 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleResetCustomMonths}
+                disabled={resettingCustomMonths || savingCustomMonths}
+                className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-200/60 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {resettingCustomMonths ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                <span>Reset ke Otomatis</span>
+              </button>
+
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsMonthModalOpen(false)}
+                  disabled={savingCustomMonths || resettingCustomMonths}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveCustomMonths}
+                  disabled={savingCustomMonths || resettingCustomMonths}
+                  className="flex items-center gap-1.5 bg-[#2AB0B2] hover:bg-[#209092] text-white px-5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  {savingCustomMonths ? <Loader2 size={13} className="animate-spin" /> : <Check size={14} />}
+                  <span>Simpan Periode</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

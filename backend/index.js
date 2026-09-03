@@ -5467,67 +5467,111 @@ app.get('/api/cert-grades', async (req, res) => {
       cur_day.setDate(cur_day.getDate() + 1);
     }
 
-    // Build monthly intervals starting from start_date
+    // Check if custom month intervals exist for this student
+    const [customMonthRows] = await pool.query(
+      'SELECT month_number, month_label, start_date, end_date FROM cert_student_months WHERE student_id = ? AND curriculum_id = ? ORDER BY month_number ASC',
+      [student_id, curriculum_id]
+    );
+
     const months = [];
-    let curStart = startStr;
-    let m = 1;
+    if (customMonthRows.length > 0) {
+      customMonthRows.forEach(cm => {
+        const m = cm.month_number;
+        const curStart = formatDateStr(cm.start_date);
+        const actualEnd = formatDateStr(cm.end_date);
 
-    while (curStart <= endStr) {
-      const nextMonthStr = addMonths(startStr, m);
-      const curEnd = subtractOneDay(nextMonthStr);
-      const actualEnd = curEnd < endStr ? curEnd : endStr;
+        let targetEnd = actualEnd;
+        if (curStart > todayStr) {
+          targetEnd = null;
+        } else if (actualEnd >= todayStr) {
+          targetEnd = todayStr;
+        }
 
-      // Determine targetEnd boundary for this month
-      let targetEnd = actualEnd;
-      if (curStart > todayStr) {
-        targetEnd = null;
-      } else if (actualEnd >= todayStr) {
-        targetEnd = todayStr;
-      }
+        const dayBeforeStartStr = subtractOneDay(curStart);
+        const startRecord = dailyRecords[dayBeforeStartStr] || { counted: 0, cumulativeTarget: 0 };
+        const endRecord = targetEnd ? (dailyRecords[targetEnd] || { counted: 0, cumulativeTarget: 0 }) : null;
 
-      // Calculate monthly KIE metrics using the difference between targetEnd and day before curStart
-      const dayBeforeStartStr = subtractOneDay(curStart);
-      const startRecord = dailyRecords[dayBeforeStartStr] || { counted: 0, cumulativeTarget: 0 };
-      const endRecord = targetEnd ? (dailyRecords[targetEnd] || { counted: 0, cumulativeTarget: 0 }) : null;
+        const kieTarget = endRecord ? (endRecord.cumulativeTarget - startRecord.cumulativeTarget) : 0;
+        const kieSubmitted = endRecord ? (endRecord.counted - startRecord.counted) : 0;
+        const kiePct = kieTarget > 0 ? Math.min(100, (kieSubmitted / kieTarget) * 100) : 100;
 
-      const kieTarget = endRecord ? (endRecord.cumulativeTarget - startRecord.cumulativeTarget) : 0;
-      const kieSubmitted = endRecord ? (endRecord.counted - startRecord.counted) : 0;
-      const kiePct = kieTarget > 0 ? Math.min(100, (kieSubmitted / kieTarget) * 100) : 100;
+        const workingDays = countWorkingDays(new Date(curStart), new Date(actualEnd), holidaySet);
 
-      const workingDays = countWorkingDays(new Date(curStart), new Date(actualEnd), holidaySet);
+        const monthScores = scoreMap[m] || {};
+        const filledScores = criteriaRows.map(c => monthScores[c.id] ?? null).filter(v => v !== null);
+        const activityAvg = filledScores.length > 0
+          ? filledScores.reduce((s, v) => s + v, 0) / filledScores.length
+          : null;
 
-      // Criterion scores for this month
-      const monthScores = scoreMap[m] || {};
-      const filledScores = criteriaRows.map(c => monthScores[c.id] ?? null).filter(v => v !== null);
-      const activityAvg = filledScores.length > 0
-        ? filledScores.reduce((s, v) => s + v, 0) / filledScores.length
-        : null;
-
-      // Monthly accumulation is now simply the activity average (excluding KIE)
-      let accumulation = null;
-      if (activityAvg !== null) {
-        accumulation = activityAvg;
-      }
-
-      months.push({
-        month_number: m,
-        month_label: `Bulan ${m}`,
-        month_start: curStart,
-        month_end: actualEnd,
-        criteria_scores: monthScores,
-        activity_avg: activityAvg !== null ? Math.round(activityAvg * 100) / 100 : null,
-        notes: notesMap[m] || null,
-        kie_submitted: kieSubmitted,
-        kie_target: kieTarget,
-        kie_pct: Math.round(kiePct * 100) / 100,
-        working_days: workingDays,
-        accumulation: accumulation !== null ? Math.round(accumulation * 100) / 100 : null,
+        months.push({
+          month_number: m,
+          month_label: cm.month_label || `Bulan ${m}`,
+          month_start: curStart,
+          month_end: actualEnd,
+          is_custom: true,
+          criteria_scores: monthScores,
+          activity_avg: activityAvg !== null ? Math.round(activityAvg * 100) / 100 : null,
+          notes: notesMap[m] || null,
+          kie_submitted: kieSubmitted,
+          kie_target: kieTarget,
+          kie_pct: Math.round(kiePct * 100) / 100,
+          working_days: workingDays,
+          accumulation: activityAvg !== null ? Math.round(activityAvg * 100) / 100 : null,
+        });
       });
+    } else {
+      let curStart = startStr;
+      let m = 1;
 
-      curStart = addOneDay(actualEnd);
-      m++;
-      if (curStart > endStr || m > 24) {
-        break;
+      while (curStart <= endStr) {
+        const nextMonthStr = addMonths(startStr, m);
+        const curEnd = subtractOneDay(nextMonthStr);
+        const actualEnd = curEnd < endStr ? curEnd : endStr;
+
+        let targetEnd = actualEnd;
+        if (curStart > todayStr) {
+          targetEnd = null;
+        } else if (actualEnd >= todayStr) {
+          targetEnd = todayStr;
+        }
+
+        const dayBeforeStartStr = subtractOneDay(curStart);
+        const startRecord = dailyRecords[dayBeforeStartStr] || { counted: 0, cumulativeTarget: 0 };
+        const endRecord = targetEnd ? (dailyRecords[targetEnd] || { counted: 0, cumulativeTarget: 0 }) : null;
+
+        const kieTarget = endRecord ? (endRecord.cumulativeTarget - startRecord.cumulativeTarget) : 0;
+        const kieSubmitted = endRecord ? (endRecord.counted - startRecord.counted) : 0;
+        const kiePct = kieTarget > 0 ? Math.min(100, (kieSubmitted / kieTarget) * 100) : 100;
+
+        const workingDays = countWorkingDays(new Date(curStart), new Date(actualEnd), holidaySet);
+
+        const monthScores = scoreMap[m] || {};
+        const filledScores = criteriaRows.map(c => monthScores[c.id] ?? null).filter(v => v !== null);
+        const activityAvg = filledScores.length > 0
+          ? filledScores.reduce((s, v) => s + v, 0) / filledScores.length
+          : null;
+
+        months.push({
+          month_number: m,
+          month_label: `Bulan ${m}`,
+          month_start: curStart,
+          month_end: actualEnd,
+          is_custom: false,
+          criteria_scores: monthScores,
+          activity_avg: activityAvg !== null ? Math.round(activityAvg * 100) / 100 : null,
+          notes: notesMap[m] || null,
+          kie_submitted: kieSubmitted,
+          kie_target: kieTarget,
+          kie_pct: Math.round(kiePct * 100) / 100,
+          working_days: workingDays,
+          accumulation: activityAvg !== null ? Math.round(activityAvg * 100) / 100 : null,
+        });
+
+        curStart = addOneDay(actualEnd);
+        m++;
+        if (curStart > endStr || m > 24) {
+          break;
+        }
       }
     }
     const numMonths = months.length;
@@ -5573,10 +5617,57 @@ app.get('/api/cert-grades', async (req, res) => {
       total_kie_target: totalKieTarget,
       kie_overall_pct: kieOverallPct,
       kie_progress_override: student.kie_progress_override,
+      is_custom_months: customMonthRows.length > 0,
     });
   } catch (err) {
     console.error('GET /api/cert-grades error:', err);
     res.status(500).json({ error: 'Gagal mengambil data nilai sertifikat' });
+  }
+});
+
+// ── PUT /api/cert-student-months ───────────────────────────────────────────
+// Customizes monthly intervals (start_date, end_date) for a specific student and curriculum
+app.put('/api/cert-student-months', async (req, res) => {
+  try {
+    const { student_id, curriculum_id, months } = req.body;
+    if (!student_id || !curriculum_id || !Array.isArray(months) || months.length === 0) {
+      return res.status(400).json({ error: 'student_id, curriculum_id, dan daftar months wajib diisi' });
+    }
+
+    // Replace all custom months for this student+curriculum
+    await pool.query('DELETE FROM cert_student_months WHERE student_id = ? AND curriculum_id = ?', [student_id, curriculum_id]);
+
+    for (let i = 0; i < months.length; i++) {
+      const m = months[i];
+      const monthNum = i + 1;
+      const label = m.month_label || `Bulan ${monthNum}`;
+      await pool.query(
+        'INSERT INTO cert_student_months (student_id, curriculum_id, month_number, month_label, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)',
+        [student_id, curriculum_id, monthNum, label, m.start_date, m.end_date]
+      );
+    }
+
+    res.json({ success: true, message: 'Periode bulan berhasil disimpan' });
+  } catch (err) {
+    console.error('PUT /api/cert-student-months error:', err);
+    res.status(500).json({ error: 'Gagal menyimpan periode bulan' });
+  }
+});
+
+// ── DELETE /api/cert-student-months/reset ────────────────────────────────────
+// Resets monthly intervals to default auto calculation
+app.delete('/api/cert-student-months/reset', async (req, res) => {
+  try {
+    const { student_id, curriculum_id } = req.query;
+    if (!student_id || !curriculum_id) {
+      return res.status(400).json({ error: 'student_id dan curriculum_id wajib diisi' });
+    }
+
+    await pool.query('DELETE FROM cert_student_months WHERE student_id = ? AND curriculum_id = ?', [student_id, curriculum_id]);
+    res.json({ success: true, message: 'Periode bulan berhasil direset ke otomatis' });
+  } catch (err) {
+    console.error('DELETE /api/cert-student-months/reset error:', err);
+    res.status(500).json({ error: 'Gagal mereset periode bulan' });
   }
 });
 
