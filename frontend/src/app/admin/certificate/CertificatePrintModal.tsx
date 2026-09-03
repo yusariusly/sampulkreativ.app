@@ -60,12 +60,12 @@ export default function CertificatePrintModal({
   criteria,
   notes,
 }: CertificatePrintModalProps) {
-  const [activePage, setActivePage] = useState<"all" | "front" | "back">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "front" | "back">("all");
   
   // Dynamic certificate number and date
   const defaultCertNo = `CTF-SKT/06/2026-0054`;
   const [certNumber, setCertNumber] = useState(defaultCertNo);
-  const [certDate, setCertDate] = useState(`Cimahi, April 2026`);
+  const [certDate, setCertDate] = useState(`Cimahi, September 2026`);
   const [directorName, setDirectorName] = useState(`M. FIRAS FAISAL`);
   const [directorTitle, setDirectorTitle] = useState(`Direktur Utama`);
 
@@ -114,548 +114,589 @@ export default function CertificatePrintModal({
   if (overallScore < 75) overallPredikatLabel = "Cukup";
   else if (overallScore < 85) overallPredikatLabel = "Baik";
 
-  // Trigger window print
+  // Dedicated clean iframe printing for 100% exact landscape A4 output
   const handlePrint = () => {
-    window.print();
-  };
+    const existingFrame = document.getElementById("certificate-print-iframe");
+    if (existingFrame) existingFrame.remove();
 
-  // Reusable SVG Background for Front and Back
-  const CertificateBackground = () => (
-    <svg
-      viewBox="0 0 1122 793"
-      className="absolute inset-0 w-full h-full pointer-events-none select-none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* ── TOP-LEFT WAVES ── */}
-      {/* Wave Layer 1: Yellow/Gold */}
-      <path
-        d="M -10 -10 
-           L 570 -10 
-           C 510 90, 420 130, 320 180 
-           C 200 240, 160 380, 110 470 
-           C 70 540, 30 580, -10 610 
-           Z"
-        fill="#EBB036"
-      />
+    const iframe = document.createElement("iframe");
+    iframe.id = "certificate-print-iframe";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
 
-      {/* Wave Layer 2: Soft Mint / Sage */}
-      <path
-        d="M -10 -10 
-           L 480 -10 
-           C 410 80, 340 140, 240 210 
-           C 140 280, 100 390, 50 480 
-           C 20 520, 0 540, -10 550 
-           Z"
-        fill="#76C1B4"
-      />
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
 
-      {/* Wave Layer 3: Deep Teal */}
-      <path
-        d="M -10 -10 
-           L 400 -10 
-           C 340 70, 280 130, 200 170 
-           C 120 220, 90 320, 40 400 
-           C 15 440, 0 460, -10 470 
-           Z"
-        fill="#2C8B82"
-      />
+    // Build Month Headers HTML
+    const monthHeadersHtml = gradeData.months
+      .map(
+        m => `<th style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 800; width: 80px; background: #F8FAFC;">${m.month_label}</th>`
+      )
+      .join("");
 
-      {/* Top Left White Accent Line Waves */}
-      <path
-        d="M 60 30 C 130 130, 170 230, 250 260 C 320 280, 390 220, 460 190"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth="3.5"
-        strokeLinecap="round"
-        opacity="0.85"
-      />
-      <path
-        d="M 30 90 C 90 170, 130 260, 200 290 C 270 310, 330 260, 400 230"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        opacity="0.6"
-      />
+    // Build Criteria Rows HTML
+    const rowsHtml = criteriaRows
+      .map(
+        row => `
+        <tr>
+          <td style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: bold; color: #1E293B;">${row.no}</td>
+          <td style="border: 1.5px solid #1E293B; padding: 6px 12px; font-size: 11px; font-weight: bold; color: #1E293B;">${row.name}</td>
+          ${row.monthScores.map(score => `<td style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: bold; color: #1E293B;">${score !== null ? score : '—'}</td>`).join('')}
+          <td style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 900; color: #1E293B; background: #F8FAFC;">${row.finalScore}</td>
+          <td style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 900; color: #1E293B;">${row.predikat}</td>
+        </tr>
+      `
+      )
+      .join("");
 
-      {/* ── BOTTOM-LEFT ACCENT (Yellow Curve) ── */}
-      <path
-        d="M -10 620 
-           C 45 645, 85 690, 105 740 
-           C 118 780, 125 795, 130 805 
-           L -10 805 Z"
-        fill="#EBB036"
-      />
+    // Build Catatan Pembimbing HTML
+    const notesHtml = gradeData.months
+      .map(m => {
+        const noteText = notes[m.month_number] || m.notes;
+        return `
+          <div style="margin-bottom: 4px;">
+            <strong style="color: #1E293B; font-weight: 800;">• ${m.month_label}:</strong>
+            <span style="font-style: italic; color: #475569; margin-left: 4px;">${noteText ? `"${noteText}"` : 'Sangat disiplin, aktif, dan menyelesaikan seluruh target magang dengan sangat baik.'}</span>
+          </div>
+        `;
+      })
+      .join("");
 
-      {/* ── TOP-RIGHT ACCENT (Yellow Tip) ── */}
-      <path
-        d="M 1040 -10 
-           C 1070 10, 1095 30, 1135 65 
-           L 1135 -10 Z"
-        fill="#EBB036"
-      />
-
-      {/* ── BOTTOM-RIGHT WAVES ── */}
-      {/* Wave Layer 1: Yellow/Gold */}
-      <path
-        d="M 1135 430 
-           C 1070 480, 980 540, 910 620 
-           C 840 700, 800 750, 750 805 
-           L 1135 805 Z"
-        fill="#EBB036"
-      />
-
-      {/* Wave Layer 2: Soft Mint / Sage */}
-      <path
-        d="M 1135 500 
-           C 1080 540, 1010 590, 950 660 
-           C 890 730, 860 770, 820 805 
-           L 1135 805 Z"
-        fill="#76C1B4"
-      />
-
-      {/* Wave Layer 3: Deep Teal */}
-      <path
-        d="M 1135 580 
-           C 1090 610, 1040 650, 990 710 
-           C 950 760, 930 780, 895 805 
-           L 1135 805 Z"
-        fill="#2C8B82"
-      />
-
-      {/* Bottom Right White Accent Line Waves */}
-      <path
-        d="M 1060 740 C 990 670, 940 590, 860 570 C 790 550, 730 600, 680 630"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth="3"
-        strokeLinecap="round"
-        opacity="0.8"
-      />
-
-      {/* ── ELEGANT CERTIFICATE BORDER ── */}
-      {/* Outer Solid Rounded Frame */}
-      <rect
-        x="98"
-        y="82"
-        width="926"
-        height="628"
-        rx="22"
-        fill="none"
-        stroke="#CBD5E1"
-        strokeWidth="1.5"
-      />
-
-      {/* Inner Dotted Frame */}
-      <rect
-        x="112"
-        y="96"
-        width="898"
-        height="600"
-        rx="14"
-        fill="none"
-        stroke="#94A3B8"
-        strokeWidth="2.5"
-        strokeDasharray="4 6"
-      />
-    </svg>
-  );
-
-  return (
-    <>
-      {/* Printable CSS injected dynamically */}
-      <style jsx global>{`
-        @media print {
+    const printHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Sertifikat PKL - ${student.student_name}</title>
+        <style>
           @page {
             size: A4 landscape;
-            margin: 0;
+            margin: 0mm;
           }
-          body * {
-            visibility: hidden !important;
-          }
-          #certificate-print-workspace,
-          #certificate-print-workspace * {
-            visibility: visible !important;
-          }
-          #certificate-print-workspace {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: transparent !important;
-          }
-          .certificate-page-item {
-            width: 297mm !important;
-            height: 210mm !important;
-            page-break-after: always !important;
-            break-after: page !important;
-            margin: 0 !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
+          * {
+            box-sizing: border-box;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          .no-print {
-            display: none !important;
+          html, body {
+            margin: 0;
+            padding: 0;
+            background: #FFFFFF;
+            font-family: Arial, Helvetica, sans-serif;
           }
-        }
-      `}</style>
-
-      {/* ── MODAL BACKDROP & CONTAINER ── */}
-      <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/85 backdrop-blur-sm overflow-hidden animate-in fade-in duration-200">
-        {/* Top Action Bar */}
-        <div className="flex items-center justify-between px-6 py-3.5 bg-slate-900 border-b border-slate-800 text-white flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#2AB0B2]/20 text-[#2AB0B2] rounded-xl">
-              <Printer size={18} />
+          .cert-page {
+            width: 297mm;
+            height: 209.5mm;
+            page-break-after: always;
+            break-after: page;
+            position: relative;
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            background-position: center center;
+            overflow: hidden;
+          }
+          .cert-page:last-child {
+            page-break-after: avoid;
+            break-after: avoid;
+          }
+          /* High-res printable images */
+          .bg-img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+          }
+          .content-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+          }
+        </style>
+      </head>
+      <body>
+        <!-- ══ PAGE 1: SISI DEPAN ══ -->
+        <div class="cert-page">
+          <img src="/cert_template_front.png" class="bg-img" alt="Front Template" />
+          <div class="content-layer">
+            <!-- Nomor Sertifikat -->
+            <div style="position: absolute; left: 440px; top: 268px; font-size: 12px; font-weight: bold; color: #1E293B;">
+              ${certNumber}
             </div>
-            <div>
-              <h2 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-                Preview & Cetak Sertifikat PKL
-              </h2>
-              <p className="text-[11px] text-slate-400">
-                Siswa: <span className="text-white font-semibold">{student.student_name}</span> · Desain Resmi Sampulkreativ
-              </p>
+
+            <!-- Nama Siswa -->
+            <div style="position: absolute; left: 240px; top: 334px; width: 544px; text-align: center;">
+              <span style="display: inline-block; font-size: 23px; font-weight: 900; color: #1E293B; letter-spacing: 0.5px; border-bottom: 2px solid #1E293B; padding-bottom: 2px;">
+                ${student.student_name}
+              </span>
             </div>
-          </div>
 
-          {/* Page Switcher Tabs */}
-          <div className="flex items-center bg-slate-800 border border-slate-700/80 rounded-xl p-1 gap-1">
-            <button
-              onClick={() => setActivePage("all")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                activePage === "all" ? "bg-[#2AB0B2] text-white" : "text-slate-400 hover:text-white"
-              }`}
-            >
-              Semua (2 Halaman)
-            </button>
-            <button
-              onClick={() => setActivePage("front")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                activePage === "front" ? "bg-[#2AB0B2] text-white" : "text-slate-400 hover:text-white"
-              }`}
-            >
-              Halaman 1 (Depan)
-            </button>
-            <button
-              onClick={() => setActivePage("back")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                activePage === "back" ? "bg-[#2AB0B2] text-white" : "text-slate-400 hover:text-white"
-              }`}
-            >
-              Halaman 2 (Belakang)
-            </button>
-          </div>
+            <!-- Asal Sekolah -->
+            <div style="position: absolute; left: 462px; top: 388px; font-size: 12px; font-weight: 800; color: #1E293B;">
+              ${student.school_name || "Politeknik Negeri Bandung"}
+            </div>
 
-          {/* Right Action Buttons */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-2 bg-[#2AB0B2] hover:bg-[#209092] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
-            >
-              <Printer size={14} />
-              <span>Cetak / Simpan PDF</span>
-            </button>
-            <button
-              onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
-            >
-              <X size={18} />
-            </button>
+            <!-- Tanggal Cimahi -->
+            <div style="position: absolute; left: 630px; top: 497px; font-size: 11.5px; font-weight: bold; color: #1E293B;">
+              ${certDate}
+            </div>
+
+            <!-- Tanda Tangan Direktur -->
+            <div style="position: absolute; left: 565px; top: 552px; width: 228px; text-align: center;">
+              <div style="font-size: 12px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px;">
+                ${directorName}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Modal Scrollable Workspace */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-10 flex flex-col items-center gap-8 bg-slate-950/60">
-          <div id="certificate-print-workspace" className="flex flex-col items-center gap-8">
-            
-            {/* ════════════════════════════════════════════════════════════════════
-                PAGE 1: SISI DEPAN (FRONT SIDE)
-               ════════════════════════════════════════════════════════════════════ */}
-            {(activePage === "all" || activePage === "front") && (
-              <div
-                className="certificate-page-item relative w-[1000px] h-[707px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col justify-between p-16 select-none"
-                style={{
-                  aspectRatio: "1122 / 793",
-                  fontFamily: "'Montserrat', 'Inter', sans-serif",
-                }}
-              >
-                {/* SVG Vector Frame & Waves */}
-                <CertificateBackground />
+        <!-- ══ PAGE 2: SISI BELAKANG ══ -->
+        <div class="cert-page">
+          <img src="/cert_template_back.png" class="bg-img" alt="Back Template" />
+          <div class="content-layer">
+            <!-- Judul Belakang -->
+            <div style="position: absolute; left: 150px; top: 128px; width: 724px; text-align: center; font-size: 14.5px; font-weight: 900; color: #1E293B;">
+              Nilai Praktek Kerja Industri No sertifikat: ${certNumber}
+            </div>
 
-                {/* ── HEADER CONTENT ── */}
-                <div className="relative z-10 text-center flex flex-col items-center pt-2">
-                  {/* SERTIFIKAT */}
-                  <h1
-                    className="text-[44px] font-black text-[#1E293B] tracking-[0.22em] leading-none mb-3"
-                    style={{ fontFamily: "'Cinzel', 'Montserrat', serif" }}
-                  >
-                    SERTIFIKAT
-                  </h1>
+            <!-- Tabel Nilai Pilihan 2 -->
+            <div style="position: absolute; left: 150px; top: 165px; width: 724px;">
+              <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #1E293B; background: #FFFFFF;">
+                <thead>
+                  <tr style="background: #F8FAFC;">
+                    <th style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 900; width: 40px; color: #1E293B;">No</th>
+                    <th style="border: 1.5px solid #1E293B; padding: 6px 12px; text-align: left; font-size: 11px; font-weight: 900; color: #1E293B;">Komponen Penilaian</th>
+                    ${monthHeadersHtml}
+                    <th style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 900; width: 85px; color: #1E293B;">Skor Akhir</th>
+                    <th style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 900; width: 85px; color: #1E293B;">Predikat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                  <tr style="background: #F8FAFC; font-weight: 900;">
+                    <td colspan="${2 + gradeData.months.length}" style="border: 1.5px solid #1E293B; padding: 6px 12px; text-align: right; font-size: 11px; text-transform: uppercase; color: #1E293B;">
+                      Rata-rata Keseluruhan
+                    </td>
+                    <td style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 12px; font-weight: 900; color: #2AB0B2;">
+                      ${overallScore}
+                    </td>
+                    <td style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 900; color: #1E293B;">
+                      ${overallPredikatLabel}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
-                  {/* Ribbon Banner: PRAKTEK KERJA INDUSTRI */}
-                  <div className="relative flex items-center justify-center my-1.5">
-                    {/* Left Tail fold */}
-                    <div
-                      className="absolute -left-6 w-6 h-9 bg-[#247A73]"
-                      style={{
-                        clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 35% 50%)",
-                      }}
-                    />
-                    <div
-                      className="absolute -left-2 top-full w-2 h-2 bg-[#D19B2C]"
-                      style={{ clipPath: "polygon(100% 0, 0 0, 100% 100%)" }}
-                    />
-
-                    {/* Center Ribbon Body */}
-                    <div className="bg-[#2AB0B2] text-white px-10 py-1.5 shadow-sm">
-                      <span className="text-sm md:text-[15px] font-black tracking-[0.2em] uppercase">
-                        PRAKTEK KERJA INDUSTRI
-                      </span>
-                    </div>
-
-                    {/* Right Tail fold */}
-                    <div
-                      className="absolute -right-6 w-6 h-9 bg-[#247A73]"
-                      style={{
-                        clipPath: "polygon(0% 0%, 100% 0%, 65% 50%, 100% 100%, 0% 100%)",
-                      }}
-                    />
-                    <div
-                      className="absolute -right-2 top-full w-2 h-2 bg-[#D19B2C]"
-                      style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
-                    />
-                  </div>
-
-                  {/* Subtitle */}
-                  <p className="text-[12px] font-extrabold text-[#94A3B8] tracking-[0.2em] uppercase mt-2">
-                    INDUSTRIAL PRACTICE CERTIFICATE
-                  </p>
-
-                  {/* Certificate Number */}
-                  <p className="text-xs font-extrabold text-[#1E293B] mt-1.5 tracking-wide">
-                    No: &nbsp;<span className="font-bold">{certNumber}</span>
-                  </p>
+            <!-- Footer: Catatan Pembimbing (Kiri Bawah) -->
+            <div style="position: absolute; left: 150px; top: 465px; width: 440px;">
+              <div style="border: 1.5px solid #CBD5E1; background: rgba(248, 250, 252, 0.9); padding: 8px 12px; border-radius: 8px;">
+                <div style="font-size: 10.5px; font-weight: 900; color: #1E293B; margin-bottom: 4px; display: flex; items-center; gap: 4px;">
+                  <span>💬 CATATAN PERKEMBANGAN SISWA</span>
                 </div>
-
-                {/* ── BODY CONTENT ── */}
-                <div className="relative z-10 text-center flex flex-col items-center my-auto px-12">
-                  <p className="text-xs text-slate-500 font-medium tracking-wide mb-3">
-                    Sertifikat ini menyatakan bahwa:
-                  </p>
-
-                  {/* Student Name */}
-                  <div className="relative inline-block mb-3">
-                    <h2
-                      className="text-2xl md:text-[28px] font-black text-[#1E293B] tracking-wide pb-1.5 px-6 border-b-2 border-[#1E293B]"
-                      style={{ fontFamily: "'Montserrat', sans-serif" }}
-                    >
-                      {student.student_name}
-                    </h2>
-                  </div>
-
-                  {/* Asal Sekolah */}
-                  <p className="text-xs text-slate-600 font-bold mb-4">
-                    Asal Sekolah : &nbsp;
-                    <span className="font-extrabold text-slate-800">
-                      {student.school_name || "Politeknik Negeri Bandung"}
-                    </span>
-                  </p>
-
-                  {/* Description Paragraph */}
-                  <p className="text-xs text-slate-500 max-w-[560px] leading-relaxed font-medium">
-                    Dinyatakan selesai melaksanakan Praktek Kerja Industri di Perusahaan kami
-                    dan dengan nilai yang tercantum dibalik sertifikat ini.
-                  </p>
-                </div>
-
-                {/* ── FOOTER CONTENT ── */}
-                <div className="relative z-10 flex items-end justify-between px-6 pb-2">
-                  {/* Left: Sampulkreativ Logo & Address */}
-                  <div className="flex flex-col gap-1.5 max-w-[280px]">
-                    <div className="flex items-center gap-3">
-                      {/* Logo Mark Vector */}
-                      <svg width="34" height="34" viewBox="0 0 40 40" fill="none">
-                        <path
-                          d="M6 14 L24 6 L34 11 L16 19 Z"
-                          fill="#2AB0B2"
-                        />
-                        <path
-                          d="M6 24 L24 16 L34 21 L16 29 Z"
-                          fill="#EBB036"
-                        />
-                      </svg>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-black tracking-wider text-[#1E293B] leading-none">
-                          SAMPULKREATIV
-                        </span>
-                        <span className="text-[9px] font-bold tracking-[0.25em] text-slate-400 mt-0.5">
-                          TECHNOLOGY
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-[9.5px] text-slate-500 font-semibold leading-tight pl-0.5 mt-1">
-                      <p>Gedung BITC Lantai 3</p>
-                      <p>Jl. HMS Mintaredja Baros Kota Cimahi</p>
-                    </div>
-                  </div>
-
-                  {/* Right: Date, Signature & Director */}
-                  <div className="flex flex-col items-center text-center min-w-[200px]">
-                    <p className="text-xs font-bold text-slate-700 mb-10">
-                      {certDate}
-                    </p>
-                    <p className="text-xs font-extrabold text-[#1E293B] pb-1 border-b-2 border-[#1E293B] w-full min-w-[180px]">
-                      {directorName}
-                    </p>
-                    <p className="text-[11px] text-slate-500 font-semibold mt-1">
-                      {directorTitle}
-                    </p>
-                  </div>
+                <div style="font-size: 9.5px; color: #334155; line-height: 1.35;">
+                  ${notesHtml}
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* ════════════════════════════════════════════════════════════════════
-                PAGE 2: SISI BELAKANG (BACK SIDE - TRANSKRIP NILAI)
-               ════════════════════════════════════════════════════════════════════ */}
-            {(activePage === "all" || activePage === "back") && (
-              <div
-                className="certificate-page-item relative w-[1000px] h-[707px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col justify-between p-16 select-none"
-                style={{
-                  aspectRatio: "1122 / 793",
-                  fontFamily: "'Montserrat', 'Inter', sans-serif",
-                }}
-              >
-                {/* SVG Vector Frame & Waves */}
-                <CertificateBackground />
-
-                {/* ── HEADER CONTENT ── */}
-                <div className="relative z-10 text-center pt-2">
-                  <h2 className="text-[15px] md:text-base font-extrabold text-[#1E293B] tracking-wide">
-                    Nilai Praktek Kerja Industri No sertifikat: {certNumber}
-                  </h2>
-                </div>
-
-                {/* ── TABEL NILAI (PILIHAN 2: KOLOM BULAN 1 & 2) ── */}
-                <div className="relative z-10 my-auto px-6">
-                  <table className="w-full text-left border-collapse border border-[#1E293B]">
-                    <thead>
-                      <tr className="bg-slate-50/80 text-[#1E293B]">
-                        <th className="border border-[#1E293B] px-3 py-2 text-center text-[11px] font-black w-12">
-                          No
-                        </th>
-                        <th className="border border-[#1E293B] px-4 py-2 text-[11px] font-black">
-                          Komponen Penilaian
-                        </th>
-                        {gradeData.months.map((m) => (
-                          <th
-                            key={m.month_number}
-                            className="border border-[#1E293B] px-3 py-2 text-center text-[11px] font-black w-24 whitespace-nowrap"
-                          >
-                            {m.month_label}
-                          </th>
-                        ))}
-                        <th className="border border-[#1E293B] px-3 py-2 text-center text-[11px] font-black w-24">
-                          Skor Akhir
-                        </th>
-                        <th className="border border-[#1E293B] px-3 py-2 text-center text-[11px] font-black w-24">
-                          Predikat
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {criteriaRows.map((row) => (
-                        <tr key={row.no} className="hover:bg-slate-50/50">
-                          <td className="border border-[#1E293B] px-3 py-2 text-center text-xs font-bold text-slate-700">
-                            {row.no}
-                          </td>
-                          <td className="border border-[#1E293B] px-4 py-2 text-xs font-bold text-slate-800">
-                            {row.name}
-                          </td>
-                          {row.monthScores.map((score, mIdx) => (
-                            <td
-                              key={mIdx}
-                              className="border border-[#1E293B] px-3 py-2 text-center text-xs font-bold text-slate-700"
-                            >
-                              {score !== null ? score : "—"}
-                            </td>
-                          ))}
-                          <td className="border border-[#1E293B] px-3 py-2 text-center text-xs font-black text-slate-900 bg-slate-50/30">
-                            {row.finalScore}
-                          </td>
-                          <td className="border border-[#1E293B] px-3 py-2 text-center text-xs font-black text-slate-900">
-                            {row.predikat}
-                          </td>
-                        </tr>
-                      ))}
-
-                      {/* Summary Row */}
-                      <tr className="bg-slate-50 font-black">
-                        <td
-                          colSpan={2 + gradeData.months.length}
-                          className="border border-[#1E293B] px-4 py-2 text-right text-xs uppercase tracking-wider text-slate-700"
-                        >
-                          Rata-rata Keseluruhan
-                        </td>
-                        <td className="border border-[#1E293B] px-3 py-2 text-center text-sm font-black text-[#2AB0B2]">
-                          {overallScore}
-                        </td>
-                        <td className="border border-[#1E293B] px-3 py-2 text-center text-xs font-black text-slate-900 whitespace-nowrap">
-                          {overallPredikatLabel}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* ── FOOTER: CATATAN PEMBIMBING (KIRI) & TANDA TANGAN (KANAN) ── */}
-                <div className="relative z-10 flex items-start justify-between px-6 pb-2 gap-8">
-                  {/* Left: Catatan Pembimbing Box */}
-                  <div className="flex-1 max-w-[480px]">
-                    <div className="p-3 rounded-xl border border-slate-300 bg-slate-50/70 shadow-3xs">
-                      <p className="text-[11px] font-extrabold text-[#1E293B] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                        <span>💬</span>
-                        <span>Catatan Perkembangan Siswa</span>
-                      </p>
-                      <div className="space-y-1.5 text-[11px] leading-relaxed text-slate-700">
-                        {gradeData.months.map((m) => {
-                          const noteText = notes[m.month_number] || m.notes;
-                          return (
-                            <div key={m.month_number} className="flex flex-col">
-                              <span className="font-black text-slate-800">
-                                • {m.month_label}:
-                              </span>
-                              <p className="pl-3 italic text-slate-600">
-                                {noteText ? `"${noteText}"` : "(Sangat disiplin, aktif bekerja sama, dan menyelesaikan target magang dengan baik.)"}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: Date, Signature & Director */}
-                  <div className="flex flex-col items-center text-center min-w-[200px] pt-1">
-                    <p className="text-xs font-bold text-slate-700 mb-10">
-                      {certDate}
-                    </p>
-                    <p className="text-xs font-extrabold text-[#1E293B] pb-1 border-b-2 border-[#1E293B] w-full min-w-[180px]">
-                      {directorName} S.Kom
-                    </p>
-                    <p className="text-[11px] text-slate-500 font-semibold mt-1">
-                      {directorTitle}
-                    </p>
-                  </div>
-                </div>
+            <!-- Footer: Tanda Tangan Direktur (Kanan Bawah) -->
+            <div style="position: absolute; right: 150px; top: 465px; width: 200px; text-align: center;">
+              <div style="font-size: 11px; font-weight: bold; color: #1E293B; margin-bottom: 45px;">
+                ${certDate}
               </div>
-            )}
+              <div style="font-size: 11.5px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 2px;">
+                ${directorName} S.Kom
+              </div>
+              <div style="font-size: 10px; color: #64748B; margin-top: 2px;">
+                ${directorTitle}
+              </div>
+            </div>
           </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    doc.open();
+    doc.write(printHtml);
+    doc.close();
+
+    // Allow images to load before calling print
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    }, 400);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/85 backdrop-blur-sm overflow-hidden animate-in fade-in duration-200">
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-between px-6 py-3 bg-slate-900 border-b border-slate-800 text-white flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-[#2AB0B2]/20 text-[#2AB0B2] rounded-xl">
+            <Printer size={18} />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+              Preview Sertifikat PKL — {student.student_name}
+            </h2>
+            <p className="text-[11px] text-slate-400">
+              Desain Resmi Sampulkreativ Technology (A4 Landscape 2 Halaman)
+            </p>
+          </div>
+        </div>
+
+        {/* Page Switcher Tabs */}
+        <div className="flex items-center bg-slate-800 border border-slate-700/80 rounded-xl p-1 gap-1">
+          <button
+            onClick={() => setActiveTab("all")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              activeTab === "all" ? "bg-[#2AB0B2] text-white" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            Semua (2 Halaman)
+          </button>
+          <button
+            onClick={() => setActiveTab("front")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              activeTab === "front" ? "bg-[#2AB0B2] text-white" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            Halaman 1 (Depan)
+          </button>
+          <button
+            onClick={() => setActiveTab("back")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              activeTab === "back" ? "bg-[#2AB0B2] text-white" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            Halaman 2 (Belakang)
+          </button>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-2 bg-[#2AB0B2] hover:bg-[#209092] text-white px-5 py-2 rounded-xl text-xs font-extrabold transition-all shadow-md active:scale-95 cursor-pointer"
+          >
+            <Printer size={14} />
+            <span>Cetak / Simpan PDF</span>
+          </button>
+          <button
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            <X size={18} />
+          </button>
         </div>
       </div>
-    </>
+
+      {/* Modal Preview Area */}
+      <div className="flex-1 overflow-y-auto p-6 md:p-10 flex flex-col items-center gap-8 bg-slate-950/70">
+        
+        {/* ════════════════════════════════════════════════════════════════════
+            PREVIEW PAGE 1: SISI DEPAN (FRONT)
+           ════════════════════════════════════════════════════════════════════ */}
+        {(activeTab === "all" || activeTab === "front") && (
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+              Halaman 1 — Sisi Depan (Sertifikat)
+            </span>
+            <div
+              className="relative w-[920px] h-[637px] bg-white rounded-xl shadow-2xl overflow-hidden select-none"
+              style={{
+                backgroundImage: "url('/cert_template_front.png')",
+                backgroundSize: "100% 100%",
+                backgroundRepeat: "no-repeat",
+              }}
+            >
+              {/* Nomor Sertifikat */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: "395px",
+                  top: "241px",
+                  fontSize: "10.5px",
+                  fontWeight: 700,
+                  color: "#1E293B",
+                }}
+              >
+                {certNumber}
+              </div>
+
+              {/* Nama Siswa */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: "215px",
+                  top: "300px",
+                  width: "490px",
+                  textAlign: "center",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-block",
+                    fontSize: "20px",
+                    fontWeight: 900,
+                    color: "#1E293B",
+                    letterSpacing: "0.5px",
+                    borderBottom: "2px solid #1E293B",
+                    paddingBottom: "2px",
+                  }}
+                >
+                  {student.student_name}
+                </span>
+              </div>
+
+              {/* Asal Sekolah */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: "415px",
+                  top: "348px",
+                  fontSize: "11px",
+                  fontWeight: 800,
+                  color: "#1E293B",
+                }}
+              >
+                {student.school_name || "Politeknik Negeri Bandung"}
+              </div>
+
+              {/* Tanggal Cimahi */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: "565px",
+                  top: "446px",
+                  fontSize: "10.5px",
+                  fontWeight: 700,
+                  color: "#1E293B",
+                }}
+              >
+                {certDate}
+              </div>
+
+              {/* Tanda Tangan Direktur */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: "508px",
+                  top: "496px",
+                  width: "205px",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    color: "#1E293B",
+                    borderBottom: "2px solid #1E293B",
+                    paddingBottom: "2px",
+                  }}
+                >
+                  {directorName}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════════
+            PREVIEW PAGE 2: SISI BELAKANG (BACK)
+           ════════════════════════════════════════════════════════════════════ */}
+        {(activeTab === "all" || activeTab === "back") && (
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+              Halaman 2 — Sisi Belakang (Transkrip Nilai)
+            </span>
+            <div
+              className="relative w-[920px] h-[637px] bg-white rounded-xl shadow-2xl overflow-hidden select-none"
+              style={{
+                backgroundImage: "url('/cert_template_back.png')",
+                backgroundSize: "100% 100%",
+                backgroundRepeat: "no-repeat",
+              }}
+            >
+              {/* Judul Belakang */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: "135px",
+                  top: "115px",
+                  width: "650px",
+                  textAlign: "center",
+                  fontSize: "13px",
+                  fontWeight: 900,
+                  color: "#1E293B",
+                }}
+              >
+                Nilai Praktek Kerja Industri No sertifikat: {certNumber}
+              </div>
+
+              {/* Tabel Nilai (Pilihan 2) */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: "135px",
+                  top: "148px",
+                  width: "650px",
+                }}
+              >
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    border: "1.5px solid #1E293B",
+                    background: "#FFFFFF",
+                  }}
+                >
+                  <thead>
+                    <tr style={{ background: "#F8FAFC" }}>
+                      <th style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, width: "36px", color: "#1E293B" }}>
+                        No
+                      </th>
+                      <th style={{ border: "1.5px solid #1E293B", padding: "5px 10px", textAlign: "left", fontSize: "10px", fontWeight: 900, color: "#1E293B" }}>
+                        Komponen Penilaian
+                      </th>
+                      {gradeData.months.map(m => (
+                        <th
+                          key={m.month_number}
+                          style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, width: "70px", color: "#1E293B", background: "#F8FAFC" }}
+                        >
+                          {m.month_label}
+                        </th>
+                      ))}
+                      <th style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, width: "75px", color: "#1E293B" }}>
+                        Skor Akhir
+                      </th>
+                      <th style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, width: "75px", color: "#1E293B" }}>
+                        Predikat
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {criteriaRows.map(row => (
+                      <tr key={row.no}>
+                        <td style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: "bold", color: "#1E293B" }}>
+                          {row.no}
+                        </td>
+                        <td style={{ border: "1.5px solid #1E293B", padding: "5px 10px", fontSize: "10px", fontWeight: "bold", color: "#1E293B" }}>
+                          {row.name}
+                        </td>
+                        {row.monthScores.map((score, mIdx) => (
+                          <td
+                            key={mIdx}
+                            style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: "bold", color: "#1E293B" }}
+                          >
+                            {score !== null ? score : "—"}
+                          </td>
+                        ))}
+                        <td style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, color: "#1E293B", background: "#F8FAFC" }}>
+                          {row.finalScore}
+                        </td>
+                        <td style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, color: "#1E293B" }}>
+                          {row.predikat}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr style={{ background: "#F8FAFC", fontWeight: 900 }}>
+                      <td
+                        colSpan={2 + gradeData.months.length}
+                        style={{ border: "1.5px solid #1E293B", padding: "5px 10px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#1E293B" }}
+                      >
+                        Rata-rata Keseluruhan
+                      </td>
+                      <td style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "11px", fontWeight: 900, color: "#2AB0B2" }}>
+                        {overallScore}
+                      </td>
+                      <td style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, color: "#1E293B" }}>
+                        {overallPredikatLabel}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Catatan Pembimbing (Kiri Bawah) */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: "135px",
+                  top: "418px",
+                  width: "395px",
+                }}
+              >
+                <div
+                  style={{
+                    border: "1.5px solid #CBD5E1",
+                    background: "rgba(248, 250, 252, 0.9)",
+                    padding: "7px 10px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "9.5px",
+                      fontWeight: 900,
+                      color: "#1E293B",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    💬 CATATAN PERKEMBANGAN SISWA
+                  </div>
+                  <div style={{ fontSize: "8.5px", color: "#334155", lineHeight: 1.35 }}>
+                    {gradeData.months.map(m => {
+                      const noteText = notes[m.month_number] || m.notes;
+                      return (
+                        <div key={m.month_number} style={{ marginBottom: "2px" }}>
+                          <strong style={{ color: "#1E293B" }}>• {m.month_label}:</strong>
+                          <span style={{ fontStyle: "italic", color: "#475569", marginLeft: "3px" }}>
+                            {noteText ? `"${noteText}"` : "Sangat disiplin, aktif, dan menyelesaikan seluruh target magang dengan sangat baik."}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tanda Tangan Direktur (Kanan Bawah) */}
+              <div
+                style={{
+                  position: "absolute",
+                  right: "135px",
+                  top: "418px",
+                  width: "180px",
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontSize: "10px", fontWeight: "bold", color: "#1E293B", marginBottom: "40px" }}>
+                  {certDate}
+                </div>
+                <div style={{ fontSize: "10.5px", fontWeight: 900, color: "#1E293B", borderBottom: "2px solid #1E293B", paddingBottom: "2px" }}>
+                  {directorName} S.Kom
+                </div>
+                <div style={{ fontSize: "9px", color: "#64748B", marginTop: "2px" }}>
+                  {directorTitle}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
