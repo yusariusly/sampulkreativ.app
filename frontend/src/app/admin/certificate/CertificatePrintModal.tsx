@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, Printer } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Printer, MapPin, Calendar, User, Award, FileText, SlidersHorizontal } from "lucide-react";
 
 interface Criterion {
   id: number;
@@ -62,12 +62,29 @@ export default function CertificatePrintModal({
 }: CertificatePrintModalProps) {
   const [activeTab, setActiveTab] = useState<"all" | "front" | "back">("all");
   
-  // Dynamic certificate number and date
+  // Dynamic certificate number, place, date, signer name, and title
   const defaultCertNo = `CTF-SKT/06/2026-0054`;
   const [certNumber, setCertNumber] = useState(defaultCertNo);
-  const [certDate, setCertDate] = useState(`Cimahi, September 2026`);
-  const [directorName, setDirectorName] = useState(`M. FIRAS FAISAL`);
-  const [directorTitle, setDirectorTitle] = useState(`Direktur Utama`);
+  const [certPlace, setCertPlace] = useState("Cimahi");
+  const [certDate, setCertDate] = useState("September 2026");
+  const [directorName, setDirectorName] = useState("M. FIRAS FAISAL");
+  const [directorTitle, setDirectorTitle] = useState("Direktur Utama");
+
+  // Load persistent preferences from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedPlace = localStorage.getItem("cert_pref_place");
+      const savedDate = localStorage.getItem("cert_pref_date");
+      const savedDirector = localStorage.getItem("cert_pref_director");
+      const savedTitle = localStorage.getItem("cert_pref_title");
+      if (savedPlace !== null) setCertPlace(savedPlace);
+      if (savedDate !== null) setCertDate(savedDate);
+      if (savedDirector !== null) setDirectorName(savedDirector);
+      if (savedTitle !== null) setDirectorTitle(savedTitle);
+    }
+  }, []);
+
+  const certFullDate = certPlace && certDate ? `${certPlace}, ${certDate}` : (certDate || certPlace || "");
 
   if (!isOpen || !student || !gradeData) return null;
 
@@ -294,7 +311,7 @@ export default function CertificatePrintModal({
             <!-- Footer Kanan: Tanggal & Tanda Tangan (Di dalam area putih bersih) -->
             <div style="position: absolute; right: 20.5%; top: 69.5%; width: 180px; text-align: center;">
               <div style="font-size: 11px; font-weight: 700; color: #1E293B; margin-bottom: 38px;">
-                ${certDate}
+                ${certFullDate}
               </div>
               <div style="font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px; display: inline-block; width: 100%;">
                 ${directorName}
@@ -359,7 +376,7 @@ export default function CertificatePrintModal({
             <!-- Footer: Tanda Tangan Direktur (Kanan Bawah) -->
             <div style="position: absolute; right: 14%; top: 65.5%; width: 190px; text-align: center;">
               <div style="font-size: 11px; font-weight: 700; color: #1E293B; margin-bottom: 40px;">
-                ${certDate}
+                ${certFullDate}
               </div>
               <div style="font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px; display: inline-block; width: 100%;">
                 ${directorName}
@@ -446,6 +463,93 @@ export default function CertificatePrintModal({
           >
             <X size={18} />
           </button>
+        </div>
+      </div>
+
+      {/* ── SUB-TOOLBAR: DYNAMIC CERTIFICATE INPUTS ── */}
+      <div className="bg-slate-900/95 border-b border-slate-800/90 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs flex-shrink-0">
+        <div className="flex items-center gap-2 text-slate-300 font-bold text-[11px] uppercase tracking-wider">
+          <SlidersHorizontal size={14} className="text-[#2AB0B2]" />
+          <span>Pengaturan Penandatangan & Sertifikat:</span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Tempat */}
+          <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 focus-within:border-[#2AB0B2] transition-colors shadow-inner">
+            <MapPin size={12} className="text-[#2AB0B2]" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Tempat:</span>
+            <input
+              type="text"
+              value={certPlace}
+              onChange={(e) => {
+                setCertPlace(e.target.value);
+                localStorage.setItem("cert_pref_place", e.target.value);
+              }}
+              placeholder="Cimahi"
+              className="bg-transparent text-white font-bold text-xs focus:outline-none w-24 placeholder:text-slate-600"
+            />
+          </div>
+
+          {/* Tanggal */}
+          <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 focus-within:border-[#2AB0B2] transition-colors shadow-inner">
+            <Calendar size={12} className="text-[#2AB0B2]" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Tanggal:</span>
+            <input
+              type="text"
+              value={certDate}
+              onChange={(e) => {
+                setCertDate(e.target.value);
+                localStorage.setItem("cert_pref_date", e.target.value);
+              }}
+              placeholder="September 2026"
+              className="bg-transparent text-white font-bold text-xs focus:outline-none w-28 placeholder:text-slate-600"
+            />
+          </div>
+
+          {/* Nama Penandatangan */}
+          <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 focus-within:border-[#2AB0B2] transition-colors shadow-inner">
+            <User size={12} className="text-[#2AB0B2]" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Nama:</span>
+            <input
+              type="text"
+              value={directorName}
+              onChange={(e) => {
+                setDirectorName(e.target.value);
+                localStorage.setItem("cert_pref_director", e.target.value);
+              }}
+              placeholder="M. FIRAS FAISAL"
+              className="bg-transparent text-white font-bold text-xs focus:outline-none w-36 placeholder:text-slate-600"
+            />
+          </div>
+
+          {/* Jabatan */}
+          <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 focus-within:border-[#2AB0B2] transition-colors shadow-inner">
+            <Award size={12} className="text-[#2AB0B2]" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Jabatan:</span>
+            <input
+              type="text"
+              value={directorTitle}
+              onChange={(e) => {
+                setDirectorTitle(e.target.value);
+                localStorage.setItem("cert_pref_title", e.target.value);
+              }}
+              placeholder="Direktur Utama"
+              className="bg-transparent text-white font-bold text-xs focus:outline-none w-28 placeholder:text-slate-600"
+            />
+          </div>
+
+          {/* Nomor Sertifikat */}
+          <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 focus-within:border-[#2AB0B2] transition-colors shadow-inner">
+            <FileText size={12} className="text-[#2AB0B2]" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase">No. Sertifikat:</span>
+            <input
+              type="text"
+              value={certNumber}
+              onChange={(e) => setCertNumber(e.target.value)}
+              placeholder="CTF-SKT/06/2026-0054"
+              className="bg-transparent text-white font-bold text-xs focus:outline-none w-44 placeholder:text-slate-600"
+            />
+          </div>
         </div>
       </div>
 
@@ -654,7 +758,7 @@ export default function CertificatePrintModal({
                 }}
               >
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#1E293B", marginBottom: "34px" }}>
-                  {certDate}
+                  {certFullDate}
                 </div>
                 <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: "11px", fontWeight: 900, color: "#1E293B", borderBottom: "2px solid #1E293B", paddingBottom: "2px", display: "inline-block", width: "100%" }}>
                   {directorName}
@@ -837,7 +941,7 @@ export default function CertificatePrintModal({
                 }}
               >
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#1E293B", marginBottom: "34px" }}>
-                  {certDate}
+                  {certFullDate}
                 </div>
                 <div
                   style={{
