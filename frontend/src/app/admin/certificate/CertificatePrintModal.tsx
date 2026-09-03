@@ -227,36 +227,87 @@ export default function CertificatePrintModal({
         </style>
       </head>
       <body>
-        <!-- ══ PAGE 1: SISI DEPAN ══ -->
+        <!-- ══ PAGE 1: SISI DEPAN (100% PURE CSS LAYOUT) ══ -->
         <div class="cert-page">
-          <img src="/cert_template_front.png" class="bg-img" alt="Front Template" />
-          <div class="content-layer">
-            <!-- Nomor Sertifikat -->
-            <div style="position: absolute; left: 440px; top: 268px; font-size: 12px; font-weight: bold; color: #1E293B;">
-              ${certNumber}
+          <img src="/cert_template_back.png" class="bg-img" alt="Frame Decoration" />
+          <div class="content-layer" style="display: flex; flex-direction: column; align-items: center; padding-top: 88px;">
+            <!-- Title SERTIFIKAT -->
+            <div style="font-family: 'Montserrat', sans-serif; font-size: 38px; font-weight: 900; color: #1A3842; letter-spacing: 0.22em; text-transform: uppercase;">
+              SERTIFIKAT
+            </div>
+
+            <!-- Ribbon PRAKTEK KERJA INDUSTRI -->
+            <div style="display: flex; align-items: center; justify-content: center; margin-top: 6px; margin-bottom: 8px;">
+              <div style="width: 24px; height: 28px; background: #E7C750; clip-path: polygon(0% 50%, 100% 0%, 100% 100%); margin-right: -2px;"></div>
+              <div style="background: #52B5BE; color: #FFFFFF; font-family: 'Montserrat', sans-serif; font-size: 14px; font-weight: 800; letter-spacing: 0.16em; padding: 5px 36px; text-transform: uppercase;">
+                PRAKTEK KERJA INDUSTRI
+              </div>
+              <div style="width: 24px; height: 28px; background: #E7C750; clip-path: polygon(0% 0%, 100% 50%, 0% 100%); margin-left: -2px;"></div>
+            </div>
+
+            <!-- Subtitle INDUSTRIAL PRACTICE CERTIFICATE -->
+            <div style="font-family: 'Montserrat', sans-serif; font-size: 11.5px; font-weight: 700; color: #9CB3B8; letter-spacing: 0.24em; text-transform: uppercase; margin-bottom: 12px;">
+              INDUSTRIAL PRACTICE CERTIFICATE
+            </div>
+
+            <!-- No Sertifikat -->
+            <div style="font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 20px;">
+              No: <span style="font-weight: 800; color: #1E293B; margin-left: 6px;">${certNumber}</span>
+            </div>
+
+            <!-- Sertifikat ini menyatakan bahwa -->
+            <div style="font-size: 12.5px; color: #64748B; margin-bottom: 12px;">
+              Sertifikat ini menyatakan bahwa:
             </div>
 
             <!-- Nama Siswa -->
-            <div style="position: absolute; left: 240px; top: 334px; width: 544px; text-align: center;">
-              <span style="display: inline-block; font-size: 23px; font-weight: 900; color: #1E293B; letter-spacing: 0.5px; border-bottom: 2px solid #1E293B; padding-bottom: 2px;">
+            <div style="margin-bottom: 14px;">
+              <span style="font-family: 'Montserrat', sans-serif; font-size: 26px; font-weight: 900; color: #0F172A; letter-spacing: 0.02em; border-bottom: 2.5px solid #0F172A; padding-bottom: 3px; display: inline-block;">
                 ${student.student_name}
               </span>
             </div>
 
             <!-- Asal Sekolah -->
-            <div style="position: absolute; left: 462px; top: 388px; font-size: 12px; font-weight: 800; color: #1E293B;">
-              ${student.school_name || "Politeknik Negeri Bandung"}
+            <div style="font-size: 12.5px; color: #475569; margin-bottom: 14px;">
+              Asal Sekolah : <strong style="color: #0F172A; font-weight: 800; margin-left: 4px;">${student.school_name || "Politeknik Negeri Bandung"}</strong>
             </div>
 
-            <!-- Tanggal Cimahi -->
-            <div style="position: absolute; left: 630px; top: 497px; font-size: 11.5px; font-weight: bold; color: #1E293B;">
-              ${certDate}
+            <!-- Keterangan Selesai -->
+            <div style="font-size: 11.5px; color: #64748B; text-align: center; line-height: 1.6; max-width: 620px;">
+              Dinyatakan selesai melaksanakan Praktek Kerja Industri di Perusahaan kami<br/>
+              dan dengan nilai yang tercantum dibalik sertifikat ini.
             </div>
 
-            <!-- Tanda Tangan Direktur -->
-            <div style="position: absolute; left: 565px; top: 552px; width: 228px; text-align: center;">
-              <div style="font-size: 12px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px;">
-                ${directorName}
+            <!-- Footer: Brand + Signature -->
+            <div style="position: absolute; bottom: 55px; left: 110px; right: 110px; display: flex; justify-content: space-between; align-items: flex-end;">
+              <!-- Kiri: Logo + Alamat -->
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <img src="/logo.png" style="height: 44px; object-fit: contain;" alt="Sampulkreativ Logo" />
+                <div>
+                  <div style="font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 900; color: #1E293B; letter-spacing: 0.04em;">
+                    SAMPULKREATIV
+                  </div>
+                  <div style="font-size: 9.5px; font-weight: 700; color: #94A3B8; letter-spacing: 0.1em; text-transform: uppercase;">
+                    TECHNOLOGY
+                  </div>
+                  <div style="font-size: 9px; color: #94A3B8; line-height: 1.35; margin-top: 3px;">
+                    Gedung BITC Lantai 3<br/>
+                    Jl. HMS Mintaredja Baros Kota Cimahi
+                  </div>
+                </div>
+              </div>
+
+              <!-- Kanan: Tanggal & Tanda Tangan -->
+              <div style="text-align: center; width: 220px;">
+                <div style="font-size: 11.5px; font-weight: 700; color: #1E293B; margin-bottom: 45px;">
+                  ${certDate}
+                </div>
+                <div style="font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px; display: inline-block; width: 100%;">
+                  ${directorName}
+                </div>
+                <div style="font-size: 10.5px; color: #64748B; margin-top: 3px; font-weight: 600;">
+                  ${directorTitle}
+                </div>
               </div>
             </div>
           </div>
@@ -417,46 +468,108 @@ export default function CertificatePrintModal({
               Halaman 1 — Sisi Depan (Sertifikat)
             </span>
             <div
-              className="relative w-[920px] h-[637px] bg-white rounded-xl shadow-2xl overflow-hidden select-none"
+              className="relative w-[920px] h-[637px] bg-white rounded-xl shadow-2xl overflow-hidden select-none flex flex-col items-center"
               style={{
-                backgroundImage: "url('/cert_template_front.png')",
+                backgroundImage: "url('/cert_template_back.png')",
                 backgroundSize: "100% 100%",
                 backgroundRepeat: "no-repeat",
+                paddingTop: "76px",
               }}
             >
-              {/* Nomor Sertifikat */}
+              {/* Title SERTIFIKAT */}
               <div
                 style={{
-                  position: "absolute",
-                  left: "395px",
-                  top: "241px",
-                  fontSize: "10.5px",
-                  fontWeight: 700,
-                  color: "#1E293B",
+                  fontFamily: "'Montserrat', sans-serif",
+                  fontSize: "34px",
+                  fontWeight: 900,
+                  color: "#1A3842",
+                  letterSpacing: "0.22em",
+                  textTransform: "uppercase",
                 }}
               >
-                {certNumber}
+                SERTIFIKAT
+              </div>
+
+              {/* Ribbon PRAKTEK KERJA INDUSTRI */}
+              <div className="flex items-center justify-center mt-1.5 mb-2">
+                <div
+                  style={{
+                    width: "22px",
+                    height: "25px",
+                    background: "#E7C750",
+                    clipPath: "polygon(0% 50%, 100% 0%, 100% 100%)",
+                    marginRight: "-2px",
+                  }}
+                />
+                <div
+                  style={{
+                    background: "#52B5BE",
+                    color: "#FFFFFF",
+                    fontFamily: "'Montserrat', sans-serif",
+                    fontSize: "12.5px",
+                    fontWeight: 800,
+                    letterSpacing: "0.15em",
+                    padding: "4px 30px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  PRAKTEK KERJA INDUSTRI
+                </div>
+                <div
+                  style={{
+                    width: "22px",
+                    height: "25px",
+                    background: "#E7C750",
+                    clipPath: "polygon(0% 0%, 100% 50%, 0% 100%)",
+                    marginLeft: "-2px",
+                  }}
+                />
+              </div>
+
+              {/* Subtitle INDUSTRIAL PRACTICE CERTIFICATE */}
+              <div
+                style={{
+                  fontFamily: "'Montserrat', sans-serif",
+                  fontSize: "10.5px",
+                  fontWeight: 700,
+                  color: "#9CB3B8",
+                  letterSpacing: "0.22em",
+                  textTransform: "uppercase",
+                  marginBottom: "10px",
+                }}
+              >
+                INDUSTRIAL PRACTICE CERTIFICATE
+              </div>
+
+              {/* No Sertifikat */}
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "#334155",
+                  marginBottom: "16px",
+                }}
+              >
+                No: <span style={{ fontWeight: 800, color: "#1E293B", marginLeft: "4px" }}>{certNumber}</span>
+              </div>
+
+              {/* Sertifikat ini menyatakan bahwa */}
+              <div style={{ fontSize: "11.5px", color: "#64748B", marginBottom: "10px" }}>
+                Sertifikat ini menyatakan bahwa:
               </div>
 
               {/* Nama Siswa */}
-              <div
-                style={{
-                  position: "absolute",
-                  left: "215px",
-                  top: "300px",
-                  width: "490px",
-                  textAlign: "center",
-                }}
-              >
+              <div style={{ marginBottom: "12px" }}>
                 <span
                   style={{
-                    display: "inline-block",
-                    fontSize: "20px",
+                    fontFamily: "'Montserrat', sans-serif",
+                    fontSize: "23px",
                     fontWeight: 900,
-                    color: "#1E293B",
-                    letterSpacing: "0.5px",
-                    borderBottom: "2px solid #1E293B",
+                    color: "#0F172A",
+                    letterSpacing: "0.02em",
+                    borderBottom: "2px solid #0F172A",
                     paddingBottom: "2px",
+                    display: "inline-block",
                   }}
                 >
                   {student.student_name}
@@ -464,53 +577,56 @@ export default function CertificatePrintModal({
               </div>
 
               {/* Asal Sekolah */}
-              <div
-                style={{
-                  position: "absolute",
-                  left: "415px",
-                  top: "348px",
-                  fontSize: "11px",
-                  fontWeight: 800,
-                  color: "#1E293B",
-                }}
-              >
-                {student.school_name || "Politeknik Negeri Bandung"}
+              <div style={{ fontSize: "11.5px", color: "#475569", marginBottom: "12px" }}>
+                Asal Sekolah : <strong style={{ color: "#0F172A", fontWeight: 800, marginLeft: "4px" }}>{student.school_name || "Politeknik Negeri Bandung"}</strong>
               </div>
 
-              {/* Tanggal Cimahi */}
-              <div
-                style={{
-                  position: "absolute",
-                  left: "565px",
-                  top: "446px",
-                  fontSize: "10.5px",
-                  fontWeight: 700,
-                  color: "#1E293B",
-                }}
-              >
-                {certDate}
+              {/* Keterangan Selesai */}
+              <div style={{ fontSize: "10.5px", color: "#64748B", textAlign: "center", lineHeight: 1.55, maxWidth: "560px" }}>
+                Dinyatakan selesai melaksanakan Praktek Kerja Industri di Perusahaan kami<br />
+                dan dengan nilai yang tercantum dibalik sertifikat ini.
               </div>
 
-              {/* Tanda Tangan Direktur */}
+              {/* Footer: Brand + Signature */}
               <div
                 style={{
                   position: "absolute",
-                  left: "508px",
-                  top: "496px",
-                  width: "205px",
-                  textAlign: "center",
+                  bottom: "50px",
+                  left: "95px",
+                  right: "95px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-end",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: 900,
-                    color: "#1E293B",
-                    borderBottom: "2px solid #1E293B",
-                    paddingBottom: "2px",
-                  }}
-                >
-                  {directorName}
+                {/* Kiri: Logo + Alamat */}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <img src="/logo.png" style={{ height: "38px", objectFit: "contain" }} alt="Sampulkreativ Logo" />
+                  <div>
+                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: "11.5px", fontWeight: 900, color: "#1E293B", letterSpacing: "0.04em" }}>
+                      SAMPULKREATIV
+                    </div>
+                    <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#94A3B8", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                      TECHNOLOGY
+                    </div>
+                    <div style={{ fontSize: "8px", color: "#94A3B8", lineHeight: 1.3, marginTop: "2px" }}>
+                      Gedung BITC Lantai 3<br />
+                      Jl. HMS Mintaredja Baros Kota Cimahi
+                    </div>
+                  </div>
+                </div>
+
+                {/* Kanan: Tanggal & Tanda Tangan */}
+                <div style={{ textAlign: "center", width: "190px" }}>
+                  <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#1E293B", marginBottom: "38px" }}>
+                    {certDate}
+                  </div>
+                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: "11px", fontWeight: 900, color: "#1E293B", borderBottom: "2px solid #1E293B", paddingBottom: "2px", display: "inline-block", width: "100%" }}>
+                    {directorName}
+                  </div>
+                  <div style={{ fontSize: "9.5px", color: "#64748B", marginTop: "2px", fontWeight: 600 }}>
+                    {directorTitle}
+                  </div>
                 </div>
               </div>
             </div>
