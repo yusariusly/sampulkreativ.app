@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { DollarSign, Wallet, ShieldAlert, Award, FileText, Settings, User, ArrowLeft } from "lucide-react";
+import { DollarSign, Wallet, ShieldAlert, Award, FileText, Settings, User, ArrowLeft, Lock } from "lucide-react";
 import EmployeeDirectory from "./components/EmployeeDirectory";
 import SalaryConfigForm from "./components/SalaryConfigForm";
 import GenerateSlipForm from "./components/GenerateSlipForm";
@@ -9,6 +9,7 @@ import SlipsHistoryList from "./components/SlipsHistoryList";
 import PayslipPreviewModal from "./components/PayslipPreviewModal";
 import ApproverConfigCard from "./components/ApproverConfigCard";
 import PayrollNoticeConfigCard from "./components/PayrollNoticeConfigCard";
+import PayrollPasswordGate from "./components/PayrollPasswordGate";
 
 interface Employee {
   user_id: string;
@@ -24,6 +25,27 @@ interface Employee {
 }
 
 export default function AdminPayrollPage() {
+  // Autentikasi Khusus Payroll Gate
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const unlocked = sessionStorage.getItem("v2_payroll_unlocked");
+      if (unlocked === "true") {
+        setIsUnlocked(true);
+      }
+      setAuthChecked(true);
+    }
+  }, []);
+
+  const handleLockPayroll = () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("v2_payroll_unlocked");
+    }
+    setIsUnlocked(false);
+  };
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,9 +84,11 @@ export default function AdminPayrollPage() {
   }, [selectedEmployee]);
 
   useEffect(() => {
-    fetchEmployees();
+    if (isUnlocked) {
+      fetchEmployees();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isUnlocked]);
 
   const handleSelectEmployee = (emp: Employee) => {
     setSelectedEmployee(emp);
@@ -87,8 +111,21 @@ export default function AdminPayrollPage() {
 
   const [mobileSection, setMobileSection] = useState<"directory" | "settings">("directory");
 
+  if (!authChecked) {
+    return (
+      <div className="flex-1 min-h-[calc(100dvh-57px)] flex items-center justify-center bg-[#F0F2F5]">
+        <div className="w-8 h-8 border-3 border-[#2AB0B2] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Jika belum membuka gembok password, render PayrollPasswordGate
+  if (!isUnlocked) {
+    return <PayrollPasswordGate onSuccess={() => setIsUnlocked(true)} />;
+  }
+
   return (
-    <div className="flex-1 bg-[#F0F2F5] p-4 lg:p-8 select-none relative print:p-0 print:bg-white h-[calc(100dvh-57px)] lg:h-auto flex flex-col overflow-hidden lg:overflow-visible">
+    <div className="flex-1 bg-[#F0F2F5] p-4 lg:p-8 select-none relative print:p-0 print:bg-white h-[calc(100dvh-57px)] lg:h-auto flex flex-col overflow-hidden lg:overflow-visible animate-fade-in">
       {/* Title Header (Hidden on Print) */}
       <div className="flex items-center justify-between mb-4 md:mb-6 print:hidden flex-shrink-0">
         <div>
@@ -102,6 +139,16 @@ export default function AdminPayrollPage() {
             </div>
           </div>
         </div>
+
+        {/* Tombol Kunci Kembali Akses Payroll */}
+        <button
+          onClick={handleLockPayroll}
+          title="Kunci Akses Payroll"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 text-xs font-bold transition-all shadow-3xs cursor-pointer active:scale-95"
+        >
+          <Lock size={13} />
+          <span className="hidden sm:inline">Kunci Akses</span>
+        </button>
       </div>
 
       {/* Segmented Control for Mobile Settings vs Directory (Only shown on mobile when no employee is selected) */}
@@ -125,18 +172,19 @@ export default function AdminPayrollPage() {
                 : "text-slate-500 hover:text-slate-700"
             }`}
           >
-            Pengaturan Sistem
+            Pengaturan & Notice
           </button>
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-12 gap-6 lg:items-start print:hidden">
-        {/* Left Side: Employee Directory */}
-        <div className={`lg:col-span-4 h-full lg:h-[calc(100vh-180px)] lg:min-h-[500px] ${
-          selectedEmployee 
-            ? "hidden lg:block" 
-            : (mobileSection === "directory" ? "block h-full" : "hidden lg:block")
-        }`}>
+      {/* Main Grid Content */}
+      <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Employee Directory */}
+        <div
+          className={`w-full lg:col-span-4 h-full min-h-0 lg:max-h-[calc(100vh-140px)] flex-col flex ${
+            !selectedEmployee && mobileSection === "settings" ? "hidden lg:flex" : "flex"
+          } ${selectedEmployee ? "hidden lg:flex" : "flex"}`}
+        >
           <EmployeeDirectory
             employees={employees}
             selectedEmployee={selectedEmployee}
@@ -145,120 +193,111 @@ export default function AdminPayrollPage() {
           />
         </div>
 
-        {/* Right Side: Selected Employee Action Center & Global Configs */}
-        <div className={`lg:col-span-8 h-full space-y-4 lg:space-y-6 ${
-          selectedEmployee 
-            ? "flex flex-col" 
-            : (mobileSection === "settings" ? "flex flex-col lg:flex lg:flex-col" : "hidden lg:flex lg:flex-col")
-        }`}>
+        {/* Right Column: Work Area & Settings */}
+        <div
+          className={`w-full lg:col-span-8 flex-1 min-h-0 lg:max-h-[calc(100vh-140px)] flex-col gap-6 overflow-y-auto pr-0 lg:pr-1 ${
+            !selectedEmployee && mobileSection === "directory" ? "hidden lg:flex" : "flex"
+          }`}
+        >
           {selectedEmployee ? (
-            <>
-              {/* Employee Summary Card */}
-              <div className="bg-white rounded-2xl border border-gray-100 p-4 md:p-6 shadow-xs flex items-center justify-between flex-shrink-0">
-                <div className="flex items-center gap-3 md:gap-4 min-w-0">
-                  {/* Back button on mobile */}
-                  <button 
-                    onClick={() => setSelectedEmployee(null)}
-                    className="lg:hidden p-2 -ml-2 hover:bg-slate-100 rounded-xl text-slate-500 mr-1 flex-shrink-0 cursor-pointer active:scale-90 transition-transform"
-                  >
-                    <ArrowLeft size={18} />
-                  </button>
-                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-[#2AB0B2]/10 flex items-center justify-center text-[#2AB0B2] font-black text-sm flex-shrink-0">
-                    {selectedEmployee.nama_lengkap.charAt(0)}
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="font-extrabold text-[#1C3D3F] text-sm md:text-base truncate">{selectedEmployee.nama_lengkap}</h3>
-                    <p className="text-[10px] font-bold text-[#2AB0B2] mt-0.5 uppercase tracking-wider truncate">{selectedEmployee.jabatan}</p>
-                    <p className="text-[9px] text-gray-400 font-semibold mt-0.5 truncate">Username: @{selectedEmployee.username}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100/50 flex-shrink-0">
-                  <DollarSign size={12} className="text-emerald-500" />
-                  <span className="text-[10px] font-extrabold text-emerald-600">Aktif</span>
-                </div>
+            /* Selected Employee View */
+            <div className="flex flex-col gap-5">
+              {/* Mobile Back Button */}
+              <div className="flex items-center justify-between lg:hidden mb-1">
+                <button
+                  onClick={() => setSelectedEmployee(null)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-[#2AB0B2] hover:text-[#1C3D3F] bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-3xs"
+                >
+                  <ArrowLeft size={14} />
+                  <span>Kembali ke Daftar</span>
+                </button>
+                <span className="text-[11px] font-bold text-slate-400">
+                  {selectedEmployee.nama_lengkap}
+                </span>
               </div>
 
-              {/* Navigation Tabs */}
-              <div className="flex gap-2 border-b border-gray-200 pb-px overflow-x-auto no-scrollbar scroll-smooth flex-shrink-0">
+              {/* Navigation Tabs (Config / Generate / History) */}
+              <div className="bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-3xs flex items-center gap-1.5 flex-wrap">
                 <button
                   onClick={() => setActiveTab("config")}
-                  className={`px-3 md:px-4.5 py-2 md:py-2.5 font-bold text-[11px] md:text-xs border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
                     activeTab === "config"
-                      ? "border-[#2AB0B2] text-[#2AB0B2]"
-                      : "border-transparent text-gray-400 hover:text-gray-600"
+                      ? "bg-[#2AB0B2] text-white shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                   }`}
                 >
-                  Konfigurasi Finansial
+                  <Settings size={14} />
+                  <span>Konfigurasi Gaji</span>
                 </button>
+
                 <button
                   onClick={() => setActiveTab("generate")}
-                  className={`px-3 md:px-4.5 py-2 md:py-2.5 font-bold text-[11px] md:text-xs border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
                     activeTab === "generate"
-                      ? "border-[#2AB0B2] text-[#2AB0B2]"
-                      : "border-transparent text-gray-400 hover:text-gray-600"
+                      ? "bg-[#2AB0B2] text-white shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                   }`}
                 >
-                  Generate Slip Gaji
+                  <FileText size={14} />
+                  <span>Hitung & Buat Slip Gaji</span>
                 </button>
+
                 <button
                   onClick={() => setActiveTab("history")}
-                  className={`px-3 md:px-4.5 py-2 md:py-2.5 font-bold text-[11px] md:text-xs border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
                     activeTab === "history"
-                      ? "border-[#2AB0B2] text-[#2AB0B2]"
-                      : "border-transparent text-gray-400 hover:text-gray-600"
+                      ? "bg-[#2AB0B2] text-white shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                   }`}
                 >
-                  Riwayat Slip
+                  <Award size={14} />
+                  <span>Riwayat Slip Gaji</span>
                 </button>
               </div>
 
-              {/* Active Tab Panel */}
-              <div className="transition-all duration-200 flex-1 min-h-0 overflow-y-auto pr-1 pb-4">
-                {activeTab === "config" && (
-                  <SalaryConfigForm
-                    employee={selectedEmployee}
-                    onSaveSuccess={fetchEmployees}
-                  />
-                )}
+              {/* Active Sub-component */}
+              {activeTab === "config" && (
+                <SalaryConfigForm
+                  employee={selectedEmployee}
+                  onSaveSuccess={fetchEmployees}
+                />
+              )}
 
-                {activeTab === "generate" && (
-                  <GenerateSlipForm
-                    employee={selectedEmployee}
-                    onPreviewRequested={handlePreviewSlip}
-                  />
-                )}
+              {activeTab === "generate" && (
+                <GenerateSlipForm
+                  employee={selectedEmployee}
+                  onPreviewRequested={handlePreviewSlip}
+                />
+              )}
 
-                {activeTab === "history" && (
-                  <SlipsHistoryList
-                    userId={selectedEmployee.user_id}
-                    refreshTrigger={refreshHistoryTrigger}
-                    onSelectSlip={handlePreviewSlip}
-                  />
-                )}
-              </div>
-            </>
+              {activeTab === "history" && (
+                <SlipsHistoryList
+                  userId={selectedEmployee.user_id}
+                  refreshTrigger={refreshHistoryTrigger}
+                  onSelectSlip={handlePreviewSlip}
+                />
+              )}
+            </div>
           ) : (
-            <div className="hidden lg:flex bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-xs flex-col items-center justify-center min-h-[400px]">
-              <div className="w-16 h-16 bg-[#2AB0B2]/5 border border-[#2AB0B2]/10 text-[#2AB0B2] rounded-3xl flex items-center justify-center mb-4">
-                <Wallet size={28} />
+            /* No Employee Selected Placeholder + Global Approver & Notice Settings */
+            <div className="flex flex-col gap-6">
+              <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-3xs flex flex-col items-center justify-center text-center min-h-[220px]">
+                <div className="w-14 h-14 rounded-2xl bg-teal-50 text-[#2AB0B2] flex items-center justify-center mb-3">
+                  <Wallet size={26} />
+                </div>
+                <h3 className="text-base font-bold text-[#1C3D3F]">Dasbor Payroll Terpadu</h3>
+                <p className="text-xs text-slate-400 max-w-md mt-1 leading-relaxed">
+                  Silakan pilih salah satu karyawan dari direktori sebelah kiri untuk mengonfigurasi rincian gaji, menghitung rekap absensi, atau menerbitkan dan mengunduh slip gaji bulanan mereka.
+                </p>
               </div>
-              <h3 className="font-extrabold text-[#1C3D3F] text-base">Dasbor Payroll Terpadu</h3>
-              <p className="text-gray-400 text-xs mt-1.5 max-w-sm leading-relaxed">
-                Silakan pilih salah satu karyawan dari direktori sebelah kiri untuk mengonfigurasi rincian gaji, menghitung rekap absensi, atau menerbitkan dan mengunduh slip gaji bulanan mereka.
-              </p>
+
+              {/* Dual Column for Global Approver & Notice Settings */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ApproverConfigCard onApproverUpdated={handleApproverUpdated} />
+                <PayrollNoticeConfigCard />
+              </div>
             </div>
           )}
-
-          {/* Global Payroll Config Section */}
-          <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 print:hidden ${
-            selectedEmployee 
-              ? "hidden lg:grid" 
-              : (mobileSection === "settings" ? "flex-1 min-h-0 overflow-y-auto pb-4 pr-1 grid" : "hidden lg:grid")
-          }`}>
-            <ApproverConfigCard onApproverUpdated={handleApproverUpdated} />
-            <PayrollNoticeConfigCard />
-          </div>
         </div>
       </div>
 

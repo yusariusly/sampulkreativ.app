@@ -183,6 +183,7 @@ async function generateNoKaryawan() {
 
 const app = express();
 app.set('trust proxy', true);
+
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
@@ -4126,6 +4127,215 @@ app.delete('/api/kie/admin/submissions/:id', async (req, res) => {
 // ==========================================
 
 // Get all payroll configs (Admin settings list)
+// ==========================================
+// PAYROLL PASSWORD AUTHENTICATION & RESET
+// ==========================================
+
+function hashPayrollPassword(pwd) {
+  return crypto.createHash('sha256').update(String(pwd) + '_sk_payroll_secret_salt').digest('hex');
+}
+
+// 1. Verify Payroll Password
+app.post('/api/payroll/auth/verify', async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ error: 'Password wajib diisi.' });
+    }
+
+    const [rows] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'payroll_password'");
+    const storedHash = rows[0]?.key_value;
+
+    const defaultPwd = 'admin123';
+    const defaultHash = hashPayrollPassword(defaultPwd);
+
+    let isMatch = false;
+    if (!storedHash) {
+      // Belum ada password disetel, gunakan default admin123
+      if (password === defaultPwd || hashPayrollPassword(password) === defaultHash) {
+        isMatch = true;
+        await pool.query(
+          "INSERT INTO settings (key_name, key_value) VALUES (?, ?) ON CONFLICT (key_name) DO UPDATE SET key_value = EXCLUDED.key_value",
+          ['payroll_password', defaultHash]
+        );
+      }
+    } else {
+      if (hashPayrollPassword(password) === storedHash || password === storedHash || (storedHash === defaultHash && password === defaultPwd)) {
+        isMatch = true;
+      }
+    }
+
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Password payroll salah. Silakan coba lagi.' });
+    }
+
+    res.json({ success: true, message: 'Password payroll terverifikasi.' });
+  } catch (error) {
+    console.error('Gagal verifikasi password payroll:', error);
+    res.status(500).json({ error: 'Terjadi kesalahan sistem saat memverifikasi password.' });
+  }
+});
+
+// 2. Request Password Reset OTP via HRD Email
+app.post('/api/payroll/auth/request-reset', async (req, res) => {
+  try {
+    const [settingsRows] = await pool.query(
+      "SELECT key_name, key_value FROM settings WHERE key_name IN ('smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_sender', 'smtp_to')"
+    );
+    const settingsMap = {};
+    settingsRows.forEach(r => { settingsMap[r.key_name] = r.key_value; });
+
+    const hrdEmail = settingsMap['smtp_to'] || 'hasan.farisi100@gmail.com';
+    const host = settingsMap['smtp_host'] || 'smtp-relay.brevo.com';
+    const port = parseInt(settingsMap['smtp_port'] || '2525');
+    const user = settingsMap['smtp_user'];
+    const pass = settingsMap['smtp_pass'];
+    const sender = settingsMap['smtp_sender'] || 'noreply@sampulkreativ.id';
+
+    if (!hrdEmail) {
+      return res.status(400).json({ error: 'Email HRD (smtp_to) belum dikonfigurasi di Pengaturan.' });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = Date.now() + 15 * 60 * 1000; // Valid for 15 minutes
+
+    // Save to settings table
+    await pool.query(
+      "INSERT INTO settings (key_name, key_value) VALUES (?, ?) ON CONFLICT (key_name) DO UPDATE SET key_value = EXCLUDED.key_value",
+      ['payroll_reset_otp', otp]
+    );
+    await pool.query(
+      "INSERT INTO settings (key_name, key_value) VALUES (?, ?) ON CONFLICT (key_name) DO UPDATE SET key_value = EXCLUDED.key_value",
+      ['payroll_reset_expiry', expiry.toString()]
+    );
+
+    // Kirim email ke HRD
+    if (user && pass && host) {
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass }
+      });
+
+      const mailOptions = {
+        from: `"SampulKreativ Security" <${sender}>`,
+        to: hrdEmail,
+        subject: `[KODE OTP: ${otp}] Permintaan Ganti Password Sistem Payroll SampulKreativ`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #E2E8F0; border-radius: 16px; padding: 28px; background-color: #ffffff; color: #1E293B;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <h2 style="color: #1C3D3F; margin: 0 0 6px 0; font-size: 22px;">Verifikasi Ganti Password Payroll</h2>
+              <p style="color: #64748B; font-size: 13px; margin: 0;">Sistem Pengelolaan Keuangan & Gaji SampulKreativ</p>
+            </div>
+            
+            <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+              Halo Tim HRD / Manajemen,
+            </p>
+            <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+              Kami menerima permintaan untuk mengganti kata sandi akses menu <strong>Sistem Payroll</strong> di Admin Panel. Gunakan kode verifikasi (OTP) berikut untuk melanjutkan:
+            </p>
+
+            <div style="text-align: center; margin: 24px 0; padding: 18px; background: #F8FAFC; border: 2px dashed #2AB0B2; border-radius: 12px;">
+              <span style="font-size: 32px; font-weight: 900; letter-spacing: 8px; color: #1C3D3F; font-family: monospace;">${otp}</span>
+              <p style="margin: 8px 0 0 0; font-size: 11px; color: #64748B; font-weight: bold;">KODE BERLAKU SELAMA 15 MENIT</p>
+            </div>
+
+            <p style="font-size: 12px; line-height: 1.5; color: #64748B; margin-top: 20px;">
+              ⚠️ Jangan berikan kode ini kepada siapapun yang tidak berwenang mengelola data penggajian karyawan. Jika Anda tidak merasa meminta perubahan ini, abaikan email ini.
+            </p>
+
+            <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 24px 0;" />
+            <p style="text-align: center; font-size: 11px; color: #94A3B8; margin: 0;">
+              &copy; ${new Date().getFullYear()} SampulKreativ. All rights reserved.
+            </p>
+          </div>
+        `
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log(`[PAYROLL_RESET_OTP] Email sent successfully to ${hrdEmail} with OTP: ${otp}`);
+    } else {
+      console.warn(`[PAYROLL_RESET_OTP] SMTP credentials incomplete, generated OTP: ${otp}`);
+    }
+
+    // Masked email for display (e.g. h***100@gmail.com)
+    const parts = hrdEmail.split('@');
+    const maskedUser = parts[0].length > 3 ? parts[0][0] + '***' + parts[0].slice(-3) : parts[0][0] + '***';
+    const maskedEmail = `${maskedUser}@${parts[1]}`;
+
+    res.json({
+      success: true,
+      message: `Kode verifikasi telah dikirimkan ke email penerima HRD (${maskedEmail}).`,
+      email: maskedEmail
+    });
+  } catch (error) {
+    console.error('Gagal mengirimkan kode OTP reset password payroll:', error);
+    res.status(500).json({ error: 'Gagal mengirimkan kode OTP ke email HRD: ' + (error.message || '') });
+  }
+});
+
+// 3. Reset Payroll Password with OTP
+app.post('/api/payroll/auth/reset-password', async (req, res) => {
+  try {
+    const { otp, new_password } = req.body;
+    if (!otp || !new_password) {
+      return res.status(400).json({ error: 'Kode OTP dan password baru wajib diisi.' });
+    }
+
+    if (new_password.trim().length < 4) {
+      return res.status(400).json({ error: 'Password baru minimal 4 karakter.' });
+    }
+
+    const [settingsRows] = await pool.query(
+      "SELECT key_name, key_value FROM settings WHERE key_name IN ('payroll_reset_otp', 'payroll_reset_expiry')"
+    );
+    const settingsMap = {};
+    settingsRows.forEach(r => { settingsMap[r.key_name] = r.key_value; });
+
+    const storedOtp = settingsMap['payroll_reset_otp'];
+    const storedExpiry = parseInt(settingsMap['payroll_reset_expiry'] || '0');
+
+    if (!storedOtp || !storedExpiry) {
+      return res.status(400).json({ error: 'Permintaan ganti password belum dibuat atau sudah kedaluwarsa. Silakan minta kode baru.' });
+    }
+
+    if (Date.now() > storedExpiry) {
+      return res.status(400).json({ error: 'Kode verifikasi OTP sudah kedaluwarsa. Silakan minta kode baru.' });
+    }
+
+    if (storedOtp.trim() !== otp.toString().trim()) {
+      return res.status(400).json({ error: 'Kode verifikasi OTP salah. Periksa kembali email HRD Anda.' });
+    }
+
+    // Simpan password baru ter-hash
+    const newHash = hashPayrollPassword(new_password.trim());
+    await pool.query(
+      "INSERT INTO settings (key_name, key_value) VALUES (?, ?) ON CONFLICT (key_name) DO UPDATE SET key_value = EXCLUDED.key_value",
+      ['payroll_password', newHash]
+    );
+
+    // Hapus OTP agar tidak dapat digunakan ulang
+    await pool.query(
+      "INSERT INTO settings (key_name, key_value) VALUES (?, ?) ON CONFLICT (key_name) DO UPDATE SET key_value = EXCLUDED.key_value",
+      ['payroll_reset_otp', '']
+    );
+    await pool.query(
+      "INSERT INTO settings (key_name, key_value) VALUES (?, ?) ON CONFLICT (key_name) DO UPDATE SET key_value = EXCLUDED.key_value",
+      ['payroll_reset_expiry', '0']
+    );
+
+    res.json({
+      success: true,
+      message: 'Password payroll berhasil diperbarui! Silakan gunakan password baru untuk masuk.'
+    });
+  } catch (error) {
+    console.error('Gagal mereset password payroll:', error);
+    res.status(500).json({ error: 'Terjadi kesalahan sistem saat memperbarui password.' });
+  }
+});
+
 app.get('/api/payroll/config', async (req, res) => {
   try {
     const [rows] = await pool.query(`
