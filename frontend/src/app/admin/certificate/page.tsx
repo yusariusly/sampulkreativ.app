@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 interface Curriculum { id: string; title: string; duration_months: number; student_count: number; }
-interface Student { student_id: string; student_name: string; school_name?: string; start_date: string; end_date: string; }
+interface Student { student_id: string; student_name: string; school_name?: string; no_karyawan?: string | null; start_date: string; end_date: string; }
 interface Criterion { id: number; name: string; sort_order: number; }
 interface MonthData {
   month_number: number; month_label: string; month_start: string; month_end: string;
@@ -501,6 +501,7 @@ export default function CertificatePage() {
         student_id: s.student_id,
         student_name: s.nama_lengkap,
         school_name: s.school_name || 'Politeknik Negeri Bandung',
+        no_karyawan: s.no_karyawan || null,
         start_date: s.start_date ? new Date(s.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
         end_date: s.end_date ? new Date(s.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
       }));
@@ -1208,6 +1209,7 @@ export default function CertificatePage() {
         isOpen={isPrintModalOpen}
         onClose={() => setIsPrintModalOpen(false)}
         student={currentStudent ?? null}
+        curriculumTitle={currentCurriculum?.title || "PKL Angkatan 13"}
         gradeData={gradeData}
         criteria={activeCriteria}
         notes={pendingNotes}

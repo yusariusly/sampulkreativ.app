@@ -39,6 +39,7 @@ interface Student {
   student_id: string;
   student_name: string;
   school_name?: string;
+  no_karyawan?: string | null;
   start_date: string;
   end_date: string;
 }
@@ -47,6 +48,7 @@ interface CertificatePrintModalProps {
   isOpen: boolean;
   onClose: () => void;
   student: Student | null;
+  curriculumTitle?: string;
   gradeData: CertGradeData | null;
   criteria: Criterion[];
   notes: Record<number, string>;
@@ -56,19 +58,55 @@ export default function CertificatePrintModal({
   isOpen,
   onClose,
   student,
+  curriculumTitle,
   gradeData,
   criteria,
   notes,
 }: CertificatePrintModalProps) {
   const [activeTab, setActiveTab] = useState<"all" | "front" | "back">("all");
-  
+
+  // Calculate dynamic cert number: CTF-SKT/{angkatan}/{tahun}-{urutan_karyawan}
+  const computeCertNumber = () => {
+    // 1. Angkatan (e.g. PKL Angkatan 13 -> 13, PKL Angkatan 6 -> 06)
+    const angkatanMatch = curriculumTitle?.match(/\d+/);
+    const angkatan = angkatanMatch ? String(angkatanMatch[0]).padStart(2, "0") : "06";
+
+    // 2. Tahun (from start_date or current year)
+    let year = "2026";
+    if (student?.start_date) {
+      const matchYear = student.start_date.match(/\d{4}/);
+      if (matchYear) year = matchYear[0];
+    }
+
+    // 3. Urutan user dari no_karyawan (e.g. 202606150202 -> 0002, or 0054)
+    let seq = "0001";
+    if (student?.no_karyawan) {
+      const digits = student.no_karyawan.replace(/\D/g, "");
+      if (digits.length >= 12) {
+        // Format YYYYMMDD02NN -> last 2 digits are sequence
+        const seqNum = parseInt(digits.slice(10), 10);
+        if (!isNaN(seqNum)) seq = String(seqNum).padStart(4, "0");
+      } else if (digits.length > 0) {
+        const seqNum = parseInt(digits.slice(-4), 10);
+        if (!isNaN(seqNum)) seq = String(seqNum).padStart(4, "0");
+      }
+    }
+    return `CTF-SKT/${angkatan}/${year}-${seq}`;
+  };
+
   // Dynamic certificate number, place, date, signer name, and title
-  const defaultCertNo = `CTF-SKT/06/2026-0054`;
-  const [certNumber, setCertNumber] = useState(defaultCertNo);
+  const [certNumber, setCertNumber] = useState(computeCertNumber());
   const [certPlace, setCertPlace] = useState("Cimahi");
   const [certDate, setCertDate] = useState("September 2026");
   const [directorName, setDirectorName] = useState("M. FIRAS FAISAL");
   const [directorTitle, setDirectorTitle] = useState("Direktur Utama");
+
+  // Automatically update certNumber whenever student or curriculum changes
+  useEffect(() => {
+    if (student) {
+      setCertNumber(computeCertNumber());
+    }
+  }, [student?.student_id, student?.no_karyawan, curriculumTitle]);
 
   // Load persistent preferences from localStorage
   useEffect(() => {
