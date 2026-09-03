@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import CertificatePrintModal from "./CertificatePrintModal";
 import {
   Award, ChevronDown, Check, BookOpen, ClipboardList, Save,
   Settings, Plus, Trash2, Edit, X, Loader2, Star, Tag, MessageSquare,
-  Calendar, RotateCcw, CalendarDays,
+  Calendar, RotateCcw, CalendarDays, ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 interface Curriculum { id: string; title: string; duration_months: number; student_count: number; }
@@ -39,6 +39,173 @@ function LoadingSpinner() {
 }
 function EmptyState({ message }: { message: string }) {
   return <div className="text-center py-12"><p className="text-sm text-slate-400 font-medium">{message}</p></div>;
+}
+
+/* ── INTERACTIVE CALENDAR DATE PICKER COMPONENT ── */
+function CalendarDatePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const initialDate = value ? new Date(value) : new Date();
+  const [viewYear, setViewYear] = useState(initialDate.getFullYear() || 2026);
+  const [viewMonth, setViewMonth] = useState(initialDate.getMonth() || 0);
+
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (value) {
+      const d = new Date(value);
+      if (!isNaN(d.getTime())) {
+        setViewYear(d.getFullYear());
+        setViewMonth(d.getMonth());
+      }
+    }
+  }, [value]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDayIndex = new Date(viewYear, viewMonth, 1).getDay();
+
+  const handlePrevMonth = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear(y => y - 1);
+    } else {
+      setViewMonth(m => m - 1);
+    }
+  };
+
+  const handleNextMonth = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear(y => y + 1);
+    } else {
+      setViewMonth(m => m + 1);
+    }
+  };
+
+  const handleSelectDay = (day: number) => {
+    const mm = String(viewMonth + 1).padStart(2, "0");
+    const dd = String(day).padStart(2, "0");
+    onChange(`${viewYear}-${mm}-${dd}`);
+    setIsOpen(false);
+  };
+
+  const formattedDisplay = () => {
+    if (!value) return "Pilih Tanggal";
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return value;
+    return d.toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const monthNames = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+
+  return (
+    <div className="relative" ref={popoverRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 bg-white hover:border-[#2AB0B2] hover:bg-slate-50/50 transition-all cursor-pointer shadow-3xs"
+      >
+        <div className="flex items-center gap-2">
+          <Calendar size={13} className="text-[#2AB0B2]" />
+          <span>{formattedDisplay()}</span>
+        </div>
+        <ChevronDown size={13} className={`text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-slate-200/90 rounded-2xl shadow-2xl p-3.5 w-64 animate-in fade-in zoom-in-95 duration-150 select-none">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-2.5">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <div className="text-xs font-extrabold text-slate-800">
+              {monthNames[viewMonth]} {viewYear}
+            </div>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+
+          {/* Days of week */}
+          <div className="grid grid-cols-7 gap-1 text-center mb-1">
+            {["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((d, i) => (
+              <span key={i} className="text-[9px] font-black text-slate-400 uppercase">
+                {d}
+              </span>
+            ))}
+          </div>
+
+          {/* Days Grid */}
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: firstDayIndex }).map((_, i) => (
+              <div key={`empty-${i}`} className="h-7 w-7" />
+            ))}
+
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const mm = String(viewMonth + 1).padStart(2, "0");
+              const dd = String(day).padStart(2, "0");
+              const cellDateStr = `${viewYear}-${mm}-${dd}`;
+              const isSelected = value === cellDateStr;
+
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => handleSelectDay(day)}
+                  className={`h-7 w-7 rounded-lg text-[11px] font-bold flex items-center justify-center transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-[#2AB0B2] text-white shadow-xs font-extrabold"
+                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function CertificatePage() {
@@ -951,11 +1118,9 @@ export default function CertificatePage() {
                       <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
                         Tanggal Mulai
                       </label>
-                      <input
-                        type="date"
+                      <CalendarDatePicker
                         value={m.start_date}
-                        onChange={e => handleMonthFieldChange(idx, 'start_date', e.target.value)}
-                        className="w-full text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2]"
+                        onChange={val => handleMonthFieldChange(idx, 'start_date', val)}
                       />
                     </div>
 
@@ -966,11 +1131,9 @@ export default function CertificatePage() {
                       <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
                         Tanggal Selesai
                       </label>
-                      <input
-                        type="date"
+                      <CalendarDatePicker
                         value={m.end_date}
-                        onChange={e => handleMonthFieldChange(idx, 'end_date', e.target.value)}
-                        className="w-full text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2]"
+                        onChange={val => handleMonthFieldChange(idx, 'end_date', val)}
                       />
                     </div>
 
