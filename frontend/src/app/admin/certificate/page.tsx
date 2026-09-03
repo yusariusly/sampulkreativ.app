@@ -506,9 +506,6 @@ export default function CertificatePage() {
                     >
                       <Calendar size={12} />
                       <span>Atur Periode Bulan</span>
-                      {gradeData?.is_custom_months && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ml-0.5" title="Kustom Aktif" />
-                      )}
                     </button>
                   </div>
                   <span className="text-[10px] font-semibold text-slate-400">
@@ -533,21 +530,16 @@ export default function CertificatePage() {
                         return (
                           <tr key={month.month_number} className="border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
                             <td className="px-5 py-3.5 whitespace-nowrap">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5">
                                 <span className="font-bold text-slate-700">{month.month_label}</span>
                                 <button
                                   type="button"
                                   onClick={openMonthEditModal}
                                   className="p-1 rounded-md text-slate-400 hover:text-[#2AB0B2] hover:bg-[#2AB0B2]/10 transition-colors cursor-pointer"
-                                  title="Edit Tanggal Periode Bulan Ini"
+                                  title="Atur Periode Bulan"
                                 >
                                   <Edit size={12} />
                                 </button>
-                                {month.is_custom && (
-                                  <span className="text-[8px] font-black px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                                    Custom
-                                  </span>
-                                )}
                               </div>
                               <div className="text-[9px] text-slate-400 mt-0.5">{month.month_start} s/d {month.month_end}</div>
                             </td>
