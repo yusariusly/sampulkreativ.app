@@ -54,7 +54,7 @@ export default function StationPage() {
   const [isWithinOfficeRange, setIsWithinOfficeRange] = useState<boolean | null>(null);
 
   // Flag pembatas jarak kantor (Di-hide/bypass agar absensi stasiun admin tidak tergantung jarak lokasi)
-  const ENABLE_STATION_LOCATION_LOCK = true;
+  const ENABLE_STATION_LOCATION_LOCK = false;
 
   // Jam & Hari Stasiun (WIB)
   const [currentTime, setCurrentTime] = useState<string>("");
@@ -135,6 +135,12 @@ export default function StationPage() {
   };
 
   useEffect(() => {
+    if (!ENABLE_STATION_LOCATION_LOCK) {
+      setGpsLoading(false);
+      setIsWithinOfficeRange(true);
+      return;
+    }
+
     checkGeolocation();
 
     if (navigator.geolocation) {
