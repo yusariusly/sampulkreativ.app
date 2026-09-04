@@ -219,7 +219,7 @@ export default function CertificatePrintModal({
         return `
           <div style="margin-bottom: 4px;">
             <strong style="color: #1E293B; font-weight: 800;">• ${m.month_label}:</strong>
-            <span style="font-style: italic; color: #475569; margin-left: 4px;">${noteText ? `"${noteText}"` : 'Sangat disiplin, aktif, dan menyelesaikan seluruh target magang dengan sangat baik.'}</span>
+            <span style="font-style: italic; color: #475569; margin-left: 4px;">${noteText ? noteText : 'Sangat disiplin, aktif, dan menyelesaikan seluruh target magang dengan sangat baik.'}</span>
           </div>
         `;
       })
@@ -347,14 +347,14 @@ export default function CertificatePrintModal({
             </div>
 
             <!-- Footer Kanan: Tanggal & Tanda Tangan (Di dalam area putih bersih) -->
-            <div style="position: absolute; right: 20.5%; top: 69.5%; width: 180px; text-align: center;">
+            <div style="position: absolute; right: 15%; top: 69.5%; width: 250px; text-align: center;">
               <div style="font-size: 11px; font-weight: 700; color: #1E293B; margin-bottom: 38px;">
                 ${certFullDate}
               </div>
-              <div style="font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px; display: inline-block; width: 100%;">
+              <div style="font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px; display: inline-block; width: 100%; white-space: nowrap;">
                 ${directorName}
               </div>
-              <div style="font-size: 10px; color: #64748B; margin-top: 3px; font-weight: 600;">
+              <div style="font-size: 10px; color: #64748B; margin-top: 3px; font-weight: 600; white-space: nowrap;">
                 ${directorTitle}
               </div>
             </div>
@@ -403,7 +403,7 @@ export default function CertificatePrintModal({
             <div style="position: absolute; left: 14%; top: 66.0%; width: 440px;">
               <div style="border: 1.5px solid #CBD5E1; background: rgba(255, 255, 255, 0.95); padding: 10px 14px; border-radius: 8px;">
                 <div style="font-family: 'Montserrat', sans-serif; font-size: 10.5px; font-weight: 900; color: #1E293B; margin-bottom: 4px;">
-                  CATATAN PERKEMBANGAN SISWA
+                  CATATAN PERKEMBANGAN
                 </div>
                 <div style="font-size: 9.5px; color: #334155; line-height: 1.4;">
                   ${notesHtml}
@@ -412,14 +412,14 @@ export default function CertificatePrintModal({
             </div>
 
             <!-- Footer: Tanda Tangan Direktur (Kanan Bawah) -->
-            <div style="position: absolute; right: 14%; top: 65.5%; width: 190px; text-align: center;">
+            <div style="position: absolute; right: 11%; top: 65.5%; width: 250px; text-align: center;">
               <div style="font-size: 11px; font-weight: 700; color: #1E293B; margin-bottom: 40px;">
                 ${certFullDate}
               </div>
-              <div style="font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px; display: inline-block; width: 100%;">
+              <div style="font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px; display: inline-block; width: 100%; white-space: nowrap;">
                 ${directorName}
               </div>
-              <div style="font-size: 10px; color: #64748B; margin-top: 3px; font-weight: 600;">
+              <div style="font-size: 10px; color: #64748B; margin-top: 3px; font-weight: 600; white-space: nowrap;">
                 ${directorTitle}
               </div>
             </div>
@@ -789,19 +789,19 @@ export default function CertificatePrintModal({
               <div
                 style={{
                   position: "absolute",
-                  right: "20.5%",
+                  right: "15%",
                   top: "69.5%",
-                  width: "160px",
+                  width: "230px",
                   textAlign: "center",
                 }}
               >
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#1E293B", marginBottom: "34px" }}>
                   {certFullDate}
                 </div>
-                <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: "11px", fontWeight: 900, color: "#1E293B", borderBottom: "2px solid #1E293B", paddingBottom: "2px", display: "inline-block", width: "100%" }}>
+                <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: "11px", fontWeight: 900, color: "#1E293B", borderBottom: "2px solid #1E293B", paddingBottom: "2px", display: "inline-block", width: "100%", whiteSpace: "nowrap" }}>
                   {directorName}
                 </div>
-                <div style={{ fontSize: "9px", color: "#64748B", marginTop: "2px", fontWeight: 600 }}>
+                <div style={{ fontSize: "9px", color: "#64748B", marginTop: "2px", fontWeight: 600, whiteSpace: "nowrap" }}>
                   {directorTitle}
                 </div>
               </div>
@@ -950,15 +950,20 @@ export default function CertificatePrintModal({
                       marginBottom: "4px",
                     }}
                   >
-                    CATATAN PERKEMBANGAN SISWA
+                    CATATAN PERKEMBANGAN
                   </div>
                   <div style={{ fontSize: "8.5px", color: "#334155", lineHeight: 1.35 }}>
-                    {gradeData.months.some(m => m.notes) ? (
-                      gradeData.months.filter(m => m.notes).map(m => (
-                        <div key={m.month_number} style={{ marginBottom: "2px" }}>
-                          <strong>{m.month_label}:</strong> {m.notes}
-                        </div>
-                      ))
+                    {gradeData.months.some(m => (notes[m.month_number] || m.notes)) ? (
+                      gradeData.months.map(m => {
+                        const noteText = notes[m.month_number] || m.notes;
+                        if (!noteText) return null;
+                        return (
+                          <div key={m.month_number} style={{ marginBottom: "2px" }}>
+                            <strong style={{ color: "#1E293B", fontWeight: 800 }}>• {m.month_label}:</strong>{" "}
+                            <span style={{ fontStyle: "italic", color: "#475569" }}>{noteText}</span>
+                          </div>
+                        );
+                      })
                     ) : (
                       <span style={{ color: "#94A3B8", fontStyle: "italic" }}>
                         Siswa menunjukkan perkembangan yang sangat baik selama masa PKL dan menyelesaikan seluruh tugas dengan tanggung jawab.
@@ -972,9 +977,9 @@ export default function CertificatePrintModal({
               <div
                 style={{
                   position: "absolute",
-                  right: "14%",
+                  right: "11%",
                   top: "65.5%",
-                  width: "170px",
+                  width: "230px",
                   textAlign: "center",
                 }}
               >
@@ -991,11 +996,12 @@ export default function CertificatePrintModal({
                     paddingBottom: "2px",
                     display: "inline-block",
                     width: "100%",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {directorName}
                 </div>
-                <div style={{ fontSize: "9px", color: "#64748B", marginTop: "2px", fontWeight: 600 }}>
+                <div style={{ fontSize: "9px", color: "#64748B", marginTop: "2px", fontWeight: 600, whiteSpace: "nowrap" }}>
                   {directorTitle}
                 </div>
               </div>
