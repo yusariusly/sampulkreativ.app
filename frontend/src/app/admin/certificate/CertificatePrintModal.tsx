@@ -403,7 +403,7 @@ export default function CertificatePrintModal({
             <div style="position: absolute; left: 14%; top: 66.0%; width: 440px;">
               <div style="border: 1.5px solid #CBD5E1; background: rgba(255, 255, 255, 0.95); padding: 10px 14px; border-radius: 8px;">
                 <div style="font-family: 'Montserrat', sans-serif; font-size: 10.5px; font-weight: 900; color: #1E293B; margin-bottom: 4px;">
-                  💬 CATATAN PERKEMBANGAN SISWA
+                  CATATAN PERKEMBANGAN SISWA
                 </div>
                 <div style="font-size: 9.5px; color: #334155; line-height: 1.4;">
                   ${notesHtml}
@@ -950,7 +950,7 @@ export default function CertificatePrintModal({
                       marginBottom: "4px",
                     }}
                   >
-                    💬 CATATAN PERKEMBANGAN SISWA
+                    CATATAN PERKEMBANGAN SISWA
                   </div>
                   <div style={{ fontSize: "8.5px", color: "#334155", lineHeight: 1.35 }}>
                     {gradeData.months.some(m => m.notes) ? (
