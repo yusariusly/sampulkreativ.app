@@ -11,12 +11,13 @@
  * @returns {Promise<object|null>} Data evaluasi harian
  */
 async function findByStudentAndDate(dbClient, studentId, evaluationDate) {
+  const targetId = `ev-${studentId}-${evaluationDate}`;
   const query = `
     SELECT id, student_id, evaluation_date, wkt_point, skp_point, has_point, ker_point, ini_point, created_at
     FROM pkl_daily_evaluations
-    WHERE student_id = ? AND evaluation_date = ?
+    WHERE id = ? OR (student_id = ? AND evaluation_date = ?)
   `;
-  const [rows] = await dbClient.query(query, [studentId, evaluationDate]);
+  const [rows] = await dbClient.query(query, [targetId, studentId, evaluationDate]);
   return rows[0] || null;
 }
 
@@ -53,13 +54,14 @@ async function findByStudentAndDateRange(dbClient, studentId, startDate, endDate
  * @returns {Promise<boolean>} True jika penyimpanan/pembaruan berhasil
  */
 async function upsert(dbClient, evalData) {
-  const checkQuery = 'SELECT id FROM pkl_daily_evaluations WHERE student_id = ? AND evaluation_date = ?';
-  const [rows] = await dbClient.query(checkQuery, [evalData.student_id, evalData.evaluation_date]);
+  const newId = `ev-${evalData.student_id}-${evalData.evaluation_date}`;
+  const checkQuery = 'SELECT id FROM pkl_daily_evaluations WHERE id = ? OR (student_id = ? AND evaluation_date = ?)';
+  const [rows] = await dbClient.query(checkQuery, [newId, evalData.student_id, evalData.evaluation_date]);
 
   if (rows.length > 0) {
     const updateQuery = `
       UPDATE pkl_daily_evaluations 
-      SET wkt_point = ?, skp_point = ?, has_point = ?, ker_point = ?, ini_point = ? 
+      SET wkt_point = ?, skp_point = ?, has_point = ?, ker_point = ?, ini_point = ?, evaluation_date = ? 
       WHERE id = ?
     `;
     const [result] = await dbClient.query(updateQuery, [
@@ -68,6 +70,7 @@ async function upsert(dbClient, evalData) {
       evalData.has_point,
       evalData.ker_point,
       evalData.ini_point,
+      evalData.evaluation_date,
       rows[0].id
     ]);
     return result.affectedRows > 0;
@@ -76,7 +79,6 @@ async function upsert(dbClient, evalData) {
       INSERT INTO pkl_daily_evaluations (id, student_id, evaluation_date, wkt_point, skp_point, has_point, ker_point, ini_point, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
-    const newId = `ev-${evalData.student_id}-${evalData.evaluation_date}`;
     const [result] = await dbClient.query(insertQuery, [
       newId,
       evalData.student_id,

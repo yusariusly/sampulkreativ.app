@@ -833,7 +833,9 @@ export default function PklScoreboardPage() {
           });
 
           if (!res.ok) {
-            throw new Error(`Gagal menyimpan evaluasi untuk tanggal ${day.name} (${day.formatted})`);
+            const errJson = await res.json().catch(() => null);
+            const errDetail = errJson?.error?.message ? `: ${errJson.error.message}` : "";
+            throw new Error(`Gagal menyimpan evaluasi untuk tanggal ${day.name} (${day.formatted})${errDetail}`);
           }
         });
 
