@@ -52,7 +52,7 @@ export default function StationPage() {
   const [isWithinOfficeRange, setIsWithinOfficeRange] = useState<boolean | null>(null);
 
   // Flag pembatas jarak kantor (Di-hide/bypass agar absensi stasiun admin tidak tergantung jarak lokasi)
-  const ENABLE_STATION_LOCATION_LOCK = false;
+  const ENABLE_STATION_LOCATION_LOCK = true;
 
   // Jam & Hari Stasiun (WIB)
   const [currentTime, setCurrentTime] = useState<string>("");

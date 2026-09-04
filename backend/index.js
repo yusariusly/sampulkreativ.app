@@ -2329,7 +2329,7 @@ app.post('/api/attendance/station/checkin', async (req, res) => {
     }
 
     // Distance/Coordinate verification against office location (di-bypass/hide agar absensi stasiun admin tidak tergantung jarak lokasi)
-    const ENFORCE_STATION_GPS = false; // Set true jika ingin mengaktifkan kembali validasi radius kantor
+    const ENFORCE_STATION_GPS = true; // Set true jika ingin mengaktifkan kembali validasi radius kantor
     if (ENFORCE_STATION_GPS) {
       const [latSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'office_latitude'");
       const [lngSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'office_longitude'");
