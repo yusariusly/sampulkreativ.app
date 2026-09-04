@@ -21,6 +21,8 @@ interface SelfieCaptureViewProps {
   nextStatus: "Hadir" | "Terlambat" | "Pulang";
   onCapture: (base64Image: string) => void;
   onCancel: () => void;
+  cameraFacing?: "user" | "environment";
+  onToggleFacing?: () => void;
 }
 
 export default function SelfieCaptureView({
@@ -28,11 +30,15 @@ export default function SelfieCaptureView({
   nextStatus,
   onCapture,
   onCancel,
+  cameraFacing: propCameraFacing,
+  onToggleFacing,
 }: SelfieCaptureViewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
+
+  const [internalFacing, setInternalFacing] = useState<"user" | "environment">("user");
+  const cameraFacing = propCameraFacing !== undefined ? propCameraFacing : internalFacing;
   const [cameraLoading, setCameraLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -93,7 +99,7 @@ export default function SelfieCaptureView({
         const width = video.videoWidth || video.width || 1280;
         const height = video.videoHeight || video.height || 720;
 
-        // Downscale secara proporsional ke maks dimensi CAMERA_PRESET.maxDimension agar file super ringan di jaringan
+        // Downscale secara proporsional ke maks dimensi CAMERA_PRESET.maxDimension
         const scale = Math.min(1, CAMERA_PRESET.maxDimension / Math.max(width, height));
         const targetWidth = Math.round(width * scale);
         const targetHeight = Math.round(height * scale);
@@ -125,7 +131,11 @@ export default function SelfieCaptureView({
   };
 
   const handleToggleFacing = () => {
-    setCameraFacing((prev) => (prev === "user" ? "environment" : "user"));
+    if (onToggleFacing) {
+      onToggleFacing();
+    } else {
+      setInternalFacing((prev) => (prev === "user" ? "environment" : "user"));
+    }
   };
 
   return (
@@ -164,7 +174,7 @@ export default function SelfieCaptureView({
             <button
               onClick={handleCapture}
               disabled={cameraLoading || submitting}
-              className={`flex items-center justify-center gap-2 w-full py-3.5 sm:py-4 text-white font-black rounded-2xl transition-all disabled:opacity-50 disabled:pointer-events-none shadow-xl active:scale-[0.99] text-sm ${
+              className={`flex items-center justify-center gap-2 w-full py-3.5 sm:py-4 text-white font-black rounded-2xl transition-all disabled:opacity-50 disabled:pointer-events-none shadow-xl active:scale-[0.99] text-sm cursor-pointer ${
                 nextStatus === "Pulang"
                   ? "bg-blue-600 hover:bg-blue-700 shadow-blue-600/25"
                   : "bg-[#2AB0B2] hover:bg-[#228e90] shadow-[#2AB0B2]/25"
@@ -187,7 +197,7 @@ export default function SelfieCaptureView({
               )}
             </button>
 
-            {/* Action Buttons: Flip Camera & Cancel (Side by side, never overlap!) */}
+            {/* Action Buttons: Flip Camera & Cancel (Side by side, never overlap) */}
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"

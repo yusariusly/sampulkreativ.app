@@ -2,13 +2,15 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import jsQR from "jsqr";
-import { Camera, RefreshCw, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 interface QrScannerViewProps {
   onScanSuccess: (token: string) => void;
   scanError: string | null;
   setScanError: (error: string | null) => void;
   isActive: boolean;
+  cameraFacing?: "user" | "environment";
+  onToggleFacing?: () => void;
 }
 
 export default function QrScannerView({
@@ -16,14 +18,15 @@ export default function QrScannerView({
   scanError,
   setScanError,
   isActive,
+  cameraFacing: propCameraFacing,
+  onToggleFacing,
 }: QrScannerViewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
-  const [selectedCameraId, setSelectedCameraId] = useState<string>("");
-  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
+  const [internalFacing, setInternalFacing] = useState<"user" | "environment">("user");
+  const cameraFacing = propCameraFacing !== undefined ? propCameraFacing : internalFacing;
   const [cameraLoading, setCameraLoading] = useState(false);
 
   const stopCamera = () => {
@@ -37,23 +40,23 @@ export default function QrScannerView({
   };
 
   const startCamera = useCallback(async () => {
-    stopCamera();
     if (!isActive) return;
-
-    // Set loading asynchronously to avoid synchronous setState inside useEffect
-    Promise.resolve().then(() => {
-      setCameraLoading(true);
-    });
+    stopCamera();
+    setCameraLoading(true);
 
     try {
       const constraints: MediaStreamConstraints = {
-        video: selectedCameraId
-          ? { deviceId: { exact: selectedCameraId }, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: "continuous" } as any] }
-          : { facingMode: cameraFacing, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: "continuous" } as any] },
+        video: {
+          facingMode: cameraFacing,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          advanced: [{ focusMode: "continuous" } as any],
+        },
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute("playsinline", "true");
@@ -66,19 +69,13 @@ export default function QrScannerView({
         }
       }
       setScanError(null);
-
-      if (typeof navigator !== "undefined" && navigator.mediaDevices) {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter((device) => device.kind === "videoinput");
-        setCameras(videoDevices);
-      }
     } catch (err) {
       console.error("Gagal membuka kamera stasiun:", err);
       setScanError("Tidak dapat mengakses kamera. Pastikan izin kamera telah diberikan.");
     } finally {
       setCameraLoading(false);
     }
-  }, [isActive, selectedCameraId, cameraFacing, setScanError]);
+  }, [isActive, cameraFacing, setScanError]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -181,11 +178,6 @@ export default function QrScannerView({
     };
   }, [isActive, onScanSuccess]);
 
-  const handleToggleFacing = () => {
-    setSelectedCameraId("");
-    setCameraFacing((prev) => (prev === "user" ? "environment" : "user"));
-  };
-
   return (
     <div className="absolute inset-0 w-full h-full bg-slate-950 flex items-center justify-center">
       {/* 1. Camera Video Feed (Full Screen Background) */}
@@ -225,38 +217,7 @@ export default function QrScannerView({
         </div>
       )}
 
-      {/* 3. Bottom Camera Controls Bar (Centered, safe from mobile navigation bar) */}
-      <div className="absolute bottom-8 sm:bottom-6 inset-x-0 z-30 flex flex-wrap items-center justify-center gap-2.5 px-4 pointer-events-auto">
-        <button
-          type="button"
-          onClick={handleToggleFacing}
-          disabled={cameraLoading}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900/95 hover:bg-slate-800 text-white backdrop-blur-xl border border-slate-700/80 shadow-2xl transition-all active:scale-95 cursor-pointer text-xs font-bold disabled:opacity-50"
-          title="Balik Kamera Depan / Belakang"
-        >
-          <RefreshCw size={14} className="text-[#2AB0B2]" />
-          <span>{cameraFacing === "user" ? "Kamera Depan" : "Kamera Belakang"}</span>
-        </button>
-
-        {cameras.length > 1 && (
-          <div className="bg-slate-900/95 backdrop-blur-xl px-3 py-2 rounded-2xl border border-slate-700/80 flex items-center gap-2 shadow-2xl">
-            <Camera size={14} className="text-[#2AB0B2] flex-shrink-0" />
-            <select
-              value={selectedCameraId}
-              onChange={(e) => setSelectedCameraId(e.target.value)}
-              className="bg-transparent text-[11px] text-white border-none outline-none focus:ring-0 cursor-pointer max-w-[140px] font-semibold pr-2 py-0"
-            >
-              {cameras.map((cam, idx) => (
-                <option key={cam.deviceId} value={cam.deviceId} className="bg-slate-950 text-white">
-                  {cam.label || `Kamera ${idx + 1}`}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
-
-      {/* 4. Error Notification Overlay */}
+      {/* Error Notification Overlay */}
       {scanError && (
         <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center z-30 animate-fade-in">
           <AlertCircle className="text-rose-500 mb-3" size={44} />

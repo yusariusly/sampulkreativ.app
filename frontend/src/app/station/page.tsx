@@ -42,6 +42,8 @@ export default function StationPage() {
   const [nextStatus, setNextStatus] = useState<"Hadir" | "Terlambat" | "Pulang">("Hadir");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
+  const toggleCameraFacing = () => setCameraFacing((prev) => (prev === "user" ? "environment" : "user"));
 
   // Koordinat GPS & Lokasi Kantor
   const [officeCoords, setOfficeCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -310,6 +312,8 @@ export default function StationPage() {
             scanError={cameraError}
             setScanError={setCameraError}
             isActive={currentState === "SCANNING" && (!ENABLE_STATION_LOCATION_LOCK || (isWithinOfficeRange !== false && !gpsError))}
+            cameraFacing={cameraFacing}
+            onToggleFacing={toggleCameraFacing}
           />
         ) : (
           currentUser && (
@@ -321,82 +325,91 @@ export default function StationPage() {
                 setCurrentState("SCANNING");
                 setCurrentUser(null);
               }}
+              cameraFacing={cameraFacing}
+              onToggleFacing={toggleCameraFacing}
             />
           )
         )}
       </div>
 
-      {/* 2. Floating Header Navigation & Info Bar (Fully Responsive) */}
-      <div className="absolute top-3 sm:top-4 inset-x-3 sm:inset-x-4 z-20 flex items-start justify-between gap-2 pointer-events-none">
-        {/* Left: Brand & Dashboard & GPS Badge */}
-        <div className="flex flex-wrap items-center gap-2 pointer-events-auto max-w-[65%] sm:max-w-none">
-          <div className="flex items-center gap-2 bg-slate-900/95 backdrop-blur-xl px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl border border-slate-800 shadow-xl">
-            <ShieldCheck size={18} className="text-[#2AB0B2] flex-shrink-0" />
-            <div className="hidden sm:block">
-              <h1 className="text-[10px] font-black tracking-wider text-white uppercase leading-none">STASIUN</h1>
-              <p className="text-[8px] text-[#2AB0B2] font-semibold uppercase tracking-widest mt-0.5">SAMPULKREATIV</p>
-            </div>
-          </div>
-
+      {/* 2. Top Header Navigation Bar (Kiri: Dashboard | Tengah: Lokasi Valid | Kanan: Switch Kamera) */}
+      <header className="absolute top-3 sm:top-4 inset-x-3 sm:inset-x-6 z-20 flex items-center justify-between pointer-events-none">
+        {/* Kiri Atas: Tombol Dashboard */}
+        <div className="flex items-center pointer-events-auto">
           <button
             onClick={() => router.push("/admin")}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 text-xs text-slate-300 hover:text-white bg-slate-900/95 backdrop-blur-xl border border-slate-800 rounded-2xl transition-all shadow-xl font-bold active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs text-slate-300 hover:text-white bg-slate-900/95 backdrop-blur-xl border border-slate-800 rounded-2xl transition-all shadow-xl font-bold active:scale-95 cursor-pointer"
           >
-            <ArrowLeft size={13} />
+            <ArrowLeft size={14} />
             <span>Dashboard</span>
           </button>
-
-          {/* Status GPS Kantor */}
-          {ENABLE_STATION_LOCATION_LOCK && (
-            <div className="flex items-center gap-2 px-3 py-1.5 sm:py-2 bg-slate-900/95 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-xl">
-              <MapPin
-                size={14}
-                className={`flex-shrink-0 ${
-                  isWithinOfficeRange === true
-                    ? "text-emerald-400 animate-pulse"
-                    : isWithinOfficeRange === false
-                    ? "text-rose-500"
-                    : "text-amber-400 animate-bounce"
-                }`}
-              />
-              <div className="flex flex-col">
-                <span
-                  className={`text-[9px] font-black tracking-wider uppercase leading-none ${
-                    isWithinOfficeRange === true
-                      ? "text-emerald-400"
-                      : isWithinOfficeRange === false
-                      ? "text-rose-400"
-                      : "text-amber-400"
-                  }`}
-                >
-                  {gpsLoading
-                    ? "Mencari GPS..."
-                    : isWithinOfficeRange === true
-                    ? "Lokasi Valid"
-                    : "Di Luar Kantor"}
-                </span>
-                <span className="text-[8px] font-bold text-slate-400 mt-0.5 leading-none">
-                  {distanceFromOffice !== null
-                    ? `${distanceFromOffice}m (Maks 30m)`
-                    : gpsError
-                    ? "GPS Nonaktif"
-                    : "Menghubungkan..."}
-                </span>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Right: Clock & Date Widget */}
-        <div className="flex flex-col items-end bg-slate-900/95 backdrop-blur-xl px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl border border-slate-800 shadow-xl text-right shrink-0 pointer-events-auto">
-          <span className="text-sm sm:text-lg font-mono font-black text-white tracking-widest leading-none">
+        {/* Tengah Atas: Status Lokasi GPS Kantor */}
+        {ENABLE_STATION_LOCATION_LOCK && (
+          <div className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-slate-900/95 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-xl pointer-events-auto">
+            <MapPin
+              size={14}
+              className={`flex-shrink-0 ${
+                isWithinOfficeRange === true
+                  ? "text-emerald-400 animate-pulse"
+                  : isWithinOfficeRange === false
+                  ? "text-rose-500"
+                  : "text-amber-400 animate-bounce"
+              }`}
+            />
+            <div className="flex flex-col text-left">
+              <span
+                className={`text-[9px] font-black tracking-wider uppercase leading-none ${
+                  isWithinOfficeRange === true
+                    ? "text-emerald-400"
+                    : isWithinOfficeRange === false
+                    ? "text-rose-400"
+                    : "text-amber-400"
+                }`}
+              >
+                {gpsLoading
+                  ? "Mencari GPS..."
+                  : isWithinOfficeRange === true
+                  ? "Lokasi Valid"
+                  : "Di Luar Kantor"}
+              </span>
+              <span className="text-[8px] font-bold text-slate-400 mt-0.5 leading-none">
+                {distanceFromOffice !== null
+                  ? `${distanceFromOffice}m (Maks 30m)`
+                  : gpsError
+                  ? "GPS Nonaktif"
+                  : "Menghubungkan..."}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Kanan Atas: Switch Kamera Depan / Belakang */}
+        <div className="flex items-center pointer-events-auto">
+          <button
+            type="button"
+            onClick={toggleCameraFacing}
+            className="flex items-center gap-1.5 px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs text-slate-300 hover:text-white bg-slate-900/95 backdrop-blur-xl border border-slate-800 rounded-2xl transition-all shadow-xl font-bold active:scale-95 cursor-pointer"
+            title="Balik Kamera Depan / Belakang"
+          >
+            <RefreshCw size={14} className="text-[#2AB0B2]" />
+            <span>{cameraFacing === "user" ? "Kamera Depan" : "Kamera Belakang"}</span>
+          </button>
+        </div>
+      </header>
+
+      {/* 3. Center Bottom Date & Time Widget (Tengah Bawah) */}
+      {currentState === "SCANNING" && (
+        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-xl px-5 py-2 sm:py-2.5 rounded-2xl border border-slate-800 shadow-2xl text-center pointer-events-auto">
+          <span className="text-base sm:text-lg font-mono font-black text-white tracking-widest leading-none">
             {currentTime.replace(" WIB", "")}
           </span>
-          <span className="text-[8px] sm:text-[9px] text-[#2AB0B2] font-bold uppercase tracking-wider mt-1">
+          <span className="text-[9px] text-[#2AB0B2] font-bold uppercase tracking-wider mt-1 leading-none">
             {currentDate}
           </span>
         </div>
-      </div>
+      )}
 
       {/* 4. GPS Blocking Overlay jika di luar jangkauan atau GPS dinonaktifkan (Di-hide) */}
       {ENABLE_STATION_LOCATION_LOCK && (isWithinOfficeRange === false || gpsError) && (
