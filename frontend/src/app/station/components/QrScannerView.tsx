@@ -225,35 +225,36 @@ export default function QrScannerView({
         </div>
       )}
 
-      {/* 3. Dedicated Flip Camera Button (Always Visible) */}
-      <button
-        type="button"
-        onClick={handleToggleFacing}
-        disabled={cameraLoading}
-        className="absolute bottom-6 right-6 z-30 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-white backdrop-blur-md border border-slate-700 shadow-2xl transition-all active:scale-95 cursor-pointer text-xs font-bold disabled:opacity-50 pointer-events-auto"
-        title="Balik Kamera Depan / Belakang"
-      >
-        <RefreshCw size={15} className="text-[#2AB0B2]" />
-        <span>{cameraFacing === "user" ? "Kamera Depan" : "Kamera Belakang"}</span>
-      </button>
+      {/* 3. Bottom Camera Controls Bar (Centered, safe from mobile navigation bar) */}
+      <div className="absolute bottom-8 sm:bottom-6 inset-x-0 z-30 flex flex-wrap items-center justify-center gap-2.5 px-4 pointer-events-auto">
+        <button
+          type="button"
+          onClick={handleToggleFacing}
+          disabled={cameraLoading}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900/95 hover:bg-slate-800 text-white backdrop-blur-xl border border-slate-700/80 shadow-2xl transition-all active:scale-95 cursor-pointer text-xs font-bold disabled:opacity-50"
+          title="Balik Kamera Depan / Belakang"
+        >
+          <RefreshCw size={14} className="text-[#2AB0B2]" />
+          <span>{cameraFacing === "user" ? "Kamera Depan" : "Kamera Belakang"}</span>
+        </button>
 
-      {/* 4. Selector Perangkat Kamera Floating (Jika ada multi kamera) */}
-      {cameras.length > 1 && (
-        <div className="absolute bottom-6 left-6 z-30 bg-slate-900/80 backdrop-blur-md p-2 rounded-2xl border border-slate-850 flex items-center gap-2 max-w-[260px] shadow-2xl">
-          <Camera size={15} className="text-[#2AB0B2] ml-1 flex-shrink-0" />
-          <select
-            value={selectedCameraId}
-            onChange={(e) => setSelectedCameraId(e.target.value)}
-            className="bg-transparent text-[11px] text-white border-none outline-none focus:ring-0 cursor-pointer max-w-[160px] font-semibold pr-4 py-0"
-          >
-            {cameras.map((cam, idx) => (
-              <option key={cam.deviceId} value={cam.deviceId} className="bg-slate-950 text-white">
-                {cam.label || `Kamera ${idx + 1}`}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+        {cameras.length > 1 && (
+          <div className="bg-slate-900/95 backdrop-blur-xl px-3 py-2 rounded-2xl border border-slate-700/80 flex items-center gap-2 shadow-2xl">
+            <Camera size={14} className="text-[#2AB0B2] flex-shrink-0" />
+            <select
+              value={selectedCameraId}
+              onChange={(e) => setSelectedCameraId(e.target.value)}
+              className="bg-transparent text-[11px] text-white border-none outline-none focus:ring-0 cursor-pointer max-w-[140px] font-semibold pr-2 py-0"
+            >
+              {cameras.map((cam, idx) => (
+                <option key={cam.deviceId} value={cam.deviceId} className="bg-slate-950 text-white">
+                  {cam.label || `Kamera ${idx + 1}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
 
       {/* 4. Error Notification Overlay */}
       {scanError && (

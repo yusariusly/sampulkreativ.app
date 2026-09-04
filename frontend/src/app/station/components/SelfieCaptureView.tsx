@@ -148,38 +148,26 @@ export default function SelfieCaptureView({
         </div>
       )}
 
-      {/* 2. Floating Flip Camera Button (Always Visible) */}
-      <button
-        type="button"
-        onClick={handleToggleFacing}
-        disabled={cameraLoading || submitting}
-        className="absolute bottom-6 right-6 z-30 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-white backdrop-blur-md border border-slate-700 shadow-2xl transition-all active:scale-95 cursor-pointer text-xs font-bold disabled:opacity-50 pointer-events-auto"
-        title="Balik Kamera Depan / Belakang"
-      >
-        <RefreshCw size={16} className="text-[#2AB0B2]" />
-        <span>{cameraFacing === "user" ? "Kamera Depan" : "Kamera Belakang"}</span>
-      </button>
-
-      {/* 3. Floating User Console & Trigger Buttons */}
+      {/* 2. Floating User Console & Trigger Buttons */}
       {!cameraLoading && (
-        <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md max-h-[90vh] overflow-y-auto z-20 bg-slate-900/90 backdrop-blur-md p-4 sm:p-6 rounded-3xl border border-slate-800 shadow-2xl flex flex-col gap-3 sm:gap-4 text-center">
+        <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 w-[92%] sm:w-[90%] max-w-md max-h-[85vh] overflow-y-auto z-20 bg-slate-900/95 backdrop-blur-xl p-4 sm:p-6 rounded-3xl border border-slate-800 shadow-2xl flex flex-col gap-3 sm:gap-4 text-center">
           <div>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
               Siswa / Karyawan Teridentifikasi
             </span>
-            <h3 className="text-lg font-black text-white mt-1.5 truncate leading-none">
+            <h3 className="text-base sm:text-lg font-black text-white mt-1.5 truncate leading-snug">
               {user.nama_lengkap}
             </h3>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5">
             <button
               onClick={handleCapture}
               disabled={cameraLoading || submitting}
-              className={`flex items-center justify-center gap-2 w-full py-3 sm:py-4 text-white font-bold rounded-2xl transition-all disabled:opacity-50 disabled:pointer-events-none shadow-lg active:scale-[0.99] text-sm ${
+              className={`flex items-center justify-center gap-2 w-full py-3.5 sm:py-4 text-white font-black rounded-2xl transition-all disabled:opacity-50 disabled:pointer-events-none shadow-xl active:scale-[0.99] text-sm ${
                 nextStatus === "Pulang"
-                  ? "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"
-                  : "bg-[#2AB0B2] hover:bg-[#228e90] shadow-[#2AB0B2]/20"
+                  ? "bg-blue-600 hover:bg-blue-700 shadow-blue-600/25"
+                  : "bg-[#2AB0B2] hover:bg-[#228e90] shadow-[#2AB0B2]/25"
               }`}
             >
               {submitting ? (
@@ -189,7 +177,7 @@ export default function SelfieCaptureView({
                 </>
               ) : (
                 <>
-                  <Camera size={16} />
+                  <Camera size={18} />
                   <span>
                     {nextStatus === "Pulang"
                       ? "Ambil Foto Selfie & Absen Pulang"
@@ -199,14 +187,29 @@ export default function SelfieCaptureView({
               )}
             </button>
 
-            <button
-              onClick={onCancel}
-              disabled={submitting}
-              className="flex items-center justify-center gap-1.5 w-full py-2 sm:py-2.5 border border-slate-700 hover:bg-slate-800 active:scale-[0.99] text-slate-400 hover:text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50 cursor-pointer"
-            >
-              <ArrowLeft size={13} />
-              <span>Kembali ke Pindai QR</span>
-            </button>
+            {/* Action Buttons: Flip Camera & Cancel (Side by side, never overlap!) */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleToggleFacing}
+                disabled={cameraLoading || submitting}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-800/90 hover:bg-slate-750 text-slate-200 border border-slate-700/80 active:scale-[0.98] text-xs font-bold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+                title="Balik Kamera Depan / Belakang"
+              >
+                <RefreshCw size={14} className="text-[#2AB0B2] shrink-0" />
+                <span className="truncate">{cameraFacing === "user" ? "Kamera Depan" : "Kamera Belakang"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={submitting}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-800/90 hover:bg-slate-750 text-slate-300 hover:text-white border border-slate-700/80 active:scale-[0.98] text-xs font-bold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+              >
+                <ArrowLeft size={14} className="shrink-0" />
+                <span className="truncate">Kembali ke QR</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
