@@ -187,9 +187,14 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string, hol
           statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
         }
       } else {
-        const missedToday = targetToday - count;
-        statusLabel = `Kurang Setor Harian (-${missedToday}) | Total Hutang: ${currentKieDebt}`;
-        statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
+        if (isToday) {
+          statusLabel = `Sedang Berjalan (Target 4 Key | Terkumpul ${count})`;
+          statusColor = "text-sky-700 bg-sky-50 border-sky-200 font-bold";
+        } else {
+          const missedToday = targetToday - count;
+          statusLabel = `Kurang Setor Harian (-${missedToday}) | Total Hutang: ${currentKieDebt}`;
+          statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
+        }
       }
     }
 
@@ -820,7 +825,7 @@ export default function AdminKiePage() {
                             const mm = String(calMonth + 1).padStart(2, "0");
                             const dd = String(d).padStart(2, "0");
                             const dStr = `${calYear}-${mm}-${dd}`;
-                            if (dStr < rawKieStart || dStr > todayStr) continue;
+                            if (dStr < rawKieStart || dStr >= todayStr) continue;
                             if (rawPklEnd && dStr > rawPklEnd) continue;
 
                             const dOfWeek = new Date(calYear, calMonth, d).getDay();
@@ -1089,8 +1094,13 @@ export default function AdminKiePage() {
                                               bgClass = "bg-amber-50/90 border-amber-200 hover:bg-amber-100/80 text-amber-900";
                                               badgeColor = "bg-amber-500 text-white font-black";
                                               badgeText = `${count}/4 (Kurang ${defObj.remainingDeficit})`;
+                                            } else if (isToday) {
+                                              // Today is currently in progress (not a historical debt)
+                                              bgClass = "bg-sky-50/80 border-sky-300 hover:bg-sky-100/80 text-sky-900";
+                                              badgeColor = "bg-sky-500 text-white font-bold";
+                                              badgeText = `${count}/4 (Hari Ini)`;
                                             } else {
-                                              // Completely Unpaid
+                                              // Completely Unpaid past day
                                               bgClass = "bg-rose-50/90 border-rose-200 hover:bg-rose-100 text-rose-900";
                                               badgeColor = "bg-rose-500 text-white font-black";
                                               badgeText = count === 0 ? "0/4 (Hutang)" : `${count}/4 (Hutang)`;
@@ -1113,8 +1123,10 @@ export default function AdminKiePage() {
                                                   {cell.dayNum}
                                                 </span>
                                                 {extraMarker || (
-                                                    (defObj && defObj.remainingDeficit > 0) ? (
+                                                    (defObj && defObj.remainingDeficit > 0 && !isToday) ? (
                                                       <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" title={`Hutang ${defObj.remainingDeficit} Keys`}></span>
+                                                    ) : (isToday && count < 4) ? (
+                                                      <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0 animate-pulse" title={`Hari ini kurang ${4 - count} Keys`}></span>
                                                     ) : (isHoliday ? (
                                                       <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" title="Tanggal Merah"></span>
                                                     ) : null)
@@ -1176,7 +1188,9 @@ export default function AdminKiePage() {
                                                 ? "text-emerald-700 bg-emerald-50 border-emerald-200"
                                                 : (selectedDeficit && selectedDeficit.remainingDeficit === 0)
                                                   ? "text-teal-700 bg-teal-50 border-teal-200"
-                                                  : "text-rose-700 bg-rose-50 border-rose-200"
+                                                  : selectedDate === todayStr
+                                                    ? "text-sky-700 bg-sky-50 border-sky-200"
+                                                    : "text-rose-700 bg-rose-50 border-rose-200"
                                         }`}>
                                           {selectedDate < rawKieStart
                                             ? "Sebelum Periode KIE"
@@ -1186,9 +1200,11 @@ export default function AdminKiePage() {
                                                 ? (selectedCount > 4 ? `Surplus +${selectedCount - 4} Keys` : `Target Terpenuhi (4/4)`)
                                                 : (selectedDeficit && selectedDeficit.remainingDeficit === 0)
                                                   ? `Status: LUNAS (Disetor ${selectedCount}/4)`
-                                                  : selectedCount > 0
-                                                    ? `Belum Lunas (${selectedCount}/4, Kurang ${selectedDeficit?.remainingDeficit || (4 - selectedCount)})`
-                                                    : "Belum Lunas (0/4, Kurang 4)"}
+                                                  : selectedDate === todayStr
+                                                    ? `Sedang Berjalan (${selectedCount}/4)`
+                                                    : selectedCount > 0
+                                                      ? `Belum Lunas (${selectedCount}/4, Kurang ${selectedDeficit?.remainingDeficit || (4 - selectedCount)})`
+                                                      : "Belum Lunas (0/4, Kurang 4)"}
                                         </span>
                                       </div>
 
@@ -1246,8 +1262,22 @@ export default function AdminKiePage() {
                                           );
                                         }
 
-                                        // Case 2: Deficit day that is STILL UNPAID (HUTANG AKTIF)
+                                        // Case 2: Deficit day that is STILL UNPAID
                                         if (selectedDeficit && selectedDeficit.remainingDeficit > 0) {
+                                          if (selectedDate === todayStr) {
+                                            return (
+                                              <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-xl space-y-2 text-xs">
+                                                <div className="font-black text-sky-900 flex items-center gap-1.5">
+                                                  <span>⏳</span>
+                                                  <span>Status: SEDANG BERJALAN (Target Hari Ini)</span>
+                                                </div>
+                                                <p className="text-[11px] text-sky-800 leading-relaxed font-medium">
+                                                  Disetor <b>{selectedCount} dari target 4 KIE</b>. Target hari ini masih berjalan. Siswa masih memiliki waktu untuk menyetor <b>{selectedDeficit.remainingDeficit} Keys</b> hari ini sebelum dicatat sebagai hutang.
+                                                </p>
+                                              </div>
+                                            );
+                                          }
+
                                           return (
                                             <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-xl space-y-2 text-xs">
                                               <div className="font-black text-rose-900 flex items-center gap-1.5">

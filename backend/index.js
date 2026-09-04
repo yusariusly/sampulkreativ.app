@@ -3576,31 +3576,28 @@ async function syncUserKieDebt(userId) {
       startDate = parseJakartaDate(pklRows[0].start_date);
     }
 
-    // Determine calculation end date (stops at PKL end_date if student has already completed PKL)
-    let endDate = todayDate;
+    // Determine calculation end date: calculate past debt up to yesterday because today is still ongoing
+    const yesterdayDate = new Date(todayDate.getTime() - 24 * 60 * 60 * 1000);
+    let endDate = yesterdayDate;
     if (pklRows.length > 0 && pklRows[0].end_date) {
       const pklEndDate = parseJakartaDate(pklRows[0].end_date);
-      if (pklEndDate.getTime() < todayDate.getTime()) {
+      if (pklEndDate.getTime() < endDate.getTime()) {
         endDate = pklEndDate;
       }
     }
 
-    // The user wants to include TODAY in the debt calculation, even if the day is not over yet.
-    // So we don't stop at yesterdayDate. We stop at todayDate.
-    // Fetch all submissions with Jakarta dates
+    // Fetch all submissions with Jakarta dates using to_char to avoid node pg timezone date shift
     const [submissions] = await pool.query(
-      `SELECT (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date as date_str, COUNT(*) as count
+      `SELECT to_char(submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD') as date_str, COUNT(*) as count
        FROM kie_submissions
        WHERE user_id = ?
-       GROUP BY (submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date`,
+       GROUP BY 1`,
       [userId]
     );
 
     const subMap = {};
     submissions.forEach(s => {
-      // Normalize date string (handling Date objects vs strings)
-      const dateStr = s.date_str instanceof Date ? s.date_str.toISOString().split('T')[0] : s.date_str;
-      subMap[dateStr] = (subMap[dateStr] || 0) + parseInt(s.count);
+      subMap[s.date_str] = parseInt(s.count);
     });
 
     // Fetch all registered holidays
@@ -3634,7 +3631,17 @@ async function syncUserKieDebt(userId) {
       cur.setDate(cur.getDate() + 1);
     }
 
-    const currentKieDebt = Math.max(0, totalTarget - C);
+    const pastDebt = Math.max(0, totalTarget - C);
+
+    // Any surplus submitted today (e.g. > 4 on weekday, or > 0 on weekend) pays off past debt
+    const todayDay = todayDate.getDay();
+    const isTodayWeekday = (todayDay !== 0 && todayDay !== 6);
+    const isTodayHoliday = holidaySet.has(todayStr);
+    const todayTarget = (isTodayWeekday && !isTodayHoliday) ? 4 : 0;
+    const todaySubmissions = subMap[todayStr] || 0;
+    const todaySurplus = Math.max(0, todaySubmissions - todayTarget);
+
+    const currentKieDebt = Math.max(0, pastDebt - todaySurplus);
 
     const todayStrToSave = todayDate.toISOString().split('T')[0];
     await pool.query(
@@ -3957,12 +3964,29 @@ app.get('/api/kie/today-count', validateDeviceSession, async (req, res) => {
       [user.id]
     );
 
+    // Check if student's PKL period has ended
+    let isPklEnded = false;
+    let pklEndDateStr = null;
+    const [pklRows] = await pool.query(
+      "SELECT start_date, end_date FROM pkl_students WHERE user_id = ?",
+      [user.id]
+    );
+    if (pklRows.length > 0 && pklRows[0].end_date) {
+      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+      pklEndDateStr = parseJakartaDate(pklRows[0].end_date).toISOString().split('T')[0];
+      if (todayStr > pklEndDateStr) {
+        isPklEnded = true;
+      }
+    }
+
     res.json({ 
       success: true, 
       count_today: countRows[0].count_today || 0,
       kie_debt: userRows[0]?.role === 'student' ? (userRows[0]?.kie_debt || 0) : 0,
       created_at: userRows[0]?.created_at,
-      submissions: submissions || []
+      submissions: submissions || [],
+      is_pkl_ended: isPklEnded,
+      pkl_end_date: pklEndDateStr
     });
   } catch (error) {
     console.error('Gagal mengambil jumlah KIE hari ini:', error);

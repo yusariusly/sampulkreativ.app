@@ -77,7 +77,7 @@ const groupSubmissionsByDate = (subs: any[]) => {
     }));
 };
 
-const getDailyAuditList = (subs: any[], userCreatedAt?: string) => {
+const getDailyAuditList = (subs: any[], userCreatedAt?: string, pklEndDate?: string) => {
   const groups: Record<string, any[]> = {};
   subs.forEach((sub) => {
     const dateObj = new Date(sub.submitted_at);
@@ -103,10 +103,21 @@ const getDailyAuditList = (subs: any[], userCreatedAt?: string) => {
   const [ty, tm, td] = todayFormatted.split('-').map(Number);
   const todayDate = new Date(Date.UTC(ty, tm - 1, td));
 
-  // Build list of dates chronologically (oldest to newest)
+  let maxDate = todayDate;
+  if (pklEndDate) {
+    const parsedEnd = new Date(pklEndDate);
+    const formatted = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(parsedEnd);
+    const [y, m, d] = formatted.split('-').map(Number);
+    const endPklDate = new Date(Date.UTC(y, m - 1, d));
+    if (endPklDate.getTime() < maxDate.getTime()) {
+      maxDate = endPklDate;
+    }
+  }
+
+  // Build list of dates chronologically (oldest to newest, stops at maxDate / PKL end date)
   const chronologicalDates: Date[] = [];
   let current = new Date(startDate);
-  while (current.getTime() <= todayDate.getTime()) {
+  while (current.getTime() <= maxDate.getTime()) {
     chronologicalDates.push(new Date(current));
     current.setTime(current.getTime() + 24 * 60 * 60 * 1000);
   }
@@ -169,18 +180,21 @@ const getDailyAuditList = (subs: any[], userCreatedAt?: string) => {
         statusLabel = "Target Tercapai";
         statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
       }
-    } else {
-      if (remainingDeficit === 0) {
+    } else if (isToday) {
+      if (count >= 4) {
         statusLabel = "Target Tercapai";
         statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
       } else {
-        if (isToday) {
-          statusLabel = `Belum Lengkap (Kurang ${remainingDeficit} Key)`;
-          statusColor = "text-amber-600 bg-amber-50 border-amber-200/60";
-        } else {
-          statusLabel = `Hutang +${remainingDeficit} KIE`;
-          statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
-        }
+        statusLabel = `Belum Lengkap (Kurang ${4 - count} Key)`;
+        statusColor = "text-amber-600 bg-amber-50 border-amber-200/60";
+      }
+    } else {
+      if (count >= 4 || remainingDeficit === 0) {
+        statusLabel = "Target Tercapai";
+        statusColor = "text-emerald-600 bg-emerald-50 border-emerald-250/60";
+      } else {
+        statusLabel = `Hutang +${remainingDeficit} KIE`;
+        statusColor = "text-red-600 bg-red-50 border-red-200/60 font-black";
       }
     }
 
@@ -266,6 +280,8 @@ function UserDashboardContent() {
   const [kieDebt, setKieDebt] = useState(0);
   const [userCreatedAt, setUserCreatedAt] = useState<string | undefined>(undefined);
   const [kieSubmissions, setKieSubmissions] = useState<any[]>([]);
+  const [isPklEnded, setIsPklEnded] = useState(false);
+  const [pklEndDate, setPklEndDate] = useState<string | undefined>(undefined);
   const [copiedKey, setCopiedKey] = useState<number | null>(null);
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
 
@@ -274,15 +290,22 @@ function UserDashboardContent() {
       const storedUser = localStorage.getItem("v2_user");
       if (!storedUser) return;
       const userObj = JSON.parse(storedUser);
-      const deviceId = localStorage.getItem("v2_device_id") || "";
+      const isImpersonating = typeof window !== "undefined" && localStorage.getItem("v2_is_impersonating") === "true";
+      const deviceId = isImpersonating
+        ? "admin-impersonation-device"
+        : (localStorage.getItem("v2_device_id") || "");
 
-      const res = await fetch(`/api/kie/today-count?user_id=${userObj.id}&device_id=${deviceId}`);
+      const res = await fetch(`/api/kie/today-count?user_id=${userObj.id}&device_id=${deviceId}`, {
+        headers: isImpersonating ? { "x-admin-impersonate": "true" } : {}
+      });
       if (res.ok) {
         const data = await res.json();
         setKieCount(data.count_today || 0);
         setKieDebt(data.kie_debt || 0);
         setUserCreatedAt(data.created_at);
         setKieSubmissions(data.submissions || []);
+        setIsPklEnded(data.is_pkl_ended || false);
+        setPklEndDate(data.pkl_end_date || undefined);
       }
     } catch (err) {
       console.error("Gagal memuat KIE progress:", err);
@@ -950,16 +973,19 @@ function UserDashboardContent() {
   const targetAmount = savings?.data?.target_amount || 70000;
   const savingsPercent = targetAmount > 0 ? Math.round((savedAmount / targetAmount) * 100) : 0;
 
-  // KIE calculations
-  const baseTarget = 4 + kieDebt;
-  const totalBoxes = Math.max(baseTarget, kieCount);
-  const progressPercent = kieCount > 0 ? (kieCount / totalBoxes) * 100 : 0;
-  const bgSizePercent = kieCount > 0 ? (totalBoxes / kieCount) * 100 : 100;
+  // KIE calculations - Daily target is fixed at 4
+  // If PKL period has ended and student has no debt, show completed full target (4/4, 100%)!
+  const isCompletedGraduate = isPklEnded && kieDebt === 0;
+  const effectiveKieCount = isCompletedGraduate ? 4 : kieCount;
+  const baseTarget = 4;
+  const totalBoxes = Math.max(baseTarget, effectiveKieCount);
+  const progressPercent = effectiveKieCount > 0 ? (effectiveKieCount / totalBoxes) * 100 : 0;
+  const bgSizePercent = effectiveKieCount > 0 ? (totalBoxes / effectiveKieCount) * 100 : 100;
 
-  const stop1 = Math.max(0, ((1 + (kieDebt * 0.25) - 0.25) / totalBoxes) * 100);
-  const stop2 = Math.min(100, ((1 + (kieDebt * 0.25) + 0.25) / totalBoxes) * 100);
-  const stop3 = Math.max(0, ((3 + (kieDebt * 0.75) - 0.25) / totalBoxes) * 100);
-  const stop4 = Math.min(100, ((3 + (kieDebt * 0.75) + 0.25) / totalBoxes) * 100);
+  const stop1 = Math.max(0, ((1 - 0.25) / totalBoxes) * 100);
+  const stop2 = Math.min(100, ((1 + 0.25) / totalBoxes) * 100);
+  const stop3 = Math.max(0, ((3 - 0.25) / totalBoxes) * 100);
+  const stop4 = Math.min(100, ((3 + 0.25) / totalBoxes) * 100);
 
   const gradient = `linear-gradient(to right, #EF4444 0%, #EF4444 ${stop1}%, #F59E0B ${stop2}%, #F59E0B ${stop3}%, #10B981 ${stop4}%, #10B981 100%)`;
 
@@ -1031,12 +1057,12 @@ function UserDashboardContent() {
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-[9px] font-black text-gray-400 uppercase tracking-widest">
                     <span>KIE PROGRESS</span>
-                    <span className="text-[#1C3D3F]">{kieCount}/{baseTarget}</span>
+                    <span className="text-[#1C3D3F]">{effectiveKieCount}/{baseTarget}</span>
                   </div>
                   
                   {/* KIE Progress Bar with soft gradient */}
                   <div className="w-full h-1.5 bg-gray-100 rounded-full border border-gray-200/50 overflow-hidden flex relative mt-0.5">
-                    {kieCount > baseTarget && (
+                    {effectiveKieCount > baseTarget && (
                       <div
                         style={{ left: `${(baseTarget / totalBoxes) * 100}%` }}
                         className="absolute top-0 bottom-0 w-0.5 border-l border-dashed border-gray-400/80 z-10"
@@ -1058,10 +1084,12 @@ function UserDashboardContent() {
                 <div className="flex items-center justify-between mt-2 text-[8px] font-bold text-slate-400">
                   {kieDebt > 0 ? (
                     <span className="text-red-500 font-extrabold">Hutang: {kieDebt}</span>
+                  ) : isCompletedGraduate ? (
+                    <span className="text-[#2AB0B2] font-extrabold">Masa PKL Selesai ✓</span>
                   ) : (
                     <span className="text-[#2AB0B2] font-extrabold">Bebas Hutang</span>
                   )}
-                  <span>Target: {baseTarget}</span>
+                  <span>{isCompletedGraduate ? "Tuntas 100%" : `Target: ${baseTarget}`}</span>
                 </div>
               </div>
             </div>
@@ -1145,7 +1173,7 @@ function UserDashboardContent() {
                 
                 <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                   {(() => {
-                    const auditList = getDailyAuditList(kieSubmissions, userCreatedAt);
+                    const auditList = getDailyAuditList(kieSubmissions, userCreatedAt, pklEndDate);
                     return auditList.map((group) => {
                       const isExpanded = expandedDates[group.dateStr];
                       const [y, m, d] = group.dateStr.split('-').map(Number);
