@@ -1360,6 +1360,219 @@ app.post('/api/auth/qr-login', async (req, res) => {
   }
 });
 
+// =========================================================================
+// 2c. External QR Verification API — Khusus Integrasi Aplikasi Manajemen Proyek
+// Verifikasi QR Code kartu fisik karyawan tanpa merusak atau mengubah QR Code yang sudah dicetak
+// =========================================================================
+
+// Middleware validasi API Key Eksternal
+const validateExternalApiKey = (req, res, next) => {
+  const EXTERNAL_API_KEY = process.env.EXTERNAL_API_KEY || 'sampulkreativ-pm-secret-2026';
+  const providedKey =
+    req.headers['x-api-key'] ||
+    (req.headers['authorization']?.startsWith('Bearer ')
+      ? req.headers['authorization'].slice(7).trim()
+      : null) ||
+    req.query.api_key;
+
+  if (!providedKey || providedKey !== EXTERNAL_API_KEY) {
+    return res.status(401).json({
+      success: false,
+      error: 'Unauthorized: API Key tidak valid atau belum disertakan di header x-api-key'
+    });
+  }
+  next();
+};
+
+// Handler verifikasi QR Code kartu fisik
+const handleExternalVerifyQr = async (req, res) => {
+  try {
+    let rawInput =
+      req.body.qr_data ||
+      req.body.token ||
+      req.body.data ||
+      req.query.token ||
+      req.query.qr_data;
+
+    if (!rawInput || typeof rawInput !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Data QR Code (qr_data atau token) wajib disertakan'
+      });
+    }
+
+    rawInput = rawInput.trim();
+    let token = rawInput;
+
+    // Smart Parser: ekstrak token jika hasil scan berupa URL lengkap
+    // Contoh: https://app.sampulkreativ.id/station?token=4a7f...:9c12...
+    if (rawInput.startsWith('http://') || rawInput.startsWith('https://')) {
+      try {
+        const urlObj = new URL(rawInput);
+        const tokenParam = urlObj.searchParams.get('token');
+        if (tokenParam) {
+          token = tokenParam.trim();
+        }
+      } catch (err) {
+        // Jika gagal parse URL, tetap gunakan raw input
+      }
+    }
+
+    // Dekripsi token kartu untuk mendapatkan username akun
+    let username = cryptoService.decrypt(token);
+    if (!username) {
+      // Fallback jika menggunakan plaintext username (kompatibilitas)
+      username = token.trim();
+    }
+
+    if (!username) {
+      return res.status(401).json({
+        success: false,
+        error: 'QR Code tidak valid atau format token tidak dikenali'
+      });
+    }
+
+    // Cari user di tabel users (bisa role employee, student, mentor, maupun admin)
+    const [rows] = await pool.query(
+      `SELECT id, username, nama_lengkap, role, is_active, foto_profile, jabatan, email, no_telp, no_karyawan, kategori 
+       FROM users 
+       WHERE LOWER(username) = ? LIMIT 1`,
+      [username.trim().toLowerCase()]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Pengguna tidak ditemukan atau QR Code belum terdaftar'
+      });
+    }
+
+    const user = rows[0];
+
+    if (user.is_active !== 1) {
+      return res.status(403).json({
+        success: false,
+        error: 'Akun dinonaktifkan oleh administrator'
+      });
+    }
+
+    // Format avatar URL lengkap
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const rawHost = req.headers['x-forwarded-host'] || req.get('host') || 'app.sampulkreativ.id';
+    const host = (rawHost.includes('127.0.0.1') || rawHost.includes('localhost')) ? 'app.sampulkreativ.id' : rawHost;
+    let avatarUrl = user.foto_profile || '/uploads/placeholder.jpg';
+    if (avatarUrl.startsWith('/')) {
+      avatarUrl = `${protocol}://${host}${avatarUrl}`;
+    }
+
+    // Generate token sesi aman untuk aplikasi Manajemen Proyek (berlaku 30 hari)
+    const sessionToken = cryptoService.generateSessionToken(user);
+
+    return res.json({
+      success: true,
+      message: 'Autentikasi QR Code berhasil',
+      data: {
+        token: sessionToken,
+        role: user.role,
+        id: user.id,
+        user_id: user.id,
+        username: user.username,
+        nama_lengkap: user.nama_lengkap,
+        email: user.email || '',
+        jabatan: user.jabatan || 'Karyawan',
+        kategori: user.kategori || 'Karyawan',
+        no_karyawan: user.no_karyawan || '',
+        foto_profile: avatarUrl,
+        is_active: user.is_active
+      }
+    });
+  } catch (error) {
+    console.error('Gagal melakukan verifikasi QR eksternal:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Terjadi kesalahan internal server saat memverifikasi QR Code'
+    });
+  }
+};
+
+// Handler verifikasi session token eksternal (untuk auto-login / keep session)
+const handleExternalVerifyToken = async (req, res) => {
+  try {
+    const rawToken =
+      req.body.token ||
+      (req.headers['authorization']?.startsWith('Bearer ')
+        ? req.headers['authorization'].slice(7).trim()
+        : null) ||
+      req.query.token;
+
+    if (!rawToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token sesi wajib disertakan'
+      });
+    }
+
+    const payload = cryptoService.verifySessionToken(rawToken);
+    if (!payload || !payload.userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Token sesi tidak valid atau sudah kedaluwarsa'
+      });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT id, username, nama_lengkap, role, is_active, foto_profile, jabatan, email, no_telp, no_karyawan, kategori 
+       FROM users 
+       WHERE id = ? LIMIT 1`,
+      [payload.userId]
+    );
+
+    if (rows.length === 0 || rows[0].is_active !== 1) {
+      return res.status(403).json({
+        success: false,
+        error: 'Akun pengguna tidak ditemukan atau telah dinonaktifkan'
+      });
+    }
+
+    const user = rows[0];
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.get('host');
+    let avatarUrl = user.foto_profile || '/uploads/placeholder.jpg';
+    if (avatarUrl.startsWith('/')) {
+      avatarUrl = `${protocol}://${host}${avatarUrl}`;
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        role: user.role,
+        id: user.id,
+        user_id: user.id,
+        username: user.username,
+        nama_lengkap: user.nama_lengkap,
+        email: user.email || '',
+        jabatan: user.jabatan || 'Karyawan',
+        kategori: user.kategori || 'Karyawan',
+        no_karyawan: user.no_karyawan || '',
+        foto_profile: avatarUrl,
+        is_active: user.is_active
+      }
+    });
+  } catch (error) {
+    console.error('Gagal verifikasi session token eksternal:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Terjadi kesalahan internal server saat memverifikasi token'
+    });
+  }
+};
+
+app.post('/api/external/verify-qr', validateExternalApiKey, handleExternalVerifyQr);
+app.post('/api/v1/integrations/project-management/verify-qr', validateExternalApiKey, handleExternalVerifyQr);
+
+app.post('/api/external/verify-token', validateExternalApiKey, handleExternalVerifyToken);
+app.get('/api/external/verify-token', validateExternalApiKey, handleExternalVerifyToken);
+
 app.post('/api/auth/logout', validateDeviceSession, async (req, res) => {
   try {
     const user = req.user;

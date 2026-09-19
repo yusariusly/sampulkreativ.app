@@ -45,7 +45,47 @@ function decrypt(text) {
   }
 }
 
+/**
+ * Menghasilkan token sesi terenkripsi yang aman untuk integrasi eksternal (misal: Aplikasi Manajemen Proyek)
+ * Valid selama 30 hari.
+ */
+function generateSessionToken(user) {
+  if (!user) return '';
+  const payload = {
+    userId: user.id,
+    username: user.username,
+    role: user.role,
+    issuedAt: Date.now(),
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 hari
+  };
+  const cipher = encrypt(JSON.stringify(payload));
+  return 'sk_sec_' + Buffer.from(cipher).toString('base64url');
+}
+
+/**
+ * Memverifikasi token sesi dari aplikasi eksternal
+ */
+function verifySessionToken(tokenString) {
+  if (!tokenString || typeof tokenString !== 'string' || !tokenString.startsWith('sk_sec_')) {
+    return null;
+  }
+  try {
+    const rawCipher = Buffer.from(tokenString.slice(7), 'base64url').toString('utf8');
+    const decrypted = decrypt(rawCipher);
+    if (!decrypted) return null;
+    const payload = JSON.parse(decrypted);
+    if (payload.exp && Date.now() > payload.exp) {
+      return null; // Token kedaluwarsa
+    }
+    return payload;
+  } catch (err) {
+    return null;
+  }
+}
+
 module.exports = {
   encrypt,
-  decrypt
+  decrypt,
+  generateSessionToken,
+  verifySessionToken
 };
