@@ -256,7 +256,7 @@ export default function ProfilePage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setSuccessMsg("Biodata berhasil diperbarui!");
+        setSuccessMsg("Profil & kontak berhasil diperbarui!");
         setNewPassword("");
         setConfirmPassword("");
         setSubmitted(true);
@@ -418,9 +418,17 @@ export default function ProfilePage() {
         {/* Category Selector Component */}
 
 
-        {/* Change Password Card */}
+        {/* Profile Info & Password Card */}
         <div className="bg-white rounded-2xl shadow-xs p-5 mb-4 border border-gray-100/50">
-          <h3 className="font-bold text-gray-800 mb-5 text-base">Ubah Password</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-bold text-gray-800 text-base">Informasi Kontak & Akun</h3>
+              <p className="text-gray-400 text-xs mt-0.5">Email dan nomor telepon ini akan tercetak di bagian belakang kartu Anda.</p>
+            </div>
+            <span className="text-[10px] text-[#2AB0B2] font-semibold bg-[#2AB0B2]/10 px-2 py-0.5 rounded-full shrink-0">
+              Data Kartu
+            </span>
+          </div>
           
           {submitted && successMsg && (
             <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 animate-pulse">
@@ -437,41 +445,72 @@ export default function ProfilePage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between items-center">
-                <span>Password Baru</span>
-                <span className="text-[10px] text-gray-400 font-bold lowercase tracking-normal bg-gray-50 px-1.5 py-0.5 rounded">Wajib</span>
+              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Mail size={13} className="text-[#2AB0B2]" />
+                <span>Email</span>
               </label>
               <input
-                type="password"
-                required
-                placeholder="Masukkan password baru Anda"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium"
+                type="email"
+                placeholder="nama@domain.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex justify-between items-center">
-                <span>Konfirmasi Password Baru</span>
-                <span className="text-[10px] text-gray-400 font-bold lowercase tracking-normal bg-gray-50 px-1.5 py-0.5 rounded">Wajib</span>
+              <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Phone size={13} className="text-[#2AB0B2]" />
+                <span>No. Telepon / WhatsApp</span>
               </label>
               <input
-                type="password"
-                required
-                placeholder="Konfirmasi password baru Anda"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium"
+                type="tel"
+                placeholder="Contoh: 08123456789"
+                value={noTelp}
+                onChange={(e) => setNoTelp(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium text-sm"
               />
+            </div>
+
+            <div className="pt-3 border-t border-gray-100">
+              <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1">Ubah Password (Opsional)</span>
+              <p className="text-gray-400 text-xs mb-3">Kosongkan kolom password jika Anda hanya ingin memperbarui kontak.</p>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
+                    <span>Password Baru</span>
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Masukkan password baru (opsional)"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-gray-500 uppercase font-bold tracking-wider mb-1.5">
+                    <span>Konfirmasi Password Baru</span>
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Konfirmasi password baru"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 transition-colors bg-white font-medium text-sm"
+                  />
+                </div>
+              </div>
             </div>
             
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 rounded-xl text-white font-bold cursor-pointer hover:bg-[#209092] transition-colors bg-[#2AB0B2] disabled:opacity-50 mt-2"
+              className="w-full py-3.5 rounded-xl text-white font-bold cursor-pointer hover:bg-[#209092] transition-colors bg-[#2AB0B2] disabled:opacity-50 mt-2 text-sm shadow-md"
             >
-              {loading ? "Menyimpan..." : "Simpan Password Baru"}
+              {loading ? "Menyimpan..." : "Simpan Perubahan Profil"}
             </button>
           </form>
         </div>

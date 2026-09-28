@@ -94,6 +94,8 @@ export default function AdminUsersPage() {
   const [noKaryawan, setNoKaryawan] = useState<string>("");
   const [isActive, setIsActive] = useState(true);
   const [telegramChatId, setTelegramChatId] = useState("");
+  const [email, setEmail] = useState("");
+  const [noTelp, setNoTelp] = useState("");
 
   // Student PKL fields
   const [schoolName, setSchoolName] = useState("");
@@ -201,6 +203,8 @@ export default function AdminUsersPage() {
     setStartDate("");
     setEndDate("");
     setTelegramChatId("");
+    setEmail("");
+    setNoTelp("");
   };
 
   const handleEditTrigger = (u: any) => {
@@ -217,6 +221,8 @@ export default function AdminUsersPage() {
     setStartDate(u.start_date || "");
     setEndDate(u.end_date || "");
     setTelegramChatId(u.telegram_chat_id || "");
+    setEmail(u.email || "");
+    setNoTelp(u.no_telp || "");
     setIsUserModalOpen(true);
     showToast(`✏️ Mode edit untuk "${u.nama_lengkap}" aktif`);
   };
@@ -272,6 +278,8 @@ export default function AdminUsersPage() {
           is_active: isActive,
           role: editingUserRole,
           jabatan: jabatan.trim(),
+          email: email.trim(),
+          no_telp: noTelp.trim(),
           no_karyawan: editingUserRole === "employee" ? noKaryawan.trim() : undefined,
           school_name: editingUserRole === "student" ? schoolName.trim() : undefined,
           mentor_id: editingUserRole === "student" ? "usr-admin" : undefined,
@@ -305,6 +313,8 @@ export default function AdminUsersPage() {
           password: password.trim(),
           role: role,
           jabatan: jabatan.trim(),
+          email: email.trim(),
+          no_telp: noTelp.trim(),
           no_karyawan: role === "employee" ? noKaryawan.trim() : undefined,
           school_name: role === "student" ? schoolName.trim() : undefined,
           mentor_id: role === "student" ? "usr-admin" : undefined,
@@ -497,6 +507,13 @@ export default function AdminUsersPage() {
                         )}
                         {u.jabatan && (
                           <div className="text-xs text-gray-400 font-normal mt-0.5">{u.jabatan}</div>
+                        )}
+                        {(u.email || u.no_telp) && (
+                          <div className="text-[10px] text-gray-500 font-mono mt-0.5 flex flex-wrap items-center gap-1.5">
+                            {u.email && <span className="flex items-center gap-0.5"><Mail size={9} className="text-[#2AB0B2]" />{u.email}</span>}
+                            {u.email && u.no_telp && <span className="text-gray-300">|</span>}
+                            {u.no_telp && <span className="flex items-center gap-0.5"><Phone size={9} className="text-[#2AB0B2]" />{u.no_telp}</span>}
+                          </div>
                         )}
                         {u.telegram_chat_id && (
                           <div className="text-[10px] text-gray-600 font-mono mt-0.5">
@@ -802,6 +819,28 @@ export default function AdminUsersPage() {
                   className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
                   required
                 />
+              </div>
+
+              {/* Email & No. Telepon Input */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div>
+                  <input
+                    type="email"
+                    placeholder="Email (opsional)"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
+                  />
+                </div>
+                <div>
+                  <input
+                    type="tel"
+                    placeholder="No. Telepon / WA (opsional)"
+                    value={noTelp}
+                    onChange={(e) => setNoTelp(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
+                  />
+                </div>
               </div>
 
               {/* Telegram Chat ID Input */}
