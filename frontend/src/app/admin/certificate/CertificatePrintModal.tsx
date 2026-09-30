@@ -400,7 +400,7 @@ export default function CertificatePrintModal({
             </div>
 
             <!-- Footer: Catatan Pembimbing (Kiri Bawah - Turun bersama TTD) -->
-            <div style="position: absolute; left: 13%; top: ${gradeData.months.length >= 4 ? '57.0%' : '58.5%'}; width: 160mm;">
+            <div style="position: absolute; left: 13%; top: ${gradeData.months.length >= 4 ? '51.5%' : '54.0%'}; width: 160mm;">
               <div style="border: 1.5px solid #CBD5E1; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border-radius: 8px;">
                 <div style="font-family: 'Montserrat', sans-serif; font-size: 9.5px; font-weight: 900; color: #1E293B; margin-bottom: 4px;">
                   CATATAN PERKEMBANGAN
@@ -941,7 +941,7 @@ export default function CertificatePrintModal({
                 style={{
                   position: "absolute",
                   left: "13%",
-                  top: gradeData.months.length >= 4 ? "57.0%" : "58.5%",
+                  top: gradeData.months.length >= 4 ? "51.5%" : "54.0%",
                   width: "480px",
                 }}
               >
