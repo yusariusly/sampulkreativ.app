@@ -361,7 +361,7 @@ export default function CertificatePrintModal({
           </div>
         </div>
 
-                <!-- ══ PAGE 2: SISI BELAKANG (100% PURE CSS LAYOUT) ══ -->
+                        <!-- ══ PAGE 2: SISI BELAKANG (100% PURE CSS LAYOUT) ══ -->
         <div class="cert-page">
           <img src="/cert_template_back_clean.png" class="bg-img" alt="Back Template" />
           <div class="content-layer">
@@ -399,21 +399,21 @@ export default function CertificatePrintModal({
               </table>
             </div>
 
-            <!-- Footer: Catatan Pembimbing (Kiri Bawah - Turun bersama TTD) -->
-            <div style="position: absolute; left: 13%; top: ${gradeData.months.length >= 4 ? '51.5%' : '54.0%'}; width: 160mm;">
-              <div style="border: 1.5px solid #CBD5E1; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border-radius: 8px;">
+            <!-- Footer: Catatan Pembimbing (Kiri Bawah - Sejajar TTD & Lebar Pas) -->
+            <div style="position: absolute; left: 13%; top: 61.5%; width: 132mm;">
+              <div style="border: 1.5px solid #CBD5E1; background: rgba(255, 255, 255, 0.95); padding: 6px 12px; border-radius: 8px;">
                 <div style="font-family: 'Montserrat', sans-serif; font-size: 9.5px; font-weight: 900; color: #1E293B; margin-bottom: 4px;">
                   CATATAN PERKEMBANGAN
                 </div>
-                <div style="font-size: ${gradeData.months.length >= 4 ? '8.5px' : '9px'}; color: #334155; line-height: 1.35;">
+                <div style="font-size: ${gradeData.months.length >= 4 ? '8px' : '8.5px'}; color: #334155; line-height: 1.3;">
                   ${notesHtml}
                 </div>
               </div>
             </div>
 
-            <!-- Footer: Tanda Tangan Direktur (Kanan Bawah - Tetap Di Bawah) -->
-            <div style="position: absolute; right: 12%; top: 61.5%; width: 230px; text-align: center;">
-              <div style="font-size: 10.5px; font-weight: 700; color: #1E293B; margin-bottom: 36px;">
+            <!-- Footer: Tanda Tangan Direktur (Kanan Bawah - Kurang ke bawah sedikit & sejajar) -->
+            <div style="position: absolute; right: 12%; top: 63.0%; width: 210px; text-align: center;">
+              <div style="font-size: 10.5px; font-weight: 700; color: #1E293B; margin-bottom: 34px;">
                 ${certFullDate}
               </div>
               <div style="font-family: 'Montserrat', sans-serif; font-size: 11.5px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 2px; display: inline-block; width: 100%; white-space: nowrap;">
@@ -422,9 +422,6 @@ export default function CertificatePrintModal({
               <div style="font-size: 9.5px; color: #64748B; margin-top: 2px; font-weight: 600; white-space: nowrap;">
                 ${directorTitle}
               </div>
-            </div>
-          </div>
-        </div>
             </div>
           </div>
         </div>
@@ -812,7 +809,7 @@ export default function CertificatePrintModal({
           </div>
         )}
 
-                {(activeTab === "all" || activeTab === "back") && (
+                        {(activeTab === "all" || activeTab === "back") && (
           <div className="flex flex-col items-center gap-2">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
               Halaman 2 — Sisi Belakang (Transkrip Nilai)
@@ -936,20 +933,20 @@ export default function CertificatePrintModal({
                 </table>
               </div>
 
-              {/* Footer: Catatan Pembimbing (Kiri Bawah - Turun bersama TTD) */}
+              {/* Footer: Catatan Pembimbing (Kiri Bawah - Sejajar TTD & Lebar Pas) */}
               <div
                 style={{
                   position: "absolute",
                   left: "13%",
-                  top: gradeData.months.length >= 4 ? "51.5%" : "54.0%",
-                  width: "480px",
+                  top: "61.5%",
+                  width: "410px",
                 }}
               >
                 <div
                   style={{
                     border: "1.5px solid #CBD5E1",
                     background: "rgba(255, 255, 255, 0.95)",
-                    padding: "8px 12px",
+                    padding: "6px 12px",
                     borderRadius: "8px",
                   }}
                 >
@@ -964,7 +961,7 @@ export default function CertificatePrintModal({
                   >
                     CATATAN PERKEMBANGAN
                   </div>
-                  <div style={{ fontSize: gradeData.months.length >= 4 ? "8px" : "8.5px", color: "#334155", lineHeight: 1.35 }}>
+                  <div style={{ fontSize: gradeData.months.length >= 4 ? "8px" : "8.5px", color: "#334155", lineHeight: 1.3 }}>
                     {gradeData.months.some(m => (notes[m.month_number] || m.notes)) ? (
                       gradeData.months.map(m => {
                         const noteText = notes[m.month_number] || m.notes;
@@ -985,17 +982,17 @@ export default function CertificatePrintModal({
                 </div>
               </div>
 
-              {/* Footer: Tanda Tangan Direktur (Kanan Bawah - Tetap Di Bawah) */}
+              {/* Footer: Tanda Tangan Direktur (Kanan Bawah - Kurang ke bawah sedikit & sejajar) */}
               <div
                 style={{
                   position: "absolute",
                   right: "12%",
-                  top: "61.5%",
-                  width: "220px",
+                  top: "63.0%",
+                  width: "210px",
                   textAlign: "center",
                 }}
               >
-                <div style={{ fontSize: "10px", fontWeight: 700, color: "#1E293B", marginBottom: "34px" }}>
+                <div style={{ fontSize: "10px", fontWeight: 700, color: "#1E293B", marginBottom: "32px" }}>
                   {certFullDate}
                 </div>
                 <div
