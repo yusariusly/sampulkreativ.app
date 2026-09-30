@@ -193,7 +193,7 @@ export default function CertificatePrintModal({
     // Build Month Headers HTML
     const monthHeadersHtml = gradeData.months
       .map(
-        m => `<th style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 800; width: 80px; background: #F8FAFC;">${m.month_label}</th>`
+        m => `<th style="border: 1.5px solid #1E293B; padding: 5px 6px; text-align: center; font-size: 10.5px; font-weight: 800; width: ${gradeData.months.length >= 4 ? '65px' : '75px'}; background: #F8FAFC;">${m.month_label}</th>`
       )
       .join("");
 
@@ -202,11 +202,11 @@ export default function CertificatePrintModal({
       .map(
         row => `
         <tr>
-          <td style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: bold; color: #1E293B;">${row.no}</td>
-          <td style="border: 1.5px solid #1E293B; padding: 6px 12px; font-size: 11px; font-weight: bold; color: #1E293B;">${row.name}</td>
-          ${row.monthScores.map(score => `<td style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: bold; color: #1E293B;">${score !== null ? score : '—'}</td>`).join('')}
-          <td style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 900; color: #1E293B; background: #F8FAFC;">${row.finalScore}</td>
-          <td style="border: 1.5px solid #1E293B; padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 900; color: #1E293B;">${row.predikat}</td>
+          <td style="border: 1.5px solid #1E293B; padding: 4.5px 6px; text-align: center; font-size: 10px; font-weight: bold; color: #1E293B;">${row.no}</td>
+          <td style="border: 1.5px solid #1E293B; padding: 4.5px 10px; font-size: 10px; font-weight: bold; color: #1E293B;">${row.name}</td>
+          ${row.monthScores.map(score => `<td style="border: 1.5px solid #1E293B; padding: 4.5px 6px; text-align: center; font-size: 10px; font-weight: bold; color: #1E293B;">${score !== null ? score : '—'}</td>`).join('')}
+          <td style="border: 1.5px solid #1E293B; padding: 4.5px 6px; text-align: center; font-size: 10.5px; font-weight: 900; color: #1E293B; background: #F8FAFC;">${row.finalScore}</td>
+          <td style="border: 1.5px solid #1E293B; padding: 4.5px 6px; text-align: center; font-size: 10px; font-weight: 900; color: #1E293B;">${row.predikat}</td>
         </tr>
       `
       )
@@ -217,7 +217,7 @@ export default function CertificatePrintModal({
       .map(m => {
         const noteText = notes[m.month_number] || m.notes;
         return `
-          <div style="margin-bottom: 4px;">
+          <div style="margin-bottom: ${gradeData.months.length >= 4 ? '2px' : '3px'};">
             <strong style="color: #1E293B; font-weight: 800;">• ${m.month_label}:</strong>
             <span style="font-style: italic; color: #475569; margin-left: 4px;">${noteText ? noteText : 'Sangat disiplin, aktif, dan menyelesaikan seluruh target magang dengan sangat baik.'}</span>
           </div>
@@ -366,32 +366,32 @@ export default function CertificatePrintModal({
           <img src="/cert_template_back_clean.png" class="bg-img" alt="Back Template" />
           <div class="content-layer">
             <!-- Judul Belakang -->
-            <div style="position: absolute; left: 0; right: 0; top: 15.0%; text-align: center; font-family: 'Montserrat', sans-serif; font-size: 15px; font-weight: 900; color: #1E293B;">
-              Nilai Praktek Kerja Industri No sertifikat: ${certNumber}
+            <div style="position: absolute; left: 0; right: 0; top: 13.5%; text-align: center; font-family: 'Montserrat', sans-serif; font-size: 13.5px; font-weight: 900; color: #1E293B;">
+              Nilai Praktek Kerja Industri — No. Sertifikat: ${certNumber}
             </div>
 
             <!-- Tabel Nilai -->
-            <div style="position: absolute; left: 14%; right: 14%; top: 21.0%;">
+            <div style="position: absolute; left: 13%; right: 13%; top: 19.0%;">
               <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #1E293B; background: #FFFFFF; font-family: 'Montserrat', sans-serif;">
                 <thead>
                   <tr style="background: #F1F5F9;">
-                    <th style="border: 1.5px solid #1E293B; padding: 7px 8px; text-align: center; font-size: 11px; font-weight: 900; width: 40px; color: #1E293B;">No</th>
-                    <th style="border: 1.5px solid #1E293B; padding: 7px 12px; text-align: left; font-size: 11px; font-weight: 900; color: #1E293B;">Komponen Penilaian</th>
+                    <th style="border: 1.5px solid #1E293B; padding: 5px 6px; text-align: center; font-size: 10.5px; font-weight: 900; width: 35px; color: #1E293B;">No</th>
+                    <th style="border: 1.5px solid #1E293B; padding: 5px 10px; text-align: left; font-size: 10.5px; font-weight: 900; color: #1E293B;">Komponen Penilaian</th>
                     ${monthHeadersHtml}
-                    <th style="border: 1.5px solid #1E293B; padding: 7px 8px; text-align: center; font-size: 11px; font-weight: 900; width: 85px; color: #1E293B;">Skor Akhir</th>
-                    <th style="border: 1.5px solid #1E293B; padding: 7px 8px; text-align: center; font-size: 11px; font-weight: 900; width: 85px; color: #1E293B;">Predikat</th>
+                    <th style="border: 1.5px solid #1E293B; padding: 5px 6px; text-align: center; font-size: 10.5px; font-weight: 900; width: 75px; color: #1E293B;">Skor Akhir</th>
+                    <th style="border: 1.5px solid #1E293B; padding: 5px 6px; text-align: center; font-size: 10.5px; font-weight: 900; width: 75px; color: #1E293B;">Predikat</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${rowsHtml}
                   <tr style="background: #F8FAFC;">
-                    <td colspan="${2 + gradeData.months.length}" style="border: 1.5px solid #1E293B; padding: 7px 12px; font-size: 11px; font-weight: 900; color: #1E293B; text-align: right;">
+                    <td colspan="${2 + gradeData.months.length}" style="border: 1.5px solid #1E293B; padding: 5px 10px; font-size: 10.5px; font-weight: 900; color: #1E293B; text-align: right;">
                       Rata-rata Keseluruhan
                     </td>
-                    <td style="border: 1.5px solid #1E293B; padding: 7px 8px; text-align: center; font-size: 12px; font-weight: 900; color: #1E293B;">
+                    <td style="border: 1.5px solid #1E293B; padding: 5px 6px; text-align: center; font-size: 11px; font-weight: 900; color: #1E293B;">
                       ${overallScore}
                     </td>
-                    <td style="border: 1.5px solid #1E293B; padding: 7px 8px; text-align: center; font-size: 11px; font-weight: 900; color: #1E293B;">
+                    <td style="border: 1.5px solid #1E293B; padding: 5px 6px; text-align: center; font-size: 10.5px; font-weight: 900; color: #1E293B;">
                       ${overallPredikatLabel}
                     </td>
                   </tr>
@@ -400,26 +400,26 @@ export default function CertificatePrintModal({
             </div>
 
             <!-- Footer: Catatan Pembimbing (Kiri Bawah) -->
-            <div style="position: absolute; left: 14%; top: 66.0%; width: 440px;">
-              <div style="border: 1.5px solid #CBD5E1; background: rgba(255, 255, 255, 0.95); padding: 10px 14px; border-radius: 8px;">
-                <div style="font-family: 'Montserrat', sans-serif; font-size: 10.5px; font-weight: 900; color: #1E293B; margin-bottom: 4px;">
+            <div style="position: absolute; left: 13%; top: 49.5%; width: 160mm;">
+              <div style="border: 1.5px solid #CBD5E1; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border-radius: 8px;">
+                <div style="font-family: 'Montserrat', sans-serif; font-size: 9.5px; font-weight: 900; color: #1E293B; margin-bottom: 4px;">
                   CATATAN PERKEMBANGAN
                 </div>
-                <div style="font-size: 9.5px; color: #334155; line-height: 1.4;">
+                <div style="font-size: ${gradeData.months.length >= 4 ? '8.5px' : '9px'}; color: #334155; line-height: 1.35;">
                   ${notesHtml}
                 </div>
               </div>
             </div>
 
             <!-- Footer: Tanda Tangan Direktur (Kanan Bawah) -->
-            <div style="position: absolute; right: 11%; top: 65.5%; width: 250px; text-align: center;">
-              <div style="font-size: 11px; font-weight: 700; color: #1E293B; margin-bottom: 40px;">
+            <div style="position: absolute; right: 12%; top: 61.5%; width: 230px; text-align: center;">
+              <div style="font-size: 10.5px; font-weight: 700; color: #1E293B; margin-bottom: 36px;">
                 ${certFullDate}
               </div>
-              <div style="font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 3px; display: inline-block; width: 100%; white-space: nowrap;">
+              <div style="font-family: 'Montserrat', sans-serif; font-size: 11.5px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 2px; display: inline-block; width: 100%; white-space: nowrap;">
                 ${directorName}
               </div>
-              <div style="font-size: 10px; color: #64748B; margin-top: 3px; font-weight: 600; white-space: nowrap;">
+              <div style="font-size: 9.5px; color: #64748B; margin-top: 2px; font-weight: 600; white-space: nowrap;">
                 ${directorTitle}
               </div>
             </div>
@@ -828,24 +828,24 @@ export default function CertificatePrintModal({
                   position: "absolute",
                   left: 0,
                   right: 0,
-                  top: "15.0%",
+                  top: "13.5%",
                   textAlign: "center",
                   fontFamily: "'Montserrat', sans-serif",
-                  fontSize: "13.5px",
+                  fontSize: "13px",
                   fontWeight: 900,
                   color: "#1E293B",
                 }}
               >
-                Nilai Praktek Kerja Industri No sertifikat: {certNumber}
+                Nilai Praktek Kerja Industri — No. Sertifikat: {certNumber}
               </div>
 
               {/* Tabel Nilai */}
               <div
                 style={{
                   position: "absolute",
-                  left: "14%",
-                  right: "14%",
-                  top: "21.0%",
+                  left: "13%",
+                  right: "13%",
+                  top: "19.0%",
                 }}
               >
                 <table
@@ -868,7 +868,16 @@ export default function CertificatePrintModal({
                       {gradeData.months.map(m => (
                         <th
                           key={m.month_number}
-                          style={{ border: "1.5px solid #1E293B", padding: "6px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, width: "70px", color: "#1E293B", background: "#F1F5F9" }}
+                          style={{
+                            border: "1.5px solid #1E293B",
+                            padding: "5px 4px",
+                            textAlign: "center",
+                            fontSize: "10px",
+                            fontWeight: 900,
+                            width: gradeData.months.length >= 4 ? "62px" : "70px",
+                            color: "#1E293B",
+                            background: "#F1F5F9"
+                          }}
                         >
                           {m.month_label}
                         </th>
@@ -884,24 +893,24 @@ export default function CertificatePrintModal({
                   <tbody>
                     {criteriaRows.map(row => (
                       <tr key={row.no}>
-                        <td style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: "bold", color: "#1E293B" }}>
+                        <td style={{ border: "1.5px solid #1E293B", padding: "4px 6px", textAlign: "center", fontSize: "10px", fontWeight: "bold", color: "#1E293B" }}>
                           {row.no}
                         </td>
-                        <td style={{ border: "1.5px solid #1E293B", padding: "5px 10px", fontSize: "10px", fontWeight: "bold", color: "#1E293B" }}>
+                        <td style={{ border: "1.5px solid #1E293B", padding: "4px 10px", fontSize: "10px", fontWeight: "bold", color: "#1E293B" }}>
                           {row.name}
                         </td>
                         {row.monthScores.map((sc, mIdx) => (
                           <td
                             key={mIdx}
-                            style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: "bold", color: "#1E293B" }}
+                            style={{ border: "1.5px solid #1E293B", padding: "4px 4px", textAlign: "center", fontSize: "10px", fontWeight: "bold", color: "#1E293B" }}
                           >
                             {sc !== null ? sc : "—"}
                           </td>
                         ))}
-                        <td style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10.5px", fontWeight: 900, color: "#1E293B" }}>
+                        <td style={{ border: "1.5px solid #1E293B", padding: "4px 4px", textAlign: "center", fontSize: "10px", fontWeight: 900, color: "#1E293B" }}>
                           {row.finalScore}
                         </td>
-                        <td style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10.5px", fontWeight: 900, color: "#1E293B" }}>
+                        <td style={{ border: "1.5px solid #1E293B", padding: "4px 4px", textAlign: "center", fontSize: "10px", fontWeight: 900, color: "#1E293B" }}>
                           {row.predikat}
                         </td>
                       </tr>
@@ -909,14 +918,14 @@ export default function CertificatePrintModal({
                     <tr style={{ background: "#F8FAFC" }}>
                       <td
                         colSpan={2 + gradeData.months.length}
-                        style={{ border: "1.5px solid #1E293B", padding: "6px 10px", fontSize: "10px", fontWeight: 900, color: "#1E293B", textAlign: "right" }}
+                        style={{ border: "1.5px solid #1E293B", padding: "5px 10px", fontSize: "10px", fontWeight: 900, color: "#1E293B", textAlign: "right" }}
                       >
                         Rata-rata Keseluruhan
                       </td>
-                      <td style={{ border: "1.5px solid #1E293B", padding: "6px 6px", textAlign: "center", fontSize: "11px", fontWeight: 900, color: "#1E293B" }}>
+                      <td style={{ border: "1.5px solid #1E293B", padding: "5px 4px", textAlign: "center", fontSize: "10.5px", fontWeight: 900, color: "#1E293B" }}>
                         {overallScore}
                       </td>
-                      <td style={{ border: "1.5px solid #1E293B", padding: "6px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, color: "#1E293B" }}>
+                      <td style={{ border: "1.5px solid #1E293B", padding: "5px 4px", textAlign: "center", fontSize: "10px", fontWeight: 900, color: "#1E293B" }}>
                         {overallPredikatLabel}
                       </td>
                     </tr>
@@ -928,9 +937,9 @@ export default function CertificatePrintModal({
               <div
                 style={{
                   position: "absolute",
-                  left: "14%",
-                  top: "66.0%",
-                  width: "380px",
+                  left: "13%",
+                  top: "49.5%",
+                  width: "470px",
                 }}
               >
                 <div
@@ -944,7 +953,7 @@ export default function CertificatePrintModal({
                   <div
                     style={{
                       fontFamily: "'Montserrat', sans-serif",
-                      fontSize: "9.5px",
+                      fontSize: "9px",
                       fontWeight: 900,
                       color: "#1E293B",
                       marginBottom: "4px",
@@ -952,13 +961,13 @@ export default function CertificatePrintModal({
                   >
                     CATATAN PERKEMBANGAN
                   </div>
-                  <div style={{ fontSize: "8.5px", color: "#334155", lineHeight: 1.35 }}>
+                  <div style={{ fontSize: gradeData.months.length >= 4 ? "8px" : "8.5px", color: "#334155", lineHeight: 1.35 }}>
                     {gradeData.months.some(m => (notes[m.month_number] || m.notes)) ? (
                       gradeData.months.map(m => {
                         const noteText = notes[m.month_number] || m.notes;
                         if (!noteText) return null;
                         return (
-                          <div key={m.month_number} style={{ marginBottom: "2px" }}>
+                          <div key={m.month_number} style={{ marginBottom: gradeData.months.length >= 4 ? "2px" : "3px" }}>
                             <strong style={{ color: "#1E293B", fontWeight: 800 }}>• {m.month_label}:</strong>{" "}
                             <span style={{ fontStyle: "italic", color: "#475569" }}>{noteText}</span>
                           </div>
@@ -977,9 +986,9 @@ export default function CertificatePrintModal({
               <div
                 style={{
                   position: "absolute",
-                  right: "11%",
-                  top: "65.5%",
-                  width: "230px",
+                  right: "12%",
+                  top: "61.5%",
+                  width: "220px",
                   textAlign: "center",
                 }}
               >
