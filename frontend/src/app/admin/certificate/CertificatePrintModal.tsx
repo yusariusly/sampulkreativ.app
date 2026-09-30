@@ -365,13 +365,13 @@ export default function CertificatePrintModal({
         <div class="cert-page">
           <img src="/cert_template_back_clean.png" class="bg-img" alt="Back Template" />
           <div class="content-layer">
-            <!-- Judul Belakang -->
-            <div style="position: absolute; left: 0; right: 0; top: 13.5%; text-align: center; font-family: 'Montserrat', sans-serif; font-size: 13.5px; font-weight: 900; color: #1E293B;">
-              Nilai Praktek Kerja Industri — No. Sertifikat: ${certNumber}
-            </div>
+            <div style="position: absolute; left: 13%; right: 13%; top: 13.5%;">
+              <!-- Judul Belakang -->
+              <div style="text-align: center; font-family: 'Montserrat', sans-serif; font-size: 13.5px; font-weight: 900; color: #1E293B; margin-bottom: 12px;">
+                Nilai Praktek Kerja Industri — No. Sertifikat: ${certNumber}
+              </div>
 
-            <!-- Tabel Nilai -->
-            <div style="position: absolute; left: 13%; right: 13%; top: 19.0%;">
+              <!-- Tabel Nilai -->
               <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #1E293B; background: #FFFFFF; font-family: 'Montserrat', sans-serif;">
                 <thead>
                   <tr style="background: #F1F5F9;">
@@ -397,30 +397,31 @@ export default function CertificatePrintModal({
                   </tr>
                 </tbody>
               </table>
-            </div>
 
-            <!-- Footer: Catatan Pembimbing (Kiri Bawah) -->
-            <div style="position: absolute; left: 13%; top: 49.5%; width: 160mm;">
-              <div style="border: 1.5px solid #CBD5E1; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border-radius: 8px;">
-                <div style="font-family: 'Montserrat', sans-serif; font-size: 9.5px; font-weight: 900; color: #1E293B; margin-bottom: 4px;">
-                  CATATAN PERKEMBANGAN
+              <!-- Footer Section (Catatan & Tanda Tangan Menyatu Rapih) -->
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-top: 14px;">
+                <!-- Kiri: Catatan Perkembangan -->
+                <div style="flex: 1; border: 1.5px solid #CBD5E1; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border-radius: 8px;">
+                  <div style="font-family: 'Montserrat', sans-serif; font-size: 9.5px; font-weight: 900; color: #1E293B; margin-bottom: 4px;">
+                    CATATAN PERKEMBANGAN
+                  </div>
+                  <div style="font-size: ${gradeData.months.length >= 4 ? '8.5px' : '9px'}; color: #334155; line-height: 1.35;">
+                    ${notesHtml}
+                  </div>
                 </div>
-                <div style="font-size: ${gradeData.months.length >= 4 ? '8.5px' : '9px'}; color: #334155; line-height: 1.35;">
-                  ${notesHtml}
-                </div>
-              </div>
-            </div>
 
-            <!-- Footer: Tanda Tangan Direktur (Kanan Bawah) -->
-            <div style="position: absolute; right: 12%; top: 61.5%; width: 230px; text-align: center;">
-              <div style="font-size: 10.5px; font-weight: 700; color: #1E293B; margin-bottom: 36px;">
-                ${certFullDate}
-              </div>
-              <div style="font-family: 'Montserrat', sans-serif; font-size: 11.5px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 2px; display: inline-block; width: 100%; white-space: nowrap;">
-                ${directorName}
-              </div>
-              <div style="font-size: 9.5px; color: #64748B; margin-top: 2px; font-weight: 600; white-space: nowrap;">
-                ${directorTitle}
+                <!-- Kanan: Tanda Tangan Direktur -->
+                <div style="width: 220px; text-align: center; flex-shrink: 0; padding-top: 6px;">
+                  <div style="font-size: 10.5px; font-weight: 700; color: #1E293B; margin-bottom: 38px;">
+                    ${certFullDate}
+                  </div>
+                  <div style="font-family: 'Montserrat', sans-serif; font-size: 11.5px; font-weight: 900; color: #1E293B; border-bottom: 2px solid #1E293B; padding-bottom: 2px; display: inline-block; width: 100%; white-space: nowrap;">
+                    ${directorName}
+                  </div>
+                  <div style="font-size: 9.5px; color: #64748B; margin-top: 2px; font-weight: 600; white-space: nowrap;">
+                    ${directorTitle}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -822,32 +823,22 @@ export default function CertificatePrintModal({
                 backgroundRepeat: "no-repeat",
               }}
             >
-              {/* Judul Belakang */}
-              <div
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  top: "13.5%",
-                  textAlign: "center",
-                  fontFamily: "'Montserrat', sans-serif",
-                  fontSize: "13px",
-                  fontWeight: 900,
-                  color: "#1E293B",
-                }}
-              >
-                Nilai Praktek Kerja Industri — No. Sertifikat: {certNumber}
-              </div>
+              <div style={{ position: "absolute", left: "13%", right: "13%", top: "13.5%" }}>
+                {/* Judul Belakang */}
+                <div
+                  style={{
+                    textAlign: "center",
+                    fontFamily: "'Montserrat', sans-serif",
+                    fontSize: "13px",
+                    fontWeight: 900,
+                    color: "#1E293B",
+                    marginBottom: "12px",
+                  }}
+                >
+                  Nilai Praktek Kerja Industri — No. Sertifikat: {certNumber}
+                </div>
 
-              {/* Tabel Nilai */}
-              <div
-                style={{
-                  position: "absolute",
-                  left: "13%",
-                  right: "13%",
-                  top: "19.0%",
-                }}
-              >
+                {/* Tabel Nilai */}
                 <table
                   style={{
                     width: "100%",
@@ -859,10 +850,10 @@ export default function CertificatePrintModal({
                 >
                   <thead>
                     <tr style={{ background: "#F1F5F9" }}>
-                      <th style={{ border: "1.5px solid #1E293B", padding: "6px 8px", textAlign: "center", fontSize: "10px", fontWeight: 900, width: "36px", color: "#1E293B" }}>
+                      <th style={{ border: "1.5px solid #1E293B", padding: "5px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, width: "32px", color: "#1E293B" }}>
                         No
                       </th>
-                      <th style={{ border: "1.5px solid #1E293B", padding: "6px 10px", textAlign: "left", fontSize: "10px", fontWeight: 900, color: "#1E293B" }}>
+                      <th style={{ border: "1.5px solid #1E293B", padding: "5px 10px", textAlign: "left", fontSize: "10px", fontWeight: 900, color: "#1E293B" }}>
                         Komponen Penilaian
                       </th>
                       {gradeData.months.map(m => (
@@ -882,10 +873,10 @@ export default function CertificatePrintModal({
                           {m.month_label}
                         </th>
                       ))}
-                      <th style={{ border: "1.5px solid #1E293B", padding: "6px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, width: "75px", color: "#1E293B" }}>
+                      <th style={{ border: "1.5px solid #1E293B", padding: "5px 4px", textAlign: "center", fontSize: "10px", fontWeight: 900, width: "70px", color: "#1E293B" }}>
                         Skor Akhir
                       </th>
-                      <th style={{ border: "1.5px solid #1E293B", padding: "6px 6px", textAlign: "center", fontSize: "10px", fontWeight: 900, width: "75px", color: "#1E293B" }}>
+                      <th style={{ border: "1.5px solid #1E293B", padding: "5px 4px", textAlign: "center", fontSize: "10px", fontWeight: 900, width: "68px", color: "#1E293B" }}>
                         Predikat
                       </th>
                     </tr>
@@ -931,87 +922,81 @@ export default function CertificatePrintModal({
                     </tr>
                   </tbody>
                 </table>
-              </div>
 
-              {/* Footer: Catatan Pembimbing (Kiri Bawah) */}
-              <div
-                style={{
-                  position: "absolute",
-                  left: "13%",
-                  top: "49.5%",
-                  width: "470px",
-                }}
-              >
-                <div
-                  style={{
-                    border: "1.5px solid #CBD5E1",
-                    background: "rgba(255, 255, 255, 0.95)",
-                    padding: "8px 12px",
-                    borderRadius: "8px",
-                  }}
-                >
+                {/* Footer Section (Catatan & Tanda Tangan Menyatu Rapih) */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "24px", marginTop: "14px" }}>
+                  {/* Kiri: Catatan Perkembangan */}
                   <div
                     style={{
-                      fontFamily: "'Montserrat', sans-serif",
-                      fontSize: "9px",
-                      fontWeight: 900,
-                      color: "#1E293B",
-                      marginBottom: "4px",
+                      flex: 1,
+                      border: "1.5px solid #CBD5E1",
+                      background: "rgba(255, 255, 255, 0.95)",
+                      padding: "8px 12px",
+                      borderRadius: "8px",
                     }}
                   >
-                    CATATAN PERKEMBANGAN
+                    <div
+                      style={{
+                        fontFamily: "'Montserrat', sans-serif",
+                        fontSize: "9px",
+                        fontWeight: 900,
+                        color: "#1E293B",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      CATATAN PERKEMBANGAN
+                    </div>
+                    <div style={{ fontSize: gradeData.months.length >= 4 ? "8px" : "8.5px", color: "#334155", lineHeight: 1.35 }}>
+                      {gradeData.months.some(m => (notes[m.month_number] || m.notes)) ? (
+                        gradeData.months.map(m => {
+                          const noteText = notes[m.month_number] || m.notes;
+                          if (!noteText) return null;
+                          return (
+                            <div key={m.month_number} style={{ marginBottom: gradeData.months.length >= 4 ? "2px" : "3px" }}>
+                              <strong style={{ color: "#1E293B", fontWeight: 800 }}>• {m.month_label}:</strong>{" "}
+                              <span style={{ fontStyle: "italic", color: "#475569" }}>{noteText}</span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <span style={{ color: "#94A3B8", fontStyle: "italic" }}>
+                          Siswa menunjukkan perkembangan yang sangat baik selama masa PKL dan menyelesaikan seluruh tugas dengan tanggung jawab.
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: gradeData.months.length >= 4 ? "8px" : "8.5px", color: "#334155", lineHeight: 1.35 }}>
-                    {gradeData.months.some(m => (notes[m.month_number] || m.notes)) ? (
-                      gradeData.months.map(m => {
-                        const noteText = notes[m.month_number] || m.notes;
-                        if (!noteText) return null;
-                        return (
-                          <div key={m.month_number} style={{ marginBottom: gradeData.months.length >= 4 ? "2px" : "3px" }}>
-                            <strong style={{ color: "#1E293B", fontWeight: 800 }}>• {m.month_label}:</strong>{" "}
-                            <span style={{ fontStyle: "italic", color: "#475569" }}>{noteText}</span>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <span style={{ color: "#94A3B8", fontStyle: "italic" }}>
-                        Siswa menunjukkan perkembangan yang sangat baik selama masa PKL dan menyelesaikan seluruh tugas dengan tanggung jawab.
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
 
-              {/* Footer: Tanda Tangan Direktur (Kanan Bawah) */}
-              <div
-                style={{
-                  position: "absolute",
-                  right: "12%",
-                  top: "61.5%",
-                  width: "220px",
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ fontSize: "10px", fontWeight: 700, color: "#1E293B", marginBottom: "34px" }}>
-                  {certFullDate}
-                </div>
-                <div
-                  style={{
-                    fontFamily: "'Montserrat', sans-serif",
-                    fontSize: "11px",
-                    fontWeight: 900,
-                    color: "#1E293B",
-                    borderBottom: "2px solid #1E293B",
-                    paddingBottom: "2px",
-                    display: "inline-block",
-                    width: "100%",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {directorName}
-                </div>
-                <div style={{ fontSize: "9px", color: "#64748B", marginTop: "2px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                  {directorTitle}
+                  {/* Kanan: Tanda Tangan Direktur */}
+                  <div
+                    style={{
+                      width: "220px",
+                      textAlign: "center",
+                      flexShrink: 0,
+                      paddingTop: "6px",
+                    }}
+                  >
+                    <div style={{ fontSize: "10px", fontWeight: 700, color: "#1E293B", marginBottom: "34px" }}>
+                      {certFullDate}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: "'Montserrat', sans-serif",
+                        fontSize: "11px",
+                        fontWeight: 900,
+                        color: "#1E293B",
+                        borderBottom: "2px solid #1E293B",
+                        paddingBottom: "2px",
+                        display: "inline-block",
+                        width: "100%",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {directorName}
+                    </div>
+                    <div style={{ fontSize: "9px", color: "#64748B", marginTop: "2px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                      {directorTitle}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
