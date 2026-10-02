@@ -681,7 +681,13 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
                     Pilih Bulan
                   </span>
                   {(() => {
-                    const totalMonths = progress?.total_weeks ? Math.min(Math.ceil(progress.total_weeks / 4), 6) : 4;
+                    const maxMonthFromWeeks = (program_kerja?.weeks || []).reduce((max: number, w: any) => Math.max(max, w.month_number || 1), 1);
+                    const totalMonths = Math.max(
+                      program_kerja?.duration_months || 0,
+                      progress?.total_weeks ? Math.ceil(progress.total_weeks / 4) : 0,
+                      maxMonthFromWeeks,
+                      4
+                    );
                     return (
                       <div className="flex flex-wrap gap-1.5">
                         {Array.from({ length: totalMonths }, (_, i) => {
@@ -775,6 +781,11 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
                               <h3 className="text-xs font-extrabold text-slate-800 leading-snug break-words">
                                 {selectedWeekData.milestone_title}
                               </h3>
+                              {selectedWeekData.description && (
+                                <p className="text-[11px] font-medium text-slate-600 leading-relaxed mt-1 break-words whitespace-pre-line">
+                                  {selectedWeekData.description}
+                                </p>
+                              )}
                             </div>
                             <div className="flex-shrink-0 flex flex-col items-end gap-1">
                               <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">Progres</span>

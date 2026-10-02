@@ -32,6 +32,8 @@ export interface StudentDashboardData {
   };
   program_kerja: {
     title: string;
+    description?: string;
+    duration_months?: number;
     tasks: Array<{
       task_id: string;
       title: string;
@@ -51,6 +53,7 @@ export interface StudentDashboardData {
       week_number: number;
       month_number: number;
       milestone_title: string;
+      description?: string;
       progress_percent?: number;
       tasks: Array<{
         task_id: string;

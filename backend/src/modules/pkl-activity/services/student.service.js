@@ -261,6 +261,7 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
       week_number: w.week_number,
       month_number: w.month_number,
       milestone_title: w.milestone_title,
+      description: w.description || '',
       progress_percent: progressPercent,
       progress_override: progressOverride,
       extended_days: extendedDays,
@@ -275,6 +276,7 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
 
   const activeWeekMeta = weeks.find(w => ((w.month_number - 1) * 4 + w.week_number) === progress.active_week);
   const milestoneTitle = activeWeekMeta ? activeWeekMeta.milestone_title : 'Aktivitas Mingguan';
+  const milestoneDescription = activeWeekMeta ? (activeWeekMeta.description || '') : '';
 
   // Hutang tugas (backlog) dari minggu sebelumnya yang belum selesai
   const backlogTasks = allTasks.filter(t => ((t.month_number - 1) * 4 + t.week_number) < progress.active_week && t.is_completed === 0);
@@ -289,6 +291,8 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
 
   const programKerja = {
     title: milestoneTitle,
+    description: milestoneDescription,
+    duration_months: student.duration_months || 4,
     tasks: activeWeekTasks.map(t => ({
       task_id: t.task_id,
       title: t.task_title,

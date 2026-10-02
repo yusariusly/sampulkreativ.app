@@ -1018,6 +1018,7 @@ async function initDb() {
     try {
       await pool.query("ALTER TABLE pkl_program_weeks DROP CONSTRAINT IF EXISTS uq_template_week");
       await pool.query("ALTER TABLE pkl_program_weeks ADD CONSTRAINT uq_template_month_week UNIQUE (template_id, month_number, week_number)");
+      await pool.query("ALTER TABLE pkl_program_weeks ADD COLUMN IF NOT EXISTS description TEXT");
     } catch (err) {
       console.error("Gagal memperbarui unique constraint pkl_program_weeks:", err);
     }
@@ -5427,6 +5428,20 @@ app.post('/api/pkl-templates', async (req, res) => {
   }
 });
 
+app.put('/api/pkl-templates/:id', async (req, res) => {
+  try {
+    const { title, duration_months } = req.body;
+    if (!title || !duration_months) {
+      return res.status(400).json({ error: 'Title dan durasi wajib diisi' });
+    }
+    await pool.query('UPDATE pkl_program_templates SET title = ?, duration_months = ? WHERE id = ?', [title, parseInt(duration_months), req.params.id]);
+    res.json({ success: true, data: { id: req.params.id, title, duration_months: parseInt(duration_months) } });
+  } catch (error) {
+    console.error('Gagal memperbarui template:', error);
+    res.status(500).json({ error: 'Gagal memperbarui template' });
+  }
+});
+
 app.delete('/api/pkl-templates/:id', async (req, res) => {
   const client = await pgPool.connect();
   try {
@@ -5453,7 +5468,7 @@ app.delete('/api/pkl-templates/:id', async (req, res) => {
 
 app.get('/api/pkl-templates/:templateId/weeks', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, template_id, week_number, month_number, milestone_title, progress_percent FROM pkl_program_weeks WHERE template_id = ? ORDER BY month_number ASC, week_number ASC', [req.params.templateId]);
+    const [rows] = await pool.query('SELECT id, template_id, week_number, month_number, milestone_title, description, progress_percent FROM pkl_program_weeks WHERE template_id = ? ORDER BY month_number ASC, week_number ASC', [req.params.templateId]);
     res.json(rows);
   } catch (error) {
     console.error('Gagal mengambil data minggu:', error);
@@ -5464,15 +5479,15 @@ app.get('/api/pkl-templates/:templateId/weeks', async (req, res) => {
 app.post('/api/pkl-templates/:templateId/weeks', async (req, res) => {
   try {
     const templateId = req.params.templateId;
-    const { week_number, month_number, milestone_title } = req.body;
+    const { week_number, month_number, milestone_title, description } = req.body;
     if (!week_number || !month_number || !milestone_title) {
       return res.status(400).json({ error: 'Week number, month number, dan milestone title wajib diisi' });
     }
     const id = 'wk-' + Math.random().toString(36).substr(2, 9);
-    await pool.query('INSERT INTO pkl_program_weeks (id, template_id, week_number, month_number, milestone_title, progress_percent) VALUES (?, ?, ?, ?, ?, 0)', 
-      [id, templateId, parseInt(week_number), parseInt(month_number), milestone_title]
+    await pool.query('INSERT INTO pkl_program_weeks (id, template_id, week_number, month_number, milestone_title, description, progress_percent) VALUES (?, ?, ?, ?, ?, ?, 0)', 
+      [id, templateId, parseInt(week_number), parseInt(month_number), milestone_title, description || null]
     );
-    res.json({ success: true, data: { id, template_id: templateId, week_number, month_number, milestone_title, progress_percent: 0 } });
+    res.json({ success: true, data: { id, template_id: templateId, week_number, month_number, milestone_title, description: description || null, progress_percent: 0 } });
   } catch (error) {
     console.error('Gagal membuat data minggu:', error);
     res.status(500).json({ error: 'Gagal membuat data minggu' });
@@ -5482,16 +5497,16 @@ app.post('/api/pkl-templates/:templateId/weeks', async (req, res) => {
 app.put('/api/pkl-weeks/:id', async (req, res) => {
   try {
     const id = req.params.id;
-    const { week_number, month_number, milestone_title, progress_percent } = req.body;
+    const { week_number, month_number, milestone_title, description, progress_percent } = req.body;
     if (!week_number || !month_number || !milestone_title) {
       return res.status(400).json({ error: 'Week number, month number, dan milestone title wajib diisi' });
     }
     const progress = progress_percent !== undefined ? Math.min(100, Math.max(0, parseInt(progress_percent) || 0)) : 0;
     await pool.query(
-      'UPDATE pkl_program_weeks SET week_number = ?, month_number = ?, milestone_title = ?, progress_percent = ? WHERE id = ?',
-      [parseInt(week_number), parseInt(month_number), milestone_title, progress, id]
+      'UPDATE pkl_program_weeks SET week_number = ?, month_number = ?, milestone_title = ?, description = ?, progress_percent = ? WHERE id = ?',
+      [parseInt(week_number), parseInt(month_number), milestone_title, description !== undefined ? description : null, progress, id]
     );
-    res.json({ success: true, data: { id, week_number, month_number, milestone_title, progress_percent: progress } });
+    res.json({ success: true, data: { id, week_number, month_number, milestone_title, description: description || null, progress_percent: progress } });
   } catch (error) {
     console.error('Gagal memperbarui data minggu:', error);
     res.status(500).json({ error: 'Gagal memperbarui data minggu' });

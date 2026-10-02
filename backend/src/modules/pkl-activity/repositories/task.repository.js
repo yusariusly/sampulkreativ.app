@@ -22,7 +22,7 @@ async function findTemplates(dbClient) {
  */
 async function findWeeksByTemplateId(dbClient, templateId) {
   const query = `
-    SELECT id, template_id, week_number, month_number, milestone_title, progress_percent, created_at 
+    SELECT id, template_id, week_number, month_number, milestone_title, description, progress_percent, created_at 
     FROM pkl_program_weeks 
     WHERE template_id = ? 
     ORDER BY month_number ASC, week_number ASC

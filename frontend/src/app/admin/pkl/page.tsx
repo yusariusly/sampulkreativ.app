@@ -38,6 +38,7 @@ interface Week {
   week_number: number;
   month_number: number;
   milestone_title: string;
+  description?: string;
   progress_percent?: number;
 }
 
@@ -54,7 +55,7 @@ type ActiveView = "list" | "detail";
 
 const TEAL_PRIMARY = "#2AB0B2";
 const TEAL_HOVER = "#1E8E90";
-const MAX_DURATION_MONTHS = 6;
+const MAX_DURATION_MONTHS = 12;
 const DURATION_OPTIONS = Array.from({ length: MAX_DURATION_MONTHS }, (_, i) => i + 1);
 
 // ─── Shared UI Components ────────────────────────────────────────────────────
@@ -174,22 +175,51 @@ export default function PklManagementPage() {
   const [loadingStudents, setLoadingStudents] = useState(false);
 
   // ── Form State: Template ──
-  const [newTemplateTitle, setNewTemplateTitle] = useState("");
-  const [newTemplateDuration, setNewTemplateDuration] = useState("4");
+  const [curriculumTitle, setCurriculumTitle] = useState("");
+  const [curriculumDuration, setCurriculumDuration] = useState("5");
+  const [curriculumModalMode, setCurriculumModalMode] = useState<"create" | "edit">("create");
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [isCurriculumModalOpen, setIsCurriculumModalOpen] = useState(false);
+  const [isSavingCurriculum, setIsSavingCurriculum] = useState(false);
 
   // ── Form State: Week ──
   const [newWeekNumber, setNewWeekNumber] = useState("1");
   const [newWeekMonth, setNewWeekMonth] = useState("1");
   const [newWeekTitle, setNewWeekTitle] = useState("");
+  const [newWeekDescription, setNewWeekDescription] = useState("");
+  const [isAddingWeek, setIsAddingWeek] = useState(false);
 
   // ── Inline Edit State: Week ──
   const [editingWeekId, setEditingWeekId] = useState<string | null>(null);
   const [editingWeekNumber, setEditingWeekNumber] = useState<string>("");
   const [editingWeekMonth, setEditingWeekMonth] = useState<string>("");
   const [editingWeekTitle, setEditingWeekTitle] = useState<string>("");
+  const [editingWeekDescription, setEditingWeekDescription] = useState<string>("");
   const [editingWeekProgress, setEditingWeekProgress] = useState<string>("0");
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+
+  const openCreateCurriculumModal = () => {
+    setCurriculumModalMode("create");
+    setEditingTemplate(null);
+    setCurriculumTitle("");
+    setCurriculumDuration("5");
+    setIsCurriculumModalOpen(true);
+  };
+
+  const openEditCurriculumModal = (template: Template) => {
+    setCurriculumModalMode("edit");
+    setEditingTemplate(template);
+    setCurriculumTitle(template.title);
+    setCurriculumDuration(template.duration_months ? template.duration_months.toString() : "5");
+    setIsCurriculumModalOpen(true);
+  };
+
+  const closeCurriculumModal = () => {
+    setIsCurriculumModalOpen(false);
+    setEditingTemplate(null);
+    setCurriculumTitle("");
+    setCurriculumDuration("5");
+  };
 
   // ── Error State ──
   const [errorMsg, setErrorMsg] = useState("");
@@ -351,25 +381,48 @@ export default function PklManagementPage() {
 
   // ─── CRUD: Templates ─────────────────────────────────────────────────────
 
-  const handleAddTemplate = async (e: React.FormEvent) => {
+  const handleSaveCurriculum = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTemplateTitle.trim()) return;
+    if (!curriculumTitle.trim()) return;
 
+    setIsSavingCurriculum(true);
     try {
-      const res = await fetch("/api/pkl-templates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newTemplateTitle,
-          duration_months: parseInt(newTemplateDuration),
-        }),
-      });
-      if (!res.ok) throw new Error("Gagal membuat template");
-      setNewTemplateTitle("");
+      if (curriculumModalMode === "create") {
+        const res = await fetch("/api/pkl-templates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: curriculumTitle.trim(),
+            duration_months: parseInt(curriculumDuration),
+          }),
+        });
+        if (!res.ok) throw new Error("Gagal membuat kurikulum");
+      } else if (editingTemplate) {
+        const res = await fetch(`/api/pkl-templates/${editingTemplate.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: curriculumTitle.trim(),
+            duration_months: parseInt(curriculumDuration),
+          }),
+        });
+        if (!res.ok) throw new Error("Gagal memperbarui kurikulum");
+
+        // If currently viewing this template, update the active template in state
+        if (selectedTemplate?.id === editingTemplate.id) {
+          setSelectedTemplate({
+            ...selectedTemplate,
+            title: curriculumTitle.trim(),
+            duration_months: parseInt(curriculumDuration),
+          });
+        }
+      }
+      closeCurriculumModal();
       fetchTemplates();
-      setIsCurriculumModalOpen(false);
     } catch (err: any) {
-      setErrorMsg(err.message || "Gagal membuat template");
+      setErrorMsg(err.message || "Gagal menyimpan kurikulum");
+    } finally {
+      setIsSavingCurriculum(false);
     }
   };
 
@@ -396,6 +449,7 @@ export default function PklManagementPage() {
     e.preventDefault();
     if (!selectedTemplate || !newWeekNumber || !newWeekTitle.trim()) return;
 
+    setIsAddingWeek(true);
     try {
       const res = await fetch(`/api/pkl-templates/${selectedTemplate.id}/weeks`, {
         method: "POST",
@@ -403,15 +457,18 @@ export default function PklManagementPage() {
         body: JSON.stringify({
           week_number: parseInt(newWeekNumber),
           month_number: parseInt(newWeekMonth),
-          milestone_title: newWeekTitle,
+          milestone_title: newWeekTitle.trim(),
+          description: newWeekDescription.trim() || null,
         }),
       });
       if (!res.ok) throw new Error("Gagal membuat data minggu");
-      setNewWeekNumber("1");
       setNewWeekTitle("");
+      setNewWeekDescription("");
       fetchWeeks(selectedTemplate.id);
     } catch (err: any) {
       setErrorMsg(err.message || "Gagal membuat data minggu");
+    } finally {
+      setIsAddingWeek(false);
     }
   };
 
@@ -432,6 +489,7 @@ export default function PklManagementPage() {
     setEditingWeekNumber(wk.week_number.toString());
     setEditingWeekMonth(wk.month_number.toString());
     setEditingWeekTitle(wk.milestone_title);
+    setEditingWeekDescription(wk.description || "");
     setEditingWeekProgress((wk.progress_percent || 0).toString());
   };
 
@@ -440,6 +498,7 @@ export default function PklManagementPage() {
     setEditingWeekNumber("");
     setEditingWeekMonth("");
     setEditingWeekTitle("");
+    setEditingWeekDescription("");
     setEditingWeekProgress("0");
   };
 
@@ -455,7 +514,8 @@ export default function PklManagementPage() {
         body: JSON.stringify({
           week_number: parseInt(editingWeekNumber),
           month_number: parseInt(editingWeekMonth),
-          milestone_title: editingWeekTitle,
+          milestone_title: editingWeekTitle.trim(),
+          description: editingWeekDescription.trim() || null,
           progress_percent: parseInt(editingWeekProgress),
         }),
       });
@@ -490,10 +550,7 @@ export default function PklManagementPage() {
 
         {activeView === "list" && (
           <button
-            onClick={() => {
-              setNewTemplateTitle("");
-              setIsCurriculumModalOpen(true);
-            }}
+            onClick={openCreateCurriculumModal}
             className="flex items-center justify-center gap-2 bg-[#2AB0B2] hover:bg-[#209092] text-white rounded-xl px-4 py-2.5 text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 shrink-0"
           >
             <Plus size={16} />
@@ -566,8 +623,17 @@ export default function PklManagementPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <button
+                          type="button"
+                          onClick={() => openEditCurriculumModal(tmpl)}
+                          className="p-2 text-slate-400 hover:text-[#2AB0B2] rounded-xl hover:bg-[#2AB0B2]/10 transition-colors cursor-pointer"
+                          title="Edit Kurikulum"
+                        >
+                          <Edit size={15} />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleDeleteTemplate(tmpl.id)}
                           className="p-2 text-slate-350 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-colors cursor-pointer"
                           title="Hapus Kurikulum"
@@ -782,15 +848,28 @@ export default function PklManagementPage() {
 
           {/* Info Kurikulum Terpilih */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6">
-            <span className="text-[9px] font-black text-[#2AB0B2] uppercase tracking-widest block mb-1">
-              Kurikulum Terpilih
-            </span>
-            <h2 className="text-lg font-extrabold text-slate-900 leading-snug">
-              {selectedTemplate.title}
-            </h2>
-            <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">
-              Durasi: <span className="text-[#2AB0B2]">{selectedTemplate.duration_months} Bulan</span>
-            </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <span className="text-[9px] font-black text-[#2AB0B2] uppercase tracking-widest block mb-1">
+                  Kurikulum Terpilih
+                </span>
+                <h2 className="text-lg font-extrabold text-slate-900 leading-snug">
+                  {selectedTemplate.title}
+                </h2>
+                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">
+                  Durasi: <span className="text-[#2AB0B2] font-black">{selectedTemplate.duration_months} Bulan</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openEditCurriculumModal(selectedTemplate)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-[#2AB0B2] hover:border-[#2AB0B2] hover:bg-[#2AB0B2]/5 text-xs font-bold transition-all cursor-pointer shadow-3xs shrink-0"
+                title="Edit Kurikulum Ini"
+              >
+                <Edit size={14} />
+                <span>Edit Kurikulum</span>
+              </button>
+            </div>
 
             {/* Siswa Aktif */}
             <div className="border-t border-slate-100 mt-4 pt-4">
@@ -860,14 +939,27 @@ export default function PklManagementPage() {
               </div>
 
               <FormInput
-                label="Target / Judul Aktivitas"
-                placeholder="cth: Mengenal Dasar Javascript"
+                label="Target / Judul Aktivitas Mingguan"
+                placeholder="cth: Mengenal Dasar Javascript / Marketing Dasar"
                 value={newWeekTitle}
                 onChange={setNewWeekTitle}
               />
 
+              <div>
+                <label className="block text-[9px] font-extrabold text-slate-450 uppercase tracking-wider mb-1">
+                  Deskripsi Tugas / Aktivitas Mingguan
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="cth: Peserta dibebaskan menggunakan ide masing-masing, namun diwajibkan untuk mencapai target yang telah ditentukan."
+                  value={newWeekDescription}
+                  onChange={(e) => setNewWeekDescription(e.target.value)}
+                  className="w-full text-sm font-medium px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-[#2AB0B2]/5 focus:border-[#2AB0B2] transition-all bg-white resize-y"
+                />
+              </div>
+
               <PrimaryButton type="submit">
-                <Plus size={16} /> Tambah Minggu
+                <Plus size={16} /> {isAddingWeek ? "Menambahkan..." : "Tambah Minggu"}
               </PrimaryButton>
             </form>
           </div>
@@ -977,6 +1069,19 @@ export default function PklManagementPage() {
                                     required
                                   />
                                 </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-1">
+                                <div className="sm:col-span-3">
+                                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Deskripsi Tugas</label>
+                                  <textarea
+                                    rows={2}
+                                    value={editingWeekDescription}
+                                    onChange={(e) => setEditingWeekDescription(e.target.value)}
+                                    placeholder="Deskripsi rincian tugas..."
+                                    className="w-full text-xs font-semibold px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-[#2AB0B2] bg-white text-slate-800 resize-y"
+                                  />
+                                </div>
                                 <div>
                                   <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Progres (%)</label>
                                   <input
@@ -1026,6 +1131,11 @@ export default function PklManagementPage() {
                                 <h3 className="text-sm font-bold text-slate-800 leading-snug break-words">
                                   {wk.milestone_title}
                                 </h3>
+                                {wk.description && (
+                                  <p className="text-xs font-normal text-slate-600 mt-2 leading-relaxed break-words whitespace-pre-line bg-slate-50 border border-slate-200/60 p-2.5 rounded-xl">
+                                    {wk.description}
+                                  </p>
+                                )}
                               </div>
 
                               {/* Actions */}
@@ -1058,35 +1168,44 @@ export default function PklManagementPage() {
         </div>
       )}
 
-      {/* Create Curriculum Modal Overlay */}
+      {/* Create / Edit Curriculum Modal Overlay */}
       {isCurriculumModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in" onClick={() => { setIsCurriculumModalOpen(false); setNewTemplateTitle(""); }}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in" onClick={closeCurriculumModal}>
           <div className="bg-white rounded-3xl overflow-hidden max-w-md w-full shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5 border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                <Plus size={16} className="text-[#2AB0B2]" />
-                Tambah Kurikulum Baru
+                {curriculumModalMode === "create" ? (
+                  <>
+                    <Plus size={16} className="text-[#2AB0B2]" />
+                    Tambah Kurikulum Baru
+                  </>
+                ) : (
+                  <>
+                    <Edit size={16} className="text-[#2AB0B2]" />
+                    Edit Kurikulum
+                  </>
+                )}
               </h3>
-              <button onClick={() => { setIsCurriculumModalOpen(false); setNewTemplateTitle(""); }} className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer text-gray-400 hover:text-slate-650" title="Tutup">
+              <button onClick={closeCurriculumModal} className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer text-gray-400 hover:text-slate-650" title="Tutup">
                 <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleAddTemplate} className="space-y-4">
+            <form onSubmit={handleSaveCurriculum} className="space-y-4">
               <FormInput
                 label="Nama Program Kerja"
-                placeholder="cth: Web Developer"
-                value={newTemplateTitle}
-                onChange={setNewTemplateTitle}
+                placeholder="cth: PKL Angkatan 13"
+                value={curriculumTitle}
+                onChange={setCurriculumTitle}
               />
 
               <FormSelect
                 label="Durasi Program"
-                value={newTemplateDuration}
-                onChange={setNewTemplateDuration}
+                value={curriculumDuration}
+                onChange={setCurriculumDuration}
               >
                 {DURATION_OPTIONS.map((month) => (
-                  <option key={month} value={month}>
+                  <option key={month} value={month.toString()}>
                     {month} Bulan
                   </option>
                 ))}
@@ -1095,17 +1214,24 @@ export default function PklManagementPage() {
               <div className="flex gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => { setIsCurriculumModalOpen(false); setNewTemplateTitle(""); }}
+                  onClick={closeCurriculumModal}
                   className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-550 text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
+                  disabled={isSavingCurriculum}
                   className="flex-2 py-2.5 rounded-xl text-white text-xs font-bold bg-[#2AB0B2] hover:bg-[#1E8E90] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <Plus size={14} />
-                  <span>Simpan Kurikulum</span>
+                  {isSavingCurriculum ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : curriculumModalMode === "create" ? (
+                    <Plus size={14} />
+                  ) : (
+                    <Check size={14} />
+                  )}
+                  <span>{curriculumModalMode === "create" ? "Simpan Kurikulum" : "Simpan Perubahan"}</span>
                 </button>
               </div>
             </form>
