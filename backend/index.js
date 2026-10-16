@@ -2960,9 +2960,8 @@ app.post('/api/users', async (req, res) => {
       if (!school_name || !mentor_id || !program_template_id || !start_date || !end_date) {
         return res.status(400).json({ error: 'Data profil PKL tidak lengkap' });
       }
-      const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
-      if (start_date > todayStr) {
-        return res.status(400).json({ error: 'Tanggal mulai magang tidak boleh di masa depan' });
+      if (start_date > end_date) {
+        return res.status(400).json({ error: 'Tanggal mulai tidak boleh melebihi tanggal selesai magang' });
       }
     }
 
@@ -3075,9 +3074,8 @@ app.put('/api/users', async (req, res) => {
         return res.status(400).json({ error: 'Data profil PKL tidak lengkap' });
       }
 
-      const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
-      if (start_date !== undefined && start_date_val > todayStr) {
-        return res.status(400).json({ error: 'Tanggal mulai magang tidak boleh di masa depan' });
+      if (start_date_val > end_date_val) {
+        return res.status(400).json({ error: 'Tanggal mulai tidak boleh melebihi tanggal selesai magang' });
       }
     }
 

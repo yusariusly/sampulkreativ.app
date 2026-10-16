@@ -253,8 +253,8 @@ export default function AdminUsersPage() {
         showToast("⚠️ Tanggal mulai wajib diisi untuk Siswa PKL");
         return;
       }
-      if (startDate > todayStr) {
-        showToast("Tanggal mulai magang tidak boleh di masa depan");
+      if (endDate && startDate && startDate > endDate) {
+        showToast("⚠️ Tanggal mulai tidak boleh melebihi tanggal selesai magang");
         return;
       }
       if (!endDate) {
@@ -766,7 +766,6 @@ export default function AdminUsersPage() {
                       <input
                         type="date"
                         value={startDate}
-                        max={todayStr}
                         onChange={(e) => setStartDate(e.target.value)}
                         className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors text-gray-600"
                         required
