@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Award,
@@ -629,6 +629,117 @@ export default function PklScoreboardPage() {
     aspectKey: string;
   } | null>(null);
 
+  // Auto-Save Global States & Timeout Refs
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [isAutoSaved, setIsAutoSaved] = useState(false);
+  const commentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const noticeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-Save: Menyimpan Rekap Mingguan & Progress Override ke database
+  const autoSaveRecap = async (override?: {
+    tags?: string[];
+    comments?: string;
+    progress_override?: number | null;
+  }) => {
+    if (!mentor || !selectedStudentId) return;
+
+    const tagsToSave = override?.tags !== undefined ? override.tags : selectedTags;
+    const commentsToSave = override?.comments !== undefined ? override.comments : commentInput;
+    const overrideToSave = override?.progress_override !== undefined ? override.progress_override : progressOverrideInput;
+
+    setIsAutoSaving(true);
+    try {
+      const res = await fetch(`/api/v1/mentor/rekap-mingguan/${selectedStudentId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": mentor.id,
+          "x-device-id": mentor.device_id || "",
+        },
+        body: JSON.stringify({
+          week_number: selectedWeek,
+          tags: tagsToSave,
+          comments: commentsToSave,
+          extended_days: extendedDaysInput,
+          progress_override: overrideToSave,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error?.message || "Gagal auto-save rekap");
+      }
+
+      setStudents((prev) =>
+        prev.map((s) => {
+          if (s.student_id === selectedStudentId) {
+            return {
+              ...s,
+              tags: tagsToSave,
+              comments: commentsToSave,
+              extended_days: extendedDaysInput,
+              progress_override: overrideToSave,
+            };
+          }
+          return s;
+        })
+      );
+
+      setIsAutoSaved(true);
+      setTimeout(() => setIsAutoSaved(false), 2500);
+    } catch (err) {
+      console.error("Auto-save recap error:", err);
+    } finally {
+      setIsAutoSaving(false);
+    }
+  };
+
+  // Auto-Save: Menyimpan Pengaturan Reward & Punishment ke database
+  const autoSaveNotice = async (override?: {
+    prize_name?: string;
+    consequence?: string;
+    show_recipients?: boolean;
+    auto_show_recipients?: boolean;
+  }) => {
+    if (!mentor) return;
+    const pName = override?.prize_name !== undefined ? override.prize_name : prizeName;
+    const cSeq = override?.consequence !== undefined ? override.consequence : consequence;
+    const sRecip = override?.show_recipients !== undefined ? override.show_recipients : showRecipients;
+    const aShow = override?.auto_show_recipients !== undefined ? override.auto_show_recipients : autoShowRecipients;
+
+    // Both prize_name and consequence are required by backend API
+    if (!pName.trim() || !cSeq.trim()) return;
+
+    setIsAutoSaving(true);
+    try {
+      const res = await fetch("/api/v1/pkl/notices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": mentor.id,
+          "x-device-id": mentor.device_id || "",
+        },
+        body: JSON.stringify({
+          week_number: selectedWeek,
+          prize_name: pName,
+          consequence: cSeq,
+          show_recipients: sRecip,
+          auto_show_recipients: aShow,
+        }),
+      });
+
+      if (res.ok) {
+        setIsAutoSaved(true);
+        setTimeout(() => setIsAutoSaved(false), 2500);
+        fetchAllNotices();
+      }
+    } catch (err) {
+      console.error("Auto-save notice error:", err);
+    } finally {
+      setIsAutoSaving(false);
+    }
+  };
+
   // Handler saat admin memilih angka dari picker 0 - 25
   const handleSelectPointFromPicker = (dateStr: string, aspectKey: string, point: number) => {
     handlePointChange(dateStr, aspectKey, point.toString());
@@ -636,6 +747,7 @@ export default function PklScoreboardPage() {
 
     // Auto-save evaluasi harian ke database di background
     if (mentor && selectedStudentId) {
+      setIsAutoSaving(true);
       const existingEval = dailyEvals[dateStr] || {
         wkt_point: 0,
         skp_point: 0,
@@ -665,7 +777,15 @@ export default function PklScoreboardPage() {
           ker_point: updatedEval.ker_point || 0,
           ini_point: updatedEval.ini_point || 0,
         }),
-      }).catch((err) => console.error("Auto-save daily evaluation error:", err));
+      })
+        .then((res) => {
+          if (res.ok) {
+            setIsAutoSaved(true);
+            setTimeout(() => setIsAutoSaved(false), 2500);
+          }
+        })
+        .catch((err) => console.error("Auto-save daily evaluation error:", err))
+        .finally(() => setIsAutoSaving(false));
     }
   };
 
@@ -1067,11 +1187,14 @@ export default function PklScoreboardPage() {
     }
   };
 
-  // Toggle tag selection
+  // Toggle tag selection with instant auto-save
   const handleToggleTag = (tag: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-    );
+    const newTags = selectedTags.includes(tag)
+      ? selectedTags.filter((t) => t !== tag)
+      : [...selectedTags, tag];
+
+    setSelectedTags(newTags);
+    autoSaveRecap({ tags: newTags });
   };
 
   // Helper Icon Picker
@@ -1377,25 +1500,26 @@ export default function PklScoreboardPage() {
                   )
                 )}
 
-                {/* Save Button */}
+                {/* Auto-Save Status Badge */}
                 {selectedStudentId && (
-                  <button
-                    onClick={handleSaveAll}
-                    disabled={savingAll}
-                    className="bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-350 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer active:scale-95 shrink-0 h-[36px]"
-                  >
-                    {savingAll ? (
-                      <>
-                        <Loader2 className="animate-spin" size={13} />
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shrink-0 h-[36px] bg-slate-50 border-slate-200 shadow-3xs">
+                    {isAutoSaving ? (
+                      <span className="flex items-center gap-1.5 text-[#2AB0B2]">
+                        <Loader2 size={13} className="animate-spin" />
                         <span>Menyimpan...</span>
-                      </>
+                      </span>
+                    ) : isAutoSaved ? (
+                      <span className="flex items-center gap-1.5 text-emerald-600">
+                        <Check size={13} />
+                        <span>Tersimpan</span>
+                      </span>
                     ) : (
-                      <>
-                        <Save size={13} />
-                        <span>Simpan Semua Perubahan</span>
-                      </>
+                      <span className="hidden sm:flex items-center gap-1.5 text-emerald-700">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Auto-Save Aktif</span>
+                      </span>
                     )}
-                  </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -1725,10 +1849,13 @@ export default function PklScoreboardPage() {
                                 setProgressOverrideInput(Math.min(100, Math.max(0, parseInt(val, 10) || 0)));
                               }
                             }}
+                            onBlur={() => {
+                              autoSaveRecap({ progress_override: progressOverrideInput });
+                            }}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
                                 e.preventDefault();
-                                handleSaveAll();
+                                autoSaveRecap({ progress_override: progressOverrideInput });
                               }
                             }}
                             className="w-16 text-center text-xs font-black py-2 px-2 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-all bg-white text-slate-800"
@@ -1793,7 +1920,22 @@ export default function PklScoreboardPage() {
                         rows={3}
                         placeholder="Tulis kritik konstruktif atau apresiasi detail untuk siswa..."
                         value={commentInput}
-                        onChange={(e) => setCommentInput(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCommentInput(val);
+                          if (commentTimeoutRef.current) {
+                            clearTimeout(commentTimeoutRef.current);
+                          }
+                          commentTimeoutRef.current = setTimeout(() => {
+                            autoSaveRecap({ comments: val });
+                          }, 800);
+                        }}
+                        onBlur={(e) => {
+                          if (commentTimeoutRef.current) {
+                            clearTimeout(commentTimeoutRef.current);
+                          }
+                          autoSaveRecap({ comments: e.target.value });
+                        }}
                         className="w-full text-xs font-semibold px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-all bg-white shadow-xs"
                       />
                       {currentStudentTotalPoints < 12 && !commentInput.trim() && (
@@ -1824,7 +1966,18 @@ export default function PklScoreboardPage() {
                         type="text"
                         placeholder="Cth: Beng Beng Maxx / Free Lunch"
                         value={prizeName}
-                        onChange={(e) => setPrizeName(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPrizeName(val);
+                          if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+                          noticeTimeoutRef.current = setTimeout(() => {
+                            autoSaveNotice({ prize_name: val });
+                          }, 1000);
+                        }}
+                        onBlur={(e) => {
+                          if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+                          autoSaveNotice({ prize_name: e.target.value });
+                        }}
                         className="w-full text-xs font-semibold px-3 py-2 border border-slate-250 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-colors bg-white font-medium"
                       />
                     </div>
@@ -1838,7 +1991,18 @@ export default function PklScoreboardPage() {
                         type="text"
                         placeholder="Cth: Presentasi hasil pekerjaan hari Senin"
                         value={consequence}
-                        onChange={(e) => setConsequence(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setConsequence(val);
+                          if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+                          noticeTimeoutRef.current = setTimeout(() => {
+                            autoSaveNotice({ consequence: val });
+                          }, 1000);
+                        }}
+                        onBlur={(e) => {
+                          if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+                          autoSaveNotice({ consequence: e.target.value });
+                        }}
                         className="w-full text-xs font-semibold px-3 py-2 border border-slate-250 rounded-xl focus:outline-none focus:border-[#2AB0B2] transition-colors bg-white font-medium"
                       />
                     </div>
@@ -1849,7 +2013,10 @@ export default function PklScoreboardPage() {
                       <input
                         type="checkbox"
                         checked={showRecipients}
-                        onChange={(e) => setShowRecipients(e.target.checked)}
+                        onChange={(e) => {
+                          setShowRecipients(e.target.checked);
+                          autoSaveNotice({ show_recipients: e.target.checked });
+                        }}
                         className="rounded border-slate-350 text-[#2AB0B2] focus:ring-[#2AB0B2]"
                       />
                       Tampilkan pemenang &amp; pelanggar minggu ini
@@ -1859,7 +2026,10 @@ export default function PklScoreboardPage() {
                       <input
                         type="checkbox"
                         checked={autoShowRecipients}
-                        onChange={(e) => setAutoShowRecipients(e.target.checked)}
+                        onChange={(e) => {
+                          setAutoShowRecipients(e.target.checked);
+                          autoSaveNotice({ auto_show_recipients: e.target.checked });
+                        }}
                         className="rounded border-slate-350 text-[#2AB0B2] focus:ring-[#2AB0B2]"
                       />
                       Tampilkan Otomatis Hari Jumat Jam 15:00 WIB
