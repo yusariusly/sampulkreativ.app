@@ -623,6 +623,52 @@ export default function PklScoreboardPage() {
     }));
   };
 
+  // State untuk Popover Pilihan Nilai 0 - 25
+  const [activePickerCell, setActivePickerCell] = useState<{
+    dateStr: string;
+    aspectKey: string;
+  } | null>(null);
+
+  // Handler saat admin memilih angka dari picker 0 - 25
+  const handleSelectPointFromPicker = (dateStr: string, aspectKey: string, point: number) => {
+    handlePointChange(dateStr, aspectKey, point.toString());
+    setActivePickerCell(null);
+
+    // Auto-save evaluasi harian ke database di background
+    if (mentor && selectedStudentId) {
+      const existingEval = dailyEvals[dateStr] || {
+        wkt_point: 0,
+        skp_point: 0,
+        has_point: 0,
+        ker_point: 0,
+        ini_point: 0,
+      };
+
+      const updatedEval = {
+        ...existingEval,
+        [aspectKey]: point,
+      };
+
+      fetch("/api/v1/mentor/evaluasi-harian", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": mentor.id,
+          "x-device-id": mentor.device_id || "",
+        },
+        body: JSON.stringify({
+          student_id: selectedStudentId,
+          evaluation_date: dateStr,
+          wkt_point: updatedEval.wkt_point || 0,
+          skp_point: updatedEval.skp_point || 0,
+          has_point: updatedEval.has_point || 0,
+          ker_point: updatedEval.ker_point || 0,
+          ini_point: updatedEval.ini_point || 0,
+        }),
+      }).catch((err) => console.error("Auto-save daily evaluation error:", err));
+    }
+  };
+
   // Handler: Save Weekly Recap Feedback (Draft)
 
   // Handler: Save Weekly Recap Feedback (Draft)
@@ -1368,17 +1414,17 @@ export default function PklScoreboardPage() {
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[11px] text-slate-600 leading-relaxed">
                   <div className="font-bold text-slate-800 flex items-center gap-1.5 mb-1">
                     <Info size={14} className="text-[#2AB0B2]" />
-                    <span>Auto-Save Aktif:</span>
+                    <span>Penilaian Interaktif:</span>
                   </div>
                   <p className="text-slate-500 font-medium pl-5">
-                    Masukkan jumlah poin (0 - 25) pada kolom aspek untuk memberikan poin harian. Nilai tersimpan otomatis ke database ketika kursor keluar dari input (onBlur). Evaluasi hanya dapat diisi untuk hari kerja yang sedang berjalan atau sudah berlalu.
+                    Klik kotak nilai pada kolom aspek untuk memilih poin apresiasi harian (0 - 25). Pilihan akan otomatis tersimpan ke sistem tanpa perlu mengetik manual. Evaluasi hanya dapat diisi untuk hari magang yang sedang berjalan atau sudah berlalu.
                   </p>
                 </div>
 
                 {/* Days Table */}
                 {currentStudent && (
                   <>
-                    <div className="overflow-x-auto border border-slate-200/80 rounded-xl shadow-3xs">
+                    <div className="overflow-x-auto lg:overflow-visible border border-slate-200/80 rounded-xl shadow-3xs">
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-200">
@@ -1395,7 +1441,7 @@ export default function PklScoreboardPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {getMonFriDates(cohortStartDate, selectedWeek).map((day) => {
+                          {getMonFriDates(cohortStartDate, selectedWeek).map((day, dayIndex) => {
                             const evalDay = dailyEvals[day.dateStr] || {
                               evaluation_date: day.dateStr,
                               wkt_point: 0,
@@ -1444,28 +1490,148 @@ export default function PklScoreboardPage() {
                                   </div>
                                 </td>
 
-                                {/* Aspect Inputs */}
-                                {aspects.map((aspect) => {
+                                {/* Aspect Inputs: 0 - 25 Number Picker */}
+                                {aspects.map((aspect, aspectIndex) => {
                                   const currentPoint = (evalDay as any)[aspect.aspect_key] || 0;
+                                  const isPickerOpen =
+                                    activePickerCell?.dateStr === day.dateStr &&
+                                    activePickerCell?.aspectKey === aspect.aspect_key;
 
                                   return (
-                                    <td key={aspect.aspect_key} className="p-3 text-center">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        max="25"
+                                    <td key={aspect.aspect_key} className="p-3 text-center relative">
+                                      <button
+                                        type="button"
                                         disabled={isDisabled}
-                                        value={currentPoint === 0 ? "" : currentPoint}
-                                        onChange={(e) =>
-                                          handlePointChange(day.dateStr, aspect.aspect_key, e.target.value)
-                                        }
-                                        placeholder="0"
-                                        className={`w-14 text-center text-xs font-black py-1 px-1.5 rounded-lg border transition-all outline-none ${
+                                        onClick={() => {
+                                          if (isDisabled) return;
+                                          setActivePickerCell(
+                                            isPickerOpen
+                                              ? null
+                                              : { dateStr: day.dateStr, aspectKey: aspect.aspect_key }
+                                          );
+                                        }}
+                                        className={`w-14 h-9 mx-auto text-center text-xs font-black rounded-xl border transition-all flex items-center justify-center select-none ${
                                           isDisabled
                                             ? "bg-slate-100/50 text-slate-350 border-slate-200/50 cursor-not-allowed"
-                                            : "bg-white text-slate-750 border-slate-200 focus:border-[#2AB0B2] focus:ring-1 focus:ring-[#2AB0B2]"
+                                            : isPickerOpen
+                                            ? "bg-[#2AB0B2]/10 border-[#2AB0B2] text-[#2AB0B2] ring-2 ring-[#2AB0B2]/20 scale-105 shadow-xs"
+                                            : currentPoint > 0
+                                            ? "bg-white text-slate-800 border-slate-200 hover:border-[#2AB0B2] hover:bg-slate-50 cursor-pointer shadow-2xs"
+                                            : "bg-slate-50/70 text-slate-400 border-slate-200 hover:border-slate-300 hover:bg-white cursor-pointer"
                                         }`}
-                                      />
+                                        title={isDisabled ? "Hari tidak dapat dinilai" : `Klik untuk memilih poin ${aspect.label}`}
+                                      >
+                                        {currentPoint > 0 ? currentPoint : "0"}
+                                      </button>
+
+                                      {/* Popover Pilihan Nilai 0 sampai 25 */}
+                                      {isPickerOpen && (
+                                        <>
+                                          {/* Backdrop overlay to close picker on click outside */}
+                                          <div
+                                            className="fixed inset-0 z-40"
+                                            onClick={() => setActivePickerCell(null)}
+                                          />
+
+                                          <div
+                                            className={`absolute ${
+                                              dayIndex >= 2 ? "bottom-full mb-2" : "top-full mt-2"
+                                            } ${
+                                              aspectIndex >= 3
+                                                ? "right-0"
+                                                : aspectIndex === 0
+                                                ? "left-0"
+                                                : "left-1/2 -translate-x-1/2"
+                                            } w-[260px] bg-white rounded-2xl shadow-2xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95 duration-150 text-left`}
+                                          >
+                                            {/* Header Popover */}
+                                            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                                              <div className="flex flex-col">
+                                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                                                  {aspect.label} • {day.name}
+                                                </span>
+                                                <span className="text-xs font-black text-slate-800">
+                                                  Pilih Poin (0 - 25)
+                                                </span>
+                                              </div>
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="text-[10px] font-black text-[#2AB0B2] bg-[#2AB0B2]/10 px-2 py-0.5 rounded-md">
+                                                  Poin: {currentPoint}
+                                                </span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setActivePickerCell(null)}
+                                                  className="text-slate-400 hover:text-slate-600 text-xs px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
+                                                  title="Tutup"
+                                                >
+                                                  ✕
+                                                </button>
+                                              </div>
+                                            </div>
+
+                                            {/* Baris Pintas: 0 (Reset/Kosong) dan 25 (Maksimal) */}
+                                            <div className="grid grid-cols-2 gap-1.5 mb-2">
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleSelectPointFromPicker(day.dateStr, aspect.aspect_key, 0)
+                                                }
+                                                className={`h-7 rounded-lg text-[11px] font-black flex items-center justify-center transition-all cursor-pointer border ${
+                                                  currentPoint === 0
+                                                    ? "bg-slate-700 text-white border-slate-700 shadow-2xs"
+                                                    : "bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-200"
+                                                }`}
+                                              >
+                                                0 (Reset / Kosong)
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleSelectPointFromPicker(day.dateStr, aspect.aspect_key, 25)
+                                                }
+                                                className={`h-7 rounded-lg text-[11px] font-black flex items-center justify-center transition-all cursor-pointer border ${
+                                                  currentPoint === 25
+                                                    ? "bg-amber-500 text-white border-amber-500 shadow-2xs"
+                                                    : "bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200"
+                                                }`}
+                                              >
+                                                25 (Maksimal ⭐)
+                                              </button>
+                                            </div>
+
+                                            {/* Grid Angka 1 sampai 25 (5x5 rapi) */}
+                                            <div className="grid grid-cols-5 gap-1">
+                                              {Array.from({ length: 25 }, (_, i) => i + 1).map((num) => {
+                                                const isSelectedNum = num === currentPoint;
+                                                return (
+                                                  <button
+                                                    key={num}
+                                                    type="button"
+                                                    onClick={() =>
+                                                      handleSelectPointFromPicker(
+                                                        day.dateStr,
+                                                        aspect.aspect_key,
+                                                        num
+                                                      )
+                                                    }
+                                                    className={`h-7 rounded-lg text-xs font-black flex items-center justify-center transition-all cursor-pointer select-none ${
+                                                      isSelectedNum
+                                                        ? "bg-[#2AB0B2] text-white shadow-xs font-black scale-105"
+                                                        : num === 25
+                                                        ? "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/80 font-bold"
+                                                        : num >= 20
+                                                        ? "bg-teal-50/50 text-[#1C3D3F] hover:bg-[#2AB0B2]/15 hover:text-[#2AB0B2] border border-teal-100 font-bold"
+                                                        : "bg-slate-50/70 text-slate-600 hover:bg-[#2AB0B2]/10 hover:text-[#2AB0B2] border border-slate-100"
+                                                    }`}
+                                                  >
+                                                    {num}
+                                                  </button>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        </>
+                                      )}
                                     </td>
                                   );
                                 })}
