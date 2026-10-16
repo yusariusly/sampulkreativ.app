@@ -1723,7 +1723,7 @@ app.get('/api/auth/check-device', async (req, res) => {
 const fillAlpaForUser = async (userId) => {
   try {
     const [userRows] = await pool.query(`
-      SELECT u.username, u.nama_lengkap, u.created_at, s.start_date AS student_start_date, u.start_date AS user_start_date 
+      SELECT u.username, u.nama_lengkap, u.created_at, s.start_date AS student_start_date 
       FROM users u
       LEFT JOIN pkl_students s ON u.id = s.user_id
       WHERE u.id = ?
@@ -1731,16 +1731,30 @@ const fillAlpaForUser = async (userId) => {
     if (userRows.length === 0) return;
     const user = userRows[0];
 
-    // Priority start date: student start_date -> user start_date -> created_at
-    const effectiveStartStr = user.student_start_date || user.user_start_date || user.created_at;
-    let startDateObj = effectiveStartStr ? new Date(effectiveStartStr) : new Date();
-    startDateObj.setHours(0, 0, 0, 0);
+    // Priority start date: student start_date -> created_at
+    const effectiveStartStr = user.student_start_date || user.created_at;
+    if (!effectiveStartStr) return;
 
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
+    // Use Asia/Jakarta timezone strictly for current date and yesterday
+    const nowJakartaStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(new Date());
 
-    if (startDateObj.getTime() > yesterday.getTime()) {
+    const [jYear, jMonth, jDay] = nowJakartaStr.split('-').map(Number);
+    const todayJakarta = new Date(Date.UTC(jYear, jMonth - 1, jDay));
+    const yesterdayJakarta = new Date(todayJakarta);
+    yesterdayJakarta.setUTCDate(yesterdayJakarta.getUTCDate() - 1);
+    const yesterdayStr = yesterdayJakarta.toISOString().slice(0, 10);
+
+    let startStr;
+    if (effectiveStartStr instanceof Date) {
+      startStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(effectiveStartStr);
+    } else {
+      startStr = String(effectiveStartStr).slice(0, 10);
+    }
+
+    if (startStr > yesterdayStr) {
       return;
     }
 
@@ -1781,14 +1795,12 @@ const fillAlpaForUser = async (userId) => {
     );
 
     const missingRecords = [];
-    let current = new Date(startDateObj);
-    while (current.getTime() <= yesterday.getTime()) {
-      const dateStr = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Jakarta',
-        year: 'numeric', month: '2-digit', day: '2-digit'
-      }).format(current);
+    const [sYear, sMonth, sDay] = startStr.split('-').map(Number);
+    let current = new Date(Date.UTC(sYear, sMonth - 1, sDay));
 
-      const dayOfWeek = current.getDay();
+    while (current.getTime() <= yesterdayJakarta.getTime()) {
+      const dateStr = current.toISOString().slice(0, 10);
+      const dayOfWeek = current.getUTCDay();
       
       if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr) && !existingDates.has(dateStr)) {
         const recordId = `alpa-${userId}-${dateStr}`;
@@ -1807,7 +1819,7 @@ const fillAlpaForUser = async (userId) => {
           diubah_oleh_admin: 0
         });
       }
-      current.setDate(current.getDate() + 1);
+      current.setUTCDate(current.getUTCDate() + 1);
     }
 
     if (missingRecords.length > 0) {
@@ -1832,6 +1844,27 @@ const fillAlpaForUser = async (userId) => {
   }
 };
 
+const fillAlpaForAllUsers = async () => {
+  try {
+    const [users] = await pool.query("SELECT id FROM users WHERE role IN ('employee', 'student', 'mentor') AND is_active = 1");
+    for (const u of users) {
+      await fillAlpaForUser(u.id);
+    }
+  } catch (err) {
+    console.error("Error auto running fillAlpaForAllUsers:", err);
+  }
+};
+
+// Auto-run periodic auto-alpa check every 30 minutes and after server startup
+if (!process.env.VERCEL) {
+  setTimeout(() => {
+    fillAlpaForAllUsers().catch(err => console.error("Error initial fillAlpaForAllUsers:", err));
+  }, 10000);
+  setInterval(() => {
+    fillAlpaForAllUsers().catch(err => console.error("Error periodic fillAlpaForAllUsers:", err));
+  }, 30 * 60 * 1000);
+}
+
 // 2. Attendance GET & POST
 app.get('/api/attendance', async (req, res) => {
   try {
@@ -1842,12 +1875,7 @@ app.get('/api/attendance', async (req, res) => {
       fillAlpaForUser(user_id).catch(err => console.error("Error fillAlpaForUser background:", err));
     } else {
       // Jalankan fillAlpa untuk seluruh user di background agar admin list loading cepat
-      (async () => {
-        const [users] = await pool.query("SELECT id FROM users WHERE role IN ('employee', 'student', 'mentor') AND is_active = 1");
-        for (const u of users) {
-          await fillAlpaForUser(u.id);
-        }
-      })().catch(err => console.error("Error fillAlpaForUsers list background:", err));
+      fillAlpaForAllUsers().catch(err => console.error("Error fillAlpaForAllUsers list background:", err));
     }
 
     let query = 'SELECT * FROM absensi';
