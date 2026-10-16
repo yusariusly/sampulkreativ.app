@@ -335,6 +335,11 @@ export default function CertificatePage() {
   const [pendingNotes, setPendingNotes] = useState<Record<number, string>>({});
   const [savingMonth, setSavingMonth] = useState<number | null>(null);
 
+  // Auto-save states for notes and tags
+  const [savingNotesMonth, setSavingNotesMonth] = useState<Record<number, boolean>>({});
+  const [savedNotesMonth, setSavedNotesMonth] = useState<Record<number, boolean>>({});
+  const notesTimeoutRef = useRef<Record<number, NodeJS.Timeout>>({});
+
   const [allTags, setAllTags] = useState<AppTag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
   const [savingTags, setSavingTags] = useState(false);
@@ -605,6 +610,60 @@ export default function CertificatePage() {
     finally { setSavingMonth(null); }
   };
 
+  // Auto-save: Menyimpan catatan per bulan ke database
+  const saveMonthlyNote = async (monthNumber: number, noteText: string) => {
+    if (!selectedStudentId || !selectedCurriculumId) return;
+    setSavingNotesMonth(prev => ({ ...prev, [monthNumber]: true }));
+    try {
+      const res = await fetch("/api/cert-monthly-notes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: selectedStudentId,
+          curriculum_id: selectedCurriculumId,
+          month_number: monthNumber,
+          notes: noteText || null,
+        }),
+      });
+      if (!res.ok) throw new Error("Gagal menyimpan catatan");
+      setSavedNotesMonth(prev => ({ ...prev, [monthNumber]: true }));
+      setTimeout(() => {
+        setSavedNotesMonth(prev => ({ ...prev, [monthNumber]: false }));
+      }, 2500);
+    } catch (err) {
+      console.error("Auto-save note error:", err);
+    } finally {
+      setSavingNotesMonth(prev => ({ ...prev, [monthNumber]: false }));
+    }
+  };
+
+  // Auto-save: Menyimpan tag apresiasi saat diklik
+  const handleToggleTag = async (tagId: number) => {
+    if (!selectedStudentId || !selectedCurriculumId) return;
+    const newTagIds = selectedTagIds.includes(tagId)
+      ? selectedTagIds.filter(id => id !== tagId)
+      : [...selectedTagIds, tagId];
+
+    setSelectedTagIds(newTagIds);
+    setSavingTags(true);
+    try {
+      const res = await fetch("/api/cert-student-tags", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: selectedStudentId,
+          curriculum_id: selectedCurriculumId,
+          tag_ids: newTagIds,
+        }),
+      });
+      if (!res.ok) throw new Error("Gagal menyimpan tag");
+    } catch (err) {
+      console.error("Auto-save tags error:", err);
+    } finally {
+      setSavingTags(false);
+    }
+  };
+
   const saveTags = async () => {
     if (!selectedStudentId || !selectedCurriculumId) return;
     setSavingTags(true);
@@ -771,10 +830,10 @@ export default function CertificatePage() {
                 </div>
               </div>
 
-              <button onClick={saveAll} disabled={savingMonth === -1 || !gradeData} className="ml-auto flex items-center gap-1.5 bg-[#2AB0B2] hover:bg-[#209092] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 disabled:opacity-60 shadow-sm">
-                {savingMonth === -1 ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                <span>Simpan Semua</span>
-              </button>
+              <div className="ml-auto hidden sm:flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-3 py-1.5 rounded-xl text-xs font-bold shadow-3xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Auto-Save Aktif</span>
+              </div>
             </div>
           </div>
 
@@ -952,17 +1011,65 @@ export default function CertificatePage() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Per-month notes */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                    <MessageSquare size={15} className="text-[#2AB0B2]" />
-                    Catatan per Bulan
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      <MessageSquare size={15} className="text-[#2AB0B2]" />
+                      Catatan per Bulan
+                    </h3>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                      {Object.values(savingNotesMonth).some(Boolean) ? (
+                        <span className="flex items-center gap-1 text-[#2AB0B2]">
+                          <Loader2 size={11} className="animate-spin" />
+                          <span>Menyimpan...</span>
+                        </span>
+                      ) : Object.values(savedNotesMonth).some(Boolean) ? (
+                        <span className="flex items-center gap-1 text-emerald-600">
+                          <Check size={11} />
+                          <span>Tersimpan</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-slate-400">
+                          <Check size={11} className="text-emerald-500" />
+                          <span>Auto-save aktif</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   <div className="space-y-3 max-h-[300px] overflow-y-auto">
                     {gradeData.months.map(month => (
                       <div key={month.month_number}>
-                        <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">{month.month_label}</label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                            {month.month_label}
+                          </label>
+                          {savingNotesMonth[month.month_number] ? (
+                            <span className="text-[8px] font-bold text-[#2AB0B2] flex items-center gap-0.5">
+                              <Loader2 size={8} className="animate-spin" /> menyimpan...
+                            </span>
+                          ) : savedNotesMonth[month.month_number] ? (
+                            <span className="text-[8px] font-bold text-emerald-600 flex items-center gap-0.5">
+                              <Check size={8} /> tersimpan
+                            </span>
+                          ) : null}
+                        </div>
                         <textarea
                           value={pendingNotes[month.month_number] ?? (month.notes || "")}
-                          onChange={e => setPendingNotes(p => ({ ...p, [month.month_number]: e.target.value }))}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setPendingNotes(p => ({ ...p, [month.month_number]: val }));
+                            if (notesTimeoutRef.current[month.month_number]) {
+                              clearTimeout(notesTimeoutRef.current[month.month_number]);
+                            }
+                            notesTimeoutRef.current[month.month_number] = setTimeout(() => {
+                              saveMonthlyNote(month.month_number, val);
+                            }, 800);
+                          }}
+                          onBlur={e => {
+                            if (notesTimeoutRef.current[month.month_number]) {
+                              clearTimeout(notesTimeoutRef.current[month.month_number]);
+                            }
+                            saveMonthlyNote(month.month_number, e.target.value);
+                          }}
                           placeholder={`Catatan Bulan ${month.month_number}...`}
                           rows={2}
                           className="w-full mt-1 text-xs text-slate-700 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#2AB0B2]/20 focus:border-[#2AB0B2] resize-none transition-all placeholder:text-slate-300"
@@ -975,22 +1082,45 @@ export default function CertificatePage() {
                 {/* Tags */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Tag size={15} className="text-[#2AB0B2]" />Tag Apresiasi</h3>
-                    <button onClick={saveTags} disabled={savingTags} className="flex items-center gap-1 bg-[#2AB0B2] text-white px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer active:scale-95 disabled:opacity-60">
-                      {savingTags ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}<span>Simpan</span>
-                    </button>
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      <Tag size={15} className="text-[#2AB0B2]" />
+                      Tag Apresiasi
+                    </h3>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                      {savingTags ? (
+                        <span className="flex items-center gap-1 text-[#2AB0B2]">
+                          <Loader2 size={11} className="animate-spin" />
+                          <span>Menyimpan...</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-emerald-600">
+                          <Check size={11} />
+                          <span>Auto-save aktif</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2 max-h-[300px] overflow-y-auto">
                     {allTags.filter(t => t.is_active).map(tag => {
                       const on = selectedTagIds.includes(tag.id);
                       return (
-                        <button key={tag.id} type="button" onClick={() => setSelectedTagIds(p => on ? p.filter(i => i !== tag.id) : [...p, tag.id])}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer ${on ? "bg-[#2AB0B2] text-white border-[#2AB0B2]" : "bg-slate-50 text-slate-600 border-slate-200 hover:border-[#2AB0B2]/40"}`}>
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => handleToggleTag(tag.id)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
+                            on
+                              ? "bg-[#2AB0B2] text-white border-[#2AB0B2] shadow-3xs"
+                              : "bg-slate-50 text-slate-600 border-slate-200 hover:border-[#2AB0B2]/40"
+                          }`}
+                        >
                           {tag.label}
                         </button>
                       );
                     })}
-                    {!allTags.filter(t => t.is_active).length && <p className="text-xs text-slate-400">Tambahkan tag di Pengaturan.</p>}
+                    {!allTags.filter(t => t.is_active).length && (
+                      <p className="text-xs text-slate-400">Tambahkan tag di Pengaturan.</p>
+                    )}
                   </div>
                 </div>
 

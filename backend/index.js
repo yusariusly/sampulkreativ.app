@@ -5797,28 +5797,56 @@ app.delete('/api/cert-criteria/:id', async (req, res) => {
   }
 });
 
+// ── PUT /api/cert-monthly-notes ──────────────────────────────────────────────
+// Upsert monthly note for a student
+// Body: { student_id, curriculum_id, month_number, notes }
+app.put('/api/cert-monthly-notes', async (req, res) => {
+  try {
+    const { student_id, curriculum_id, month_number, notes } = req.body;
+    if (!student_id || !curriculum_id || !month_number) {
+      return res.status(400).json({ error: 'student_id, curriculum_id, dan month_number wajib diisi' });
+    }
+
+    await pool.query(
+      `INSERT INTO cert_monthly_grades (student_id, curriculum_id, month_number, activity_score, notes, updated_at)
+       VALUES (?, ?, ?, 0, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (student_id, curriculum_id, month_number) DO UPDATE SET
+         notes = EXCLUDED.notes,
+         updated_at = CURRENT_TIMESTAMP`,
+      [student_id, curriculum_id, parseInt(month_number), notes || null]
+    );
+
+    res.json({ success: true, message: `Catatan Bulan ${month_number} berhasil disimpan` });
+  } catch (err) {
+    console.error('PUT /api/cert-monthly-notes error:', err);
+    res.status(500).json({ error: 'Gagal menyimpan catatan bulan' });
+  }
+});
+
 // ── POST /api/cert-criterion-scores ──────────────────────────────────────────
 // Batch upsert criterion scores for one month
 // Body: { student_id, curriculum_id, month_number, notes, scores: { criterion_id: score } }
 app.post('/api/cert-criterion-scores', async (req, res) => {
   try {
     const { student_id, curriculum_id, month_number, notes, scores } = req.body;
-    if (!student_id || !curriculum_id || !month_number || !scores) {
-      return res.status(400).json({ error: 'student_id, curriculum_id, month_number, dan scores wajib diisi' });
+    if (!student_id || !curriculum_id || !month_number) {
+      return res.status(400).json({ error: 'student_id, curriculum_id, dan month_number wajib diisi' });
     }
 
-    // Upsert each criterion score
-    for (const [criterionId, score] of Object.entries(scores)) {
-      const numScore = parseFloat(String(score));
-      if (isNaN(numScore) || numScore < 0 || numScore > 10) continue;
-      await pool.query(
-        `INSERT INTO cert_criterion_scores (student_id, curriculum_id, month_number, criterion_id, score, updated_at)
-         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT (student_id, curriculum_id, month_number, criterion_id) DO UPDATE SET
-           score = EXCLUDED.score,
-           updated_at = CURRENT_TIMESTAMP`,
-        [student_id, curriculum_id, month_number, parseInt(criterionId), numScore]
-      );
+    // Upsert each criterion score if provided
+    if (scores && typeof scores === 'object') {
+      for (const [criterionId, score] of Object.entries(scores)) {
+        const numScore = parseFloat(String(score));
+        if (isNaN(numScore) || numScore < 0 || numScore > 10) continue;
+        await pool.query(
+          `INSERT INTO cert_criterion_scores (student_id, curriculum_id, month_number, criterion_id, score, updated_at)
+           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+           ON CONFLICT (student_id, curriculum_id, month_number, criterion_id) DO UPDATE SET
+             score = EXCLUDED.score,
+             updated_at = CURRENT_TIMESTAMP`,
+          [student_id, curriculum_id, month_number, parseInt(criterionId), numScore]
+        );
+      }
     }
 
     // Also upsert notes in cert_monthly_grades
@@ -5829,12 +5857,15 @@ app.post('/api/cert-criterion-scores', async (req, res) => {
          WHERE student_id = ? AND curriculum_id = ? AND month_number = ?`,
         [student_id, curriculum_id, month_number]
       );
-      const avgScore = avgRows[0]?.avg_score ?? 0;
+      const avgScore = avgRows[0]?.avg_score !== null && avgRows[0]?.avg_score !== undefined
+        ? parseFloat(avgRows[0].avg_score)
+        : 0;
+
       await pool.query(
         `INSERT INTO cert_monthly_grades (student_id, curriculum_id, month_number, activity_score, notes, updated_at)
          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
          ON CONFLICT (student_id, curriculum_id, month_number) DO UPDATE SET
-           activity_score = EXCLUDED.activity_score,
+           activity_score = CASE WHEN EXCLUDED.activity_score > 0 THEN EXCLUDED.activity_score ELSE cert_monthly_grades.activity_score END,
            notes = EXCLUDED.notes,
            updated_at = CURRENT_TIMESTAMP`,
         [student_id, curriculum_id, month_number, avgScore, notes || null]
