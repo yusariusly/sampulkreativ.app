@@ -2,14 +2,12 @@
 
 import React, { useEffect, useState } from "react";
 import { 
-  Settings, Clock, CheckCircle2, Save, MapPin, Send, Mail, 
+  Settings, CheckCircle2, Save, MapPin, Send, Mail, 
   Trophy, AlertTriangle, Calendar, CalendarDays, Trash2, 
   ChevronLeft, ChevronRight, Plus, Palmtree 
 } from "lucide-react";
 
 export default function AdminSettingsPage() {
-  const [deadlineTime, setDeadlineTime] = useState("08:30");
-  const [checkoutTime, setCheckoutTime] = useState("17:00");
   const [officeLatitude, setOfficeLatitude] = useState("");
   const [officeLongitude, setOfficeLongitude] = useState("");
   const [telegramBotToken, setTelegramBotToken] = useState("");
@@ -43,8 +41,6 @@ export default function AdminSettingsPage() {
       const res = await fetch("/api/settings");
       if (res.ok) {
         const data = await res.json();
-        if (data.deadline_time) setDeadlineTime(data.deadline_time);
-        if (data.checkout_time) setCheckoutTime(data.checkout_time);
         if (data.office_latitude !== undefined) setOfficeLatitude(data.office_latitude);
         if (data.office_longitude !== undefined) setOfficeLongitude(data.office_longitude);
         if (data.telegram_bot_token !== undefined) setTelegramBotToken(data.telegram_bot_token);
@@ -119,9 +115,7 @@ export default function AdminSettingsPage() {
       const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          deadline_time: deadlineTime,
-          checkout_time: checkoutTime,
+        body: JSON.stringify({
           office_latitude: normalizedLatitude,
           office_longitude: normalizedLongitude,
           telegram_bot_token: telegramBotToken,
@@ -322,38 +316,7 @@ export default function AdminSettingsPage() {
                 Digunakan untuk memvalidasi absensi karyawan. Jarak maksimal toleransi adalah 30 meter dari titik ini. Biarkan kosong jika tidak ingin menggunakan pembatasan lokasi GPS.
               </p>
 
-              {/* Attendance Schedule Section */}
-              <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4 pt-4">
-                <Clock size={22} className="text-[#2AB0B2]" />
-                <h3 className="font-bold text-gray-800 text-lg">Jadwal Jam Masuk & Pulang</h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Batas Jam Masuk (Deadline)
-                  </label>
-                  <input
-                    type="time"
-                    value={deadlineTime}
-                    onChange={(e) => setDeadlineTime(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Jam Mulai Pulang
-                  </label>
-                  <input
-                    type="time"
-                    value={checkoutTime}
-                    onChange={(e) => setCheckoutTime(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-700 font-semibold bg-gray-50 focus:bg-white transition-all text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Telegram Notification Section */}
+{/* Telegram Notification Section */}
               <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4 pt-4">
                 <Send size={22} className="text-[#2AB0B2]" />
                 <h3 className="font-bold text-gray-800 text-lg">Notifikasi Telegram</h3>

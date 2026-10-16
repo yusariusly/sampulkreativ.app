@@ -39,10 +39,6 @@ async function verifyStationToken(pool, token) {
     return { success: false, error: 'Akun Karyawan dinonaktifkan oleh administrator.' };
   }
 
-  // 3. Tarik jam masuk kantor (deadline_time) & jam pulang (checkout_time)
-  const [settings] = await pool.query("SELECT key_name, key_value FROM settings WHERE key_name IN ('deadline_time', 'checkout_time')");
-  const deadlineVal = settings.find(s => s.key_name === 'deadline_time')?.key_value || '08:30';
-  const checkoutVal = settings.find(s => s.key_name === 'checkout_time')?.key_value || '17:00';
 
   // 4. Tarik log absensi hari berjalan berdasarkan timezone Jakarta
   const todayJakarta = remoteService.getJakartaDate(new Date());
@@ -88,13 +84,6 @@ async function verifyStationToken(pool, token) {
     };
   }
 
-  // Ambil waktu Jakarta saat ini untuk penentuan status
-  const currentJakartaTimeStr = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Jakarta',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).format(new Date());
 
   if (hasClockedIn) {
     // Karyawan ingin absen pulang. Diperbolehkan kapan saja setelah absen masuk
