@@ -162,23 +162,44 @@ async function deleteFileFromSupabaseUrl(url, bucketName) {
   }
 }
 
-// Helper to generate employee number (yyyymmdd02nourutbergabung)
-async function generateNoKaryawan() {
+// Helper to generate employee number (yyyymmdd02nourutbergabung) with persistent sequence
+async function generateNoKaryawan(role = 'student') {
   const now = new Date();
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');
-  const prefix = `${yyyy}${mm}${dd}02`;
+  const categoryCode = role === 'employee' ? '01' : '02';
+  const prefix = `${yyyy}${mm}${dd}${categoryCode}`;
 
-  const [rows] = await pool.query(
-    "SELECT COUNT(*) as count FROM users WHERE no_karyawan LIKE ?",
-    [`${prefix}%`]
-  );
-  
-  const count = rows[0]?.count || 0;
-  const suffix = String(count + 1).padStart(2, '0');
-  
-  return `${prefix}${suffix}`;
+  const settingKey = role === 'employee' ? 'next_employee_seq' : 'next_student_seq';
+
+  try {
+    const res = await pgPool.query('SELECT key_value FROM settings WHERE key_name = $1', [settingKey]);
+    let nextSeq = 1;
+    if (res.rows.length > 0) {
+      nextSeq = parseInt(res.rows[0].key_value, 10);
+      if (isNaN(nextSeq) || nextSeq < 1) nextSeq = 1;
+    } else {
+      // Fallback: check max sequence in users
+      const maxRes = await pgPool.query(
+        "SELECT MAX(SUBSTRING(no_karyawan FROM 11)::INTEGER) as max_seq FROM users WHERE no_karyawan ~ '^[0-9]{12,}$'"
+      );
+      nextSeq = (maxRes.rows[0]?.max_seq || 0) + 1;
+    }
+
+    // Atomically increment setting so it never decrements, even when users are deleted
+    await pgPool.query(`
+      INSERT INTO settings (key_name, key_value) VALUES ($1, $2)
+      ON CONFLICT (key_name) DO UPDATE SET key_value = $2
+    `, [settingKey, String(nextSeq + 1)]);
+
+    const suffix = String(nextSeq).padStart(2, '0');
+    return `${prefix}${suffix}`;
+  } catch (err) {
+    console.error("Gagal generateNoKaryawan:", err);
+    const fallbackSuffix = String(Date.now()).slice(-2);
+    return `${prefix}${fallbackSuffix}`;
+  }
 }
 
 const app = express();
@@ -831,6 +852,12 @@ async function initDb() {
 
     try {
       await pool.query("ALTER TABLE users ADD COLUMN kie_start_date DATE NULL");
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP NULL");
     } catch (err) {
       // Column already exists, safe to ignore
     }
@@ -1635,7 +1662,7 @@ app.post('/api/auth/register-device', async (req, res) => {
       }
     } else {
       const userId = `usr-${Date.now()}`;
-      const noKaryawan = await generateNoKaryawan();
+      const noKaryawan = await generateNoKaryawan('employee');
       await pool.query(
         'INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, device_id, device_info, no_karyawan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [userId, trimmedUsername, 'no_password', trimmedNama, 'employee', 0, '/uploads/placeholder.jpg', device_id, device_info, noKaryawan]
@@ -2886,8 +2913,8 @@ app.get('/api/pkl-templates/:templateId/students', async (req, res) => {
       SELECT u.id, s.id AS student_id, u.nama_lengkap, u.no_karyawan, s.school_name, s.start_date, s.end_date
       FROM pkl_students s
       JOIN users u ON s.user_id = u.id
-      WHERE s.program_template_id = ? AND s.status = 'ACTIVE'
-      ORDER BY u.nama_lengkap ASC
+      WHERE s.program_template_id = ? AND s.status IN ('ACTIVE', 'COMPLETED', 'ARCHIVED')
+      ORDER BY u.no_karyawan ASC, u.nama_lengkap ASC
     `, [templateId]);
     res.json(rows);
   } catch (error) {
@@ -2911,6 +2938,7 @@ app.get('/api/users', async (req, res) => {
       LEFT JOIN pkl_students s ON u.id = s.user_id
       LEFT JOIN users m ON s.mentor_id = m.id
       LEFT JOIN pkl_program_templates t ON s.program_template_id = t.id
+      WHERE u.deleted_at IS NULL
       ORDER BY u.nama_lengkap ASC
     `);
     const mapped = rows.map(u => {
@@ -2967,7 +2995,7 @@ app.post('/api/users', async (req, res) => {
 
     let noKaryawan = null;
     if (dbRole === 'employee' || dbRole === 'student') {
-      noKaryawan = await generateNoKaryawan();
+      noKaryawan = await generateNoKaryawan(dbRole);
     }
 
     const newUser = {
@@ -3133,7 +3161,7 @@ app.put('/api/users', async (req, res) => {
 
     let generatedNoKaryawan = null;
     if ((targetRole === 'employee' || targetRole === 'student') && (!user.no_karyawan || user.no_karyawan.trim() === '')) {
-      generatedNoKaryawan = await generateNoKaryawan();
+      generatedNoKaryawan = await generateNoKaryawan(targetRole);
       updateFields += ', no_karyawan = ?';
       params.push(generatedNoKaryawan);
     }
@@ -3202,13 +3230,14 @@ app.delete('/api/users', async (req, res) => {
       return res.status(403).json({ error: 'Akun administrator utama tidak dapat dihapus' });
     }
 
-    // Delete the user record (keep attendance records intact as requested)
-    // Wrap in a transaction to safely reassign students to admin and delete the user
+    // Soft-delete user: mark deleted_at, deactivate account, and archive student status
+    // This preserves all certificates, monthly grades, KIE submissions, and attendance logs!
     const client = await pgPool.connect();
     try {
       await client.query('BEGIN');
       await pool.queryWithClient(client, 'UPDATE pkl_students SET mentor_id = ? WHERE mentor_id = ?', ['usr-admin', user.id]);
-      await pool.queryWithClient(client, 'DELETE FROM users WHERE id = ?', [user.id]);
+      await pool.queryWithClient(client, 'UPDATE users SET is_active = 0, deleted_at = NOW() WHERE id = ?', [user.id]);
+      await pool.queryWithClient(client, "UPDATE pkl_students SET status = 'ARCHIVED' WHERE user_id = ?", [user.id]);
       await client.query('COMMIT');
     } catch (dbErr) {
       await client.query('ROLLBACK');

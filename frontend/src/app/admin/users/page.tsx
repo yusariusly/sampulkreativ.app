@@ -364,7 +364,7 @@ export default function AdminUsersPage() {
   };
 
   const handleDeleteUser = async (usr: string) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus permanen akun pengguna @${usr}? (Catatan: Data absensi lama tidak akan terhapus dan tetap tersimpan di riwayat).`)) {
+    if (confirm(`Apakah Anda yakin ingin menghapus akun pengguna @${usr}? (Catatan: Riwayat absensi, sertifikat, nilai, laporan KIE, dan nomor urut akan tetap tersimpan aman).`)) {
       try {
         const res = await fetch("/api/users", {
           method: "DELETE",
@@ -373,7 +373,7 @@ export default function AdminUsersPage() {
         });
         const data = await res.json();
         if (res.ok) {
-          showToast(`🗑️ Akun "${usr}" berhasil dihapus secara permanen`);
+          showToast(`🗑️ Akun "${usr}" berhasil dihapus dari daftar aktif`);
           fetchUsers();
         } else {
           showToast(`⚠️ ${data.error || "Gagal menghapus pengguna"}`);
