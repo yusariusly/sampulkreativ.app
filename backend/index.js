@@ -2235,12 +2235,19 @@ async function triggerTelegramNotification(newRecord, fileBuffer, filename, mime
     const [chatIdPklSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
     const [chatIdKaryawanSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_karyawan'");
     
-    const [userRows] = await pool.query("SELECT role FROM users WHERE id = ?", [newRecord.user_id]);
-    const userRole = userRows[0]?.role || 'employee';
+    const [userRows] = await pool.query("SELECT role, telegram_chat_id FROM users WHERE id = ?", [newRecord.user_id]);
+    const user = userRows[0] || {};
+    const userRole = user.role || 'employee';
+    let userChatId = user.telegram_chat_id ? user.telegram_chat_id.trim() : '';
+    if (userChatId && userChatId.startsWith('-') && !userChatId.startsWith('-100')) {
+      userChatId = '-100' + userChatId.slice(1);
+    }
     
     const botToken = botTokenSetting[0]?.key_value;
     let chatId = '';
-    if (userRole === 'student') {
+    if (userChatId) {
+      chatId = userChatId;
+    } else if (userRole === 'student') {
       chatId = chatIdPklSetting[0]?.key_value || '';
     } else {
       chatId = chatIdKaryawanSetting[0]?.key_value || chatIdPklSetting[0]?.key_value || '';
@@ -2431,9 +2438,13 @@ app.post('/api/attendance', async (req, res) => {
     // Check if Telegram is configured to decide whether to save locally or bypass to telegram
     const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
     const [chatIdSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
+    const [chatIdKaryawanSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_karyawan'");
     
     const botToken = botTokenSetting[0]?.key_value;
-    const chatId = chatIdSetting[0]?.key_value;
+    const defaultChatId = user.role === 'student'
+      ? (chatIdSetting[0]?.key_value || '')
+      : (chatIdKaryawanSetting[0]?.key_value || chatIdSetting[0]?.key_value || '');
+    const chatId = user.telegram_chat_id ? user.telegram_chat_id.trim() : defaultChatId;
     const hasTelegram = botToken && chatId && botToken.trim() !== '' && chatId.trim() !== '';
 
     // Process photo base64
@@ -2587,9 +2598,13 @@ app.post('/api/attendance/station/checkin', async (req, res) => {
 
     const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
     const [chatIdSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
+    const [chatIdKaryawanSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_karyawan'");
     
     const botToken = botTokenSetting[0]?.key_value;
-    const chatId = chatIdSetting[0]?.key_value;
+    const defaultChatId = user.role === 'student'
+      ? (chatIdSetting[0]?.key_value || '')
+      : (chatIdKaryawanSetting[0]?.key_value || chatIdSetting[0]?.key_value || '');
+    const chatId = user.telegram_chat_id ? user.telegram_chat_id.trim() : defaultChatId;
     const hasTelegram = botToken && chatId && botToken.trim() !== '' && chatId.trim() !== '';
 
     const { newRecord, fileBuffer, filename, mimeType } = await stationService.checkinStation(
