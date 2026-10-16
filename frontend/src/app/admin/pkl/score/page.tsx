@@ -522,6 +522,42 @@ export default function PklScoreboardPage() {
     }, 0);
   }, [dailyEvals]);
 
+  // Helper format date string with Asia/Jakarta timezone
+  const formatJakartaDate = (raw?: string | Date) => {
+    if (!raw) return "";
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Jakarta",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(raw));
+    } catch (e) {
+      return String(raw).slice(0, 10);
+    }
+  };
+
+  // Hitung minggu ke-berapa siswa mulai magang di kalender cohort
+  const currentStudentStartWeek = useMemo(() => {
+    if (!currentStudent?.start_date) return 1;
+    const studentStartStr = formatJakartaDate(currentStudent.start_date);
+    for (let wk = 1; wk <= 16; wk++) {
+      const monFri = getMonFriDates(cohortStartDate, wk);
+      // Jika hari Jumat di minggu ini >= tanggal mulai siswa, maka minggu ini adalah minggu mulai siswa
+      if (monFri[4].dateStr >= studentStartStr) {
+        return wk;
+      }
+    }
+    return 1;
+  }, [currentStudent, cohortStartDate]);
+
+  // Auto-switch jika minggu yang sedang dipilih berada sebelum tanggal siswa mulai magang
+  useEffect(() => {
+    if (activeTab === "evaluation" && currentStudent && selectedWeek < currentStudentStartWeek) {
+      setSelectedWeek(currentStudentStartWeek);
+    }
+  }, [selectedStudentId, currentStudentStartWeek, activeTab, selectedWeek, currentStudent]);
+
   // Fetch daily evaluations for the entire week when selected week, active tab or mentor changes
   useEffect(() => {
     if (mentor && activeTab === "evaluation") {
@@ -1084,7 +1120,11 @@ export default function PklScoreboardPage() {
                   Minggu Ke
                 </span>
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 leading-tight">
-                  <span>{getWeekRangeLabel(selectedWeek)}{selectedWeek === cohortActiveWeek ? " (Minggu Berjalan)" : ""}</span>
+                  <span>
+                    {getWeekRangeLabel(selectedWeek)}
+                    {selectedWeek === cohortActiveWeek ? " (Minggu Berjalan)" : ""}
+                    {activeTab === "evaluation" && currentStudent && selectedWeek === currentStudentStartWeek ? " • Mulai Magang" : ""}
+                  </span>
                   <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 ${isWeekDropdownOpen ? "rotate-180" : ""}`} />
                 </div>
               </div>
@@ -1096,11 +1136,29 @@ export default function PklScoreboardPage() {
                 <div className="fixed inset-0 z-40" onClick={() => setIsWeekDropdownOpen(false)} />
                 
                 {/* Dropdown Options List */}
-                <div className="absolute top-[48px] right-0 min-w-[280px] bg-white rounded-2xl shadow-xl border border-slate-150/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[320px] overflow-y-auto">
+                <div className="absolute top-[48px] right-0 min-w-[320px] bg-white rounded-2xl shadow-xl border border-slate-150/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[360px] overflow-y-auto">
                   {Array.from({ length: 16 }, (_, i) => {
                     const wkNum = i + 1;
                     const isCurrent = wkNum === cohortActiveWeek;
                     const isSelected = wkNum === selectedWeek;
+                    const isBeforeStart = activeTab === "evaluation" && currentStudent && wkNum < currentStudentStartWeek;
+                    const isStartWeek = activeTab === "evaluation" && currentStudent && wkNum === currentStudentStartWeek;
+
+                    if (isBeforeStart) {
+                      return (
+                        <div
+                          key={wkNum}
+                          className="w-full text-left px-3.5 py-2 text-xs font-medium rounded-xl flex items-center justify-between select-none opacity-40 bg-slate-50/80 text-slate-400 cursor-not-allowed border border-dashed border-slate-200 mb-1"
+                          title="Siswa belum mulai magang pada minggu ini"
+                        >
+                          <span className="line-through decoration-slate-350">{getWeekRangeLabel(wkNum)}</span>
+                          <span className="text-[9px] font-bold text-slate-400 bg-slate-200/70 px-2 py-0.5 rounded-md">
+                            Belum Magang
+                          </span>
+                        </div>
+                      );
+                    }
+
                     return (
                       <button
                         key={wkNum}
@@ -1109,7 +1167,7 @@ export default function PklScoreboardPage() {
                           setSelectedWeek(wkNum);
                           setIsWeekDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer select-none ${
+                        className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer select-none mb-0.5 ${
                           isSelected
                             ? "bg-[#2AB0B2] text-white"
                             : isCurrent
@@ -1117,8 +1175,20 @@ export default function PklScoreboardPage() {
                             : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
                         }`}
                       >
-                        <span>{getWeekRangeLabel(wkNum)}{isCurrent ? " (Minggu Berjalan)" : ""}</span>
-                        {isSelected && <Check size={12} className="text-white flex-shrink-0" />}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{getWeekRangeLabel(wkNum)}</span>
+                          {isCurrent && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isSelected ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-600 border border-emerald-200/60"}`}>
+                              Berjalan
+                            </span>
+                          )}
+                          {isStartWeek && (
+                            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded ${isSelected ? "bg-white/20 text-white" : "bg-indigo-50 text-indigo-600 border border-indigo-200/60"}`}>
+                              Mulai Magang
+                            </span>
+                          )}
+                        </div>
+                        {isSelected && <Check size={12} className="text-white flex-shrink-0 ml-2" />}
                       </button>
                     );
                   })}
@@ -1335,9 +1405,7 @@ export default function PklScoreboardPage() {
                               ini_point: 0,
                             };
                             const isFuture = day.dateStr > todayStr;
-                            const studentStartDateStr = currentStudent.start_date
-                              ? new Date(currentStudent.start_date).toISOString().split('T')[0]
-                              : "2026-06-01";
+                            const studentStartDateStr = formatJakartaDate(currentStudent.start_date) || "2026-06-01";
                             const isBeforeStart = day.dateStr < studentStartDateStr;
                             const isDisabled = isFuture || isBeforeStart;
 
