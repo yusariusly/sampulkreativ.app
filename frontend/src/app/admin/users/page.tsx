@@ -36,12 +36,16 @@ interface UserAccount {
   kie_submissions_count?: number;
   telegram_chat_id?: string;
   telegram_chat_name?: string;
+  attendance_telegram_group_id?: number | null;
+  attendance_telegram_group_name?: string;
+  attendance_telegram_chat_id?: string;
   card_token?: string;
 }
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [telegramGroups, setTelegramGroups] = useState<{ id: number; name: string; chat_id: string }[]>([]);
   const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   // Card print modal state
@@ -94,6 +98,7 @@ export default function AdminUsersPage() {
   const [noKaryawan, setNoKaryawan] = useState<string>("");
   const [isActive, setIsActive] = useState(true);
   const [telegramChatId, setTelegramChatId] = useState("");
+  const [attendanceTelegramGroupId, setAttendanceTelegramGroupId] = useState<number | "">("");
   const [email, setEmail] = useState("");
   const [noTelp, setNoTelp] = useState("");
 
@@ -181,9 +186,22 @@ export default function AdminUsersPage() {
     }
   };
 
+  const fetchTelegramGroups = async () => {
+    try {
+      const res = await fetch("/api/telegram-groups");
+      if (res.ok) {
+        const data = await res.json();
+        setTelegramGroups(data);
+      }
+    } catch (err) {
+      console.error("Gagal mengambil daftar grup telegram:", err);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
     fetchTemplates();
+    fetchTelegramGroups();
     const interval = setInterval(fetchUsers, 4000);
     return () => clearInterval(interval);
   }, []);
@@ -203,6 +221,7 @@ export default function AdminUsersPage() {
     setStartDate("");
     setEndDate("");
     setTelegramChatId("");
+    setAttendanceTelegramGroupId("");
     setEmail("");
     setNoTelp("");
   };
@@ -221,6 +240,7 @@ export default function AdminUsersPage() {
     setStartDate(u.start_date || "");
     setEndDate(u.end_date || "");
     setTelegramChatId(u.telegram_chat_id || "");
+    setAttendanceTelegramGroupId(u.attendance_telegram_group_id || "");
     setEmail(u.email || "");
     setNoTelp(u.no_telp || "");
     setIsUserModalOpen(true);
@@ -286,7 +306,8 @@ export default function AdminUsersPage() {
           program_template_id: editingUserRole === "student" ? programTemplateId : undefined,
           start_date: editingUserRole === "student" ? startDate : undefined,
           end_date: editingUserRole === "student" ? endDate : undefined,
-          telegram_chat_id: telegramChatId.trim()
+          telegram_chat_id: telegramChatId.trim(),
+          attendance_telegram_group_id: attendanceTelegramGroupId ? Number(attendanceTelegramGroupId) : null
         };
         if (password.trim() !== "") {
           bodyPayload.password = password.trim();
@@ -321,7 +342,8 @@ export default function AdminUsersPage() {
           program_template_id: role === "student" ? programTemplateId : undefined,
           start_date: role === "student" ? startDate : undefined,
           end_date: role === "student" ? endDate : undefined,
-          telegram_chat_id: telegramChatId.trim()
+          telegram_chat_id: telegramChatId.trim(),
+          attendance_telegram_group_id: attendanceTelegramGroupId ? Number(attendanceTelegramGroupId) : null
         };
 
         const res = await fetch("/api/users", {
@@ -515,11 +537,22 @@ export default function AdminUsersPage() {
                             {u.no_telp && <span className="flex items-center gap-0.5"><Phone size={9} className="text-[#2AB0B2]" />{u.no_telp}</span>}
                           </div>
                         )}
-                        {u.telegram_chat_id && (
-                          <div className="text-[10px] text-gray-600 font-mono mt-0.5">
-                            <span className="font-extrabold text-[#2AB0B2]">Telegram Chat:</span> {u.telegram_chat_name || "Belum ada pesan"} <span className="text-gray-300">|</span> <span className="font-bold text-gray-400">ID:</span> {u.telegram_chat_id}
-                          </div>
-                        )}
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {u.attendance_telegram_group_name ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title={`Chat ID: ${u.attendance_telegram_chat_id || ''}`}>
+                              📢 Absen: {u.attendance_telegram_group_name}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                              ⚠️ Absen: Belum Ada Grup
+                            </span>
+                          )}
+                          {u.telegram_chat_name && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-200" title={`KIE Chat ID: ${u.telegram_chat_id}`}>
+                              💬 KIE: {u.telegram_chat_name}
+                            </span>
+                          )}
+                        </div>
                         {u.kie_submissions_count !== undefined && u.kie_submissions_count > 0 && (
                           <div className="mt-1">
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-600 border border-teal-100">
@@ -842,15 +875,45 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              {/* Telegram Chat ID Input */}
+              {/* Dropdown Grup Telegram Absensi */}
               <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center justify-between">
+                  <span>📢 Grup Notifikasi Absensi Telegram</span>
+                  <span className="text-[10px] text-[#2AB0B2] font-semibold">Tujuan Foto Selfie</span>
+                </label>
+                <select
+                  value={attendanceTelegramGroupId}
+                  onChange={(e) => setAttendanceTelegramGroupId(e.target.value ? Number(e.target.value) : "")}
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors bg-white font-medium text-gray-700"
+                >
+                  <option value="">-- Lewati Notifikasi (Belum Ditentukan) --</option>
+                  {telegramGroups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      📢 {g.name} ({g.chat_id})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Pilih grup tempat foto & notifikasi absensi user ini dikirimkan. Kelola grup di menu Pengaturan.
+                </p>
+              </div>
+
+              {/* Telegram Chat ID untuk Setoran KIE */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center justify-between">
+                  <span>💬 Telegram Chat ID untuk Setoran KIE</span>
+                  <span className="text-[10px] text-gray-400 font-normal">Otomatis / Manual</span>
+                </label>
                 <input
                   type="text"
-                  placeholder="Telegram Group/Chat ID (opsional)"
+                  placeholder="Contoh: -1003715120301 (opsional)"
                   value={telegramChatId}
                   onChange={(e) => setTelegramChatId(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono text-gray-700"
                 />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  ID grup tempat siswa mengirimkan setoran KIE (terisi otomatis saat siswa ketik /register di Telegram).
+                </p>
               </div>
 
               {/* Password Input */}

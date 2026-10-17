@@ -862,6 +862,21 @@ async function initDb() {
       // Column already exists, safe to ignore
     }
 
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS telegram_groups (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(150) NOT NULL,
+          chat_id VARCHAR(100) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    } catch (err) {}
+
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN attendance_telegram_group_id INT NULL");
+    } catch (err) {}
+
     // Backfill no_karyawan for existing users
     try {
       // Normalize slashes from any existing no_karyawan entries
@@ -2284,32 +2299,33 @@ function sendTelegramPhotoFromBuffer(botToken, chatId, fileBuffer, filename, cap
   });
 }
 
+async function getAttendanceChatId(userId) {
+  try {
+    const [rows] = await pool.query(`
+      SELECT g.chat_id
+      FROM users u
+      JOIN telegram_groups g ON u.attendance_telegram_group_id = g.id
+      WHERE u.id = ?
+    `, [userId]);
+    let chatId = rows[0]?.chat_id ? rows[0].chat_id.trim() : '';
+    if (chatId && chatId.startsWith('-') && !chatId.startsWith('-100')) {
+      chatId = '-100' + chatId.slice(1);
+    }
+    return chatId;
+  } catch (err) {
+    console.error("Gagal mendapatkan getAttendanceChatId:", err);
+    return '';
+  }
+}
+
 async function triggerTelegramNotification(newRecord, fileBuffer, filename, mimeType) {
   try {
     const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
-    const [chatIdPklSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
-    const [chatIdKaryawanSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_karyawan'");
-    
-    const [userRows] = await pool.query("SELECT role, telegram_chat_id FROM users WHERE id = ?", [newRecord.user_id]);
-    const user = userRows[0] || {};
-    const userRole = user.role || 'employee';
-    let userChatId = user.telegram_chat_id ? user.telegram_chat_id.trim() : '';
-    if (userChatId && userChatId.startsWith('-') && !userChatId.startsWith('-100')) {
-      userChatId = '-100' + userChatId.slice(1);
-    }
-    
     const botToken = botTokenSetting[0]?.key_value;
-    let chatId = '';
-    if (userChatId) {
-      chatId = userChatId;
-    } else if (userRole === 'student') {
-      chatId = chatIdPklSetting[0]?.key_value || '';
-    } else {
-      chatId = chatIdKaryawanSetting[0]?.key_value || chatIdPklSetting[0]?.key_value || '';
-    }
+    const chatId = await getAttendanceChatId(newRecord.user_id);
 
     if (!botToken || !chatId || botToken.trim() === '' || chatId.trim() === '') {
-      console.log("Telegram notification skipped: Bot Token or Chat ID not configured.");
+      console.log("Telegram notification skipped: Bot Token not configured or user has no attendance group assigned.");
       return;
     }
 
@@ -2492,14 +2508,8 @@ app.post('/api/attendance', async (req, res) => {
 
     // Check if Telegram is configured to decide whether to save locally or bypass to telegram
     const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
-    const [chatIdSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
-    const [chatIdKaryawanSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_karyawan'");
-    
     const botToken = botTokenSetting[0]?.key_value;
-    const defaultChatId = user.role === 'student'
-      ? (chatIdSetting[0]?.key_value || '')
-      : (chatIdKaryawanSetting[0]?.key_value || chatIdSetting[0]?.key_value || '');
-    const chatId = user.telegram_chat_id ? user.telegram_chat_id.trim() : defaultChatId;
+    const chatId = await getAttendanceChatId(user.id);
     const hasTelegram = botToken && chatId && botToken.trim() !== '' && chatId.trim() !== '';
 
     // Process photo base64
@@ -2652,14 +2662,8 @@ app.post('/api/attendance/station/checkin', async (req, res) => {
     }
 
     const [botTokenSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_bot_token'");
-    const [chatIdSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id'");
-    const [chatIdKaryawanSetting] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'telegram_chat_id_karyawan'");
-    
     const botToken = botTokenSetting[0]?.key_value;
-    const defaultChatId = user.role === 'student'
-      ? (chatIdSetting[0]?.key_value || '')
-      : (chatIdKaryawanSetting[0]?.key_value || chatIdSetting[0]?.key_value || '');
-    const chatId = user.telegram_chat_id ? user.telegram_chat_id.trim() : defaultChatId;
+    const chatId = await getAttendanceChatId(user.id);
     const hasTelegram = botToken && chatId && botToken.trim() !== '' && chatId.trim() !== '';
 
     const { newRecord, fileBuffer, filename, mimeType } = await stationService.checkinStation(
@@ -2930,11 +2934,13 @@ app.get('/api/users', async (req, res) => {
       SELECT 
         u.id, u.username, u.nama_lengkap, u.role, u.is_active, u.foto_profile, u.device_id, u.device_info, 
         u.tanggal_lahir, u.gender, u.alamat, u.jabatan, u.email, u.no_telp, u.kategori, u.no_karyawan, u.telegram_chat_id, u.telegram_chat_name,
+        u.attendance_telegram_group_id, tg.name AS attendance_telegram_group_name, tg.chat_id AS attendance_telegram_chat_id,
         s.school_name, s.mentor_id, m.nama_lengkap AS mentor_name, 
         s.program_template_id, t.title AS program_template_name, 
         s.start_date, s.end_date, s.status AS pkl_status,
         (SELECT COUNT(*) FROM kie_submissions k WHERE k.user_id = u.id) AS kie_submissions_count
       FROM users u
+      LEFT JOIN telegram_groups tg ON u.attendance_telegram_group_id = tg.id
       LEFT JOIN pkl_students s ON u.id = s.user_id
       LEFT JOIN users m ON s.mentor_id = m.id
       LEFT JOIN pkl_program_templates t ON s.program_template_id = t.id
@@ -2967,7 +2973,7 @@ app.get('/api/users', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   try {
-    const { nama_lengkap, username, password, role, jabatan, email, no_telp, school_name, mentor_id, program_template_id, start_date, end_date, telegram_chat_id } = req.body;
+    const { nama_lengkap, username, password, role, jabatan, email, no_telp, school_name, mentor_id, program_template_id, start_date, end_date, telegram_chat_id, attendance_telegram_group_id } = req.body;
     if (!nama_lengkap || !username || !password || !role) {
       return res.status(400).json({ error: 'Data pengguna tidak lengkap' });
     }
@@ -2998,6 +3004,8 @@ app.post('/api/users', async (req, res) => {
       noKaryawan = await generateNoKaryawan(dbRole);
     }
 
+    const parsedAttendanceGroupId = attendance_telegram_group_id ? parseInt(attendance_telegram_group_id, 10) : null;
+
     const newUser = {
       id: `usr-${Date.now()}`,
       username: username.trim().toLowerCase(),
@@ -3011,16 +3019,17 @@ app.post('/api/users', async (req, res) => {
       no_telp: no_telp ? no_telp.trim() : '',
       no_karyawan: noKaryawan,
       kategori: dbRole === 'student' ? 'PKL' : 'Karyawan',
-      telegram_chat_id: telegram_chat_id ? telegram_chat_id.trim() : null
+      telegram_chat_id: telegram_chat_id ? telegram_chat_id.trim() : null,
+      attendance_telegram_group_id: parsedAttendanceGroupId
     };
 
     const client = await pgPool.connect();
     try {
       await client.query('BEGIN');
       await pool.queryWithClient(client,
-        `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, jabatan, email, no_telp, no_karyawan, kategori, telegram_chat_id) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile, newUser.jabatan, newUser.email, newUser.no_telp, noKaryawan, newUser.kategori, newUser.telegram_chat_id]
+        `INSERT INTO users (id, username, password, nama_lengkap, role, is_active, foto_profile, jabatan, email, no_telp, no_karyawan, kategori, telegram_chat_id, attendance_telegram_group_id) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newUser.id, newUser.username, newUser.password, newUser.nama_lengkap, newUser.role, newUser.is_active, newUser.foto_profile, newUser.jabatan, newUser.email, newUser.no_telp, noKaryawan, newUser.kategori, newUser.telegram_chat_id, newUser.attendance_telegram_group_id]
       );
 
       if (dbRole === 'student') {
@@ -3050,7 +3059,7 @@ app.post('/api/users', async (req, res) => {
 
 app.put('/api/users', async (req, res) => {
   try {
-    const { id, nama_lengkap, username, password, is_active, role, jabatan, email, no_telp, school_name, mentor_id, program_template_id, start_date, end_date, telegram_chat_id } = req.body;
+    const { id, nama_lengkap, username, password, is_active, role, jabatan, email, no_telp, school_name, mentor_id, program_template_id, start_date, end_date, telegram_chat_id, attendance_telegram_group_id } = req.body;
     if (!id) {
       return res.status(400).json({ error: 'ID Pengguna wajib disertakan' });
     }
@@ -3157,6 +3166,11 @@ app.put('/api/users', async (req, res) => {
         updateFields += ', telegram_chat_id = ?';
         params.push(cleanChatId);
       }
+    }
+
+    if (attendance_telegram_group_id !== undefined) {
+      updateFields += ', attendance_telegram_group_id = ?';
+      params.push(attendance_telegram_group_id ? parseInt(attendance_telegram_group_id, 10) : null);
     }
 
     let generatedNoKaryawan = null;
@@ -3280,6 +3294,129 @@ app.post('/api/qr', async (req, res) => {
     res.json({ success: true, token: newToken });
   } catch (error) {
     res.status(500).json({ error: 'Gagal memperbarui token QR' });
+  }
+});
+
+// 5.5. Telegram Groups API (Multi-group Attendance Routing)
+app.get('/api/telegram-groups', async (req, res) => {
+  try {
+    const [groups] = await pool.query(`
+      SELECT id, name, chat_id, created_at
+      FROM telegram_groups
+      ORDER BY id ASC
+    `);
+
+    const [users] = await pool.query(`
+      SELECT id, username, nama_lengkap, role, kategori, attendance_telegram_group_id
+      FROM users
+      WHERE deleted_at IS NULL
+      ORDER BY nama_lengkap ASC
+    `);
+
+    const mapped = groups.map(g => {
+      const members = users.filter(u => u.attendance_telegram_group_id === g.id);
+      return {
+        ...g,
+        member_count: members.length,
+        members: members
+      };
+    });
+
+    res.json(mapped);
+  } catch (error) {
+    console.error("Gagal memuat grup telegram:", error);
+    res.status(500).json({ error: "Gagal memuat daftar grup telegram" });
+  }
+});
+
+app.post('/api/telegram-groups', async (req, res) => {
+  try {
+    const { name, chat_id, member_ids } = req.body;
+    if (!name || !chat_id) {
+      return res.status(400).json({ error: "Nama grup dan Chat ID wajib diisi" });
+    }
+
+    let cleanChatId = chat_id.trim();
+    if (cleanChatId.startsWith('-') && !cleanChatId.startsWith('-100')) {
+      cleanChatId = '-100' + cleanChatId.slice(1);
+    }
+
+    const [insertResult] = await pool.query(
+      "INSERT INTO telegram_groups (name, chat_id) VALUES (?, ?) RETURNING id",
+      [name.trim(), cleanChatId]
+    );
+    const newGroupId = insertResult[0]?.id;
+
+    if (Array.isArray(member_ids) && member_ids.length > 0 && newGroupId) {
+      await pool.query(
+        "UPDATE users SET attendance_telegram_group_id = ? WHERE id IN (?)",
+        [newGroupId, member_ids]
+      );
+    }
+
+    res.json({ success: true, id: newGroupId });
+  } catch (error) {
+    console.error("Gagal menambahkan grup telegram:", error);
+    res.status(500).json({ error: "Gagal menambahkan grup telegram" });
+  }
+});
+
+app.put('/api/telegram-groups/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, chat_id, member_ids } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ error: "ID grup wajib disertakan" });
+    }
+
+    let cleanChatId = chat_id ? chat_id.trim() : '';
+    if (cleanChatId && cleanChatId.startsWith('-') && !cleanChatId.startsWith('-100')) {
+      cleanChatId = '-100' + cleanChatId.slice(1);
+    }
+
+    if (name && cleanChatId) {
+      await pool.query(
+        "UPDATE telegram_groups SET name = ?, chat_id = ? WHERE id = ?",
+        [name.trim(), cleanChatId, id]
+      );
+    }
+
+    if (Array.isArray(member_ids)) {
+      await pool.query(
+        "UPDATE users SET attendance_telegram_group_id = NULL WHERE attendance_telegram_group_id = ?",
+        [id]
+      );
+      if (member_ids.length > 0) {
+        await pool.query(
+          "UPDATE users SET attendance_telegram_group_id = ? WHERE id IN (?)",
+          [id, member_ids]
+        );
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Gagal mengupdate telegram group:", error);
+    res.status(500).json({ error: "Gagal memperbarui grup telegram" });
+  }
+});
+
+app.delete('/api/telegram-groups/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(
+      "UPDATE users SET attendance_telegram_group_id = NULL WHERE attendance_telegram_group_id = ?",
+      [id]
+    );
+    await pool.query(
+      "DELETE FROM telegram_groups WHERE id = ?",
+      [id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Gagal menghapus telegram group:", error);
+    res.status(500).json({ error: "Gagal menghapus grup telegram" });
   }
 });
 
