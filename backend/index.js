@@ -4487,33 +4487,59 @@ app.get('/api/kie/admin/users-submissions', async (req, res) => {
     const limit = parseInt(req.query.limit) || 3;
     const offset = (page - 1) * limit;
     const filter = req.query.filter || 'all';
+    const category = req.query.category || 'all';
 
-    // 1. Catch-up sync KIE debt for all students first to ensure accurate debt values
-    const [students] = await pool.query("SELECT id FROM users WHERE role = 'student'");
+    // 1. Catch-up sync KIE debt for active students first to ensure accurate debt values
+    const [students] = await pool.query(`
+      SELECT u.id 
+      FROM users u 
+      LEFT JOIN pkl_students p ON u.id = p.user_id 
+      WHERE u.role = 'student' AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)
+    `);
     for (const s of students) {
       await syncUserKieDebt(s.id);
     }
 
-    // 2. Build dynamic queries based on filter
-    let whereClause = "role IN ('student', 'employee', 'mentor')";
-    if (filter === 'debt') {
-      whereClause = "role = 'student' AND kie_debt > 0";
-    } else if (filter === 'nodebt') {
-      whereClause = "role = 'student' AND (kie_debt = 0 OR kie_debt IS NULL)";
+    // 2. Build dynamic queries based on category & filter
+    const conditions = ["u.role IN ('student', 'employee', 'mentor')"];
+
+    if (category === 'student_active') {
+      conditions.push("u.role = 'student' AND (p.status = 'ACTIVE' OR p.status IS NULL) AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)");
+    } else if (category === 'student_alumni') {
+      conditions.push("u.role = 'student' AND (p.status IN ('COMPLETED', 'ARCHIVED') OR (p.end_date IS NOT NULL AND p.end_date < CURRENT_DATE))");
+    } else if (category === 'employee') {
+      conditions.push("u.role = 'employee'");
     }
+
+    if (filter === 'debt') {
+      conditions.push("u.kie_debt > 0");
+    } else if (filter === 'nodebt') {
+      conditions.push("(u.kie_debt = 0 OR u.kie_debt IS NULL)");
+    }
+
+    const whereClause = conditions.join(" AND ");
 
     // Count total matching users to support infinite scroll / pagination
     const [countRows] = await pool.query(
-      `SELECT COUNT(*) AS total FROM users WHERE ${whereClause}`
+      `SELECT COUNT(*) AS total 
+       FROM users u 
+       LEFT JOIN pkl_students p ON u.id = p.user_id 
+       WHERE ${whereClause}`
     );
     const totalUsers = countRows[0].total;
 
     // Fetch page of users
     const [users] = await pool.query(
-      `SELECT u.id, u.username, u.nama_lengkap, u.role, u.foto_profile, u.email, u.kie_debt, u.telegram_chat_id, u.telegram_chat_name, u.created_at, u.kie_start_date, p.start_date as pkl_start_date, p.end_date as pkl_end_date
+      `SELECT u.id, u.username, u.nama_lengkap, u.role, u.foto_profile, u.email, u.kie_debt, 
+              u.telegram_chat_id, u.telegram_chat_name, u.created_at, u.kie_start_date, 
+              p.start_date as pkl_start_date, p.end_date as pkl_end_date,
+              CASE 
+                WHEN p.end_date IS NOT NULL AND p.end_date < CURRENT_DATE THEN 'COMPLETED'
+                ELSE COALESCE(p.status, 'ACTIVE')
+              END AS pkl_status
        FROM users u
        LEFT JOIN pkl_students p ON u.id = p.user_id
-       WHERE u.${whereClause.replace('role', 'role').replace('kie_debt', 'kie_debt')} 
+       WHERE ${whereClause} 
        ORDER BY u.nama_lengkap ASC 
        LIMIT ? OFFSET ?`,
       [limit, offset]
@@ -4587,9 +4613,17 @@ app.post('/api/kie/admin/set-start-date', async (req, res) => {
 // GET all students for KIE admin modal
 app.get('/api/kie/admin/students', async (req, res) => {
   try {
-    const [students] = await pool.query(
-      "SELECT id, nama_lengkap FROM users WHERE role = 'student' ORDER BY nama_lengkap ASC"
-    );
+    const [students] = await pool.query(`
+      SELECT u.id, u.nama_lengkap,
+        CASE 
+          WHEN p.end_date IS NOT NULL AND p.end_date < CURRENT_DATE THEN 'COMPLETED'
+          ELSE COALESCE(p.status, 'ACTIVE')
+        END AS pkl_status
+      FROM users u
+      LEFT JOIN pkl_students p ON u.id = p.user_id
+      WHERE u.role = 'student'
+      ORDER BY u.nama_lengkap ASC
+    `);
     res.json(students);
   } catch (error) {
     console.error('Gagal mengambil daftar siswa:', error);

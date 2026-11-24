@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { Key, ChevronDown, ChevronUp, Copy, Check, ShieldCheck, Pencil, Trash2, X, RefreshCw, Unlink, CalendarClock, Calendar, CalendarDays, ChevronLeft, ChevronRight, LayoutGrid, List, Palmtree, CheckCircle2, AlertTriangle, Sparkles } from "lucide-react";
+import { Key, ChevronDown, ChevronUp, Copy, Check, ShieldCheck, Pencil, Trash2, X, RefreshCw, Unlink, CalendarClock, Calendar, CalendarDays, ChevronLeft, ChevronRight, LayoutGrid, List, Palmtree, CheckCircle2, AlertTriangle, Sparkles, GraduationCap, Users } from "lucide-react";
 
 function parseSafeDate(dateStr: string) {
   if (!dateStr) return new Date();
@@ -39,6 +39,7 @@ interface UserKieData {
   pkl_start_date?: string;
   pkl_end_date?: string;
   kie_start_date?: string;
+  pkl_status?: string;
   submissions: KieSubmission[];
 }
 
@@ -230,6 +231,7 @@ export default function AdminKiePage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
   const [filter, setFilter] = useState<"all" | "debt" | "nodebt">("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "student_active" | "student_alumni" | "employee">("all");
   const [holidayMap, setHolidayMap] = useState<Record<string, string>>({});
   const [userCalMonths, setUserCalMonths] = useState<Record<string, Date>>({});
   const [userSelectedDates, setUserSelectedDates] = useState<Record<string, string>>({});
@@ -259,7 +261,8 @@ export default function AdminKiePage() {
 
   // Set Start Date Modal states
   const [showStartDateModal, setShowStartDateModal] = useState(false);
-  const [startDateStudents, setStartDateStudents] = useState<{id: string, nama_lengkap: string}[]>([]);
+  const [startDateStudents, setStartDateStudents] = useState<{id: string, nama_lengkap: string, pkl_status?: string}[]>([]);
+  const [modalFilterStatus, setModalFilterStatus] = useState<"active" | "all">("active");
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [selectedStartDate, setSelectedStartDate] = useState("");
   const [submittingStartDate, setSubmittingStartDate] = useState(false);
@@ -268,12 +271,12 @@ export default function AdminKiePage() {
   const loaderRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
 
-  const fetchSubmissions = useCallback(async (pageNum: number, currentFilter: string) => {
+  const fetchSubmissions = useCallback(async (pageNum: number, currentFilter: string, currentCategory: string) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
     try {
-      const res = await fetch(`/api/kie/admin/users-submissions?page=${pageNum}&limit=3&filter=${currentFilter}`);
+      const res = await fetch(`/api/kie/admin/users-submissions?page=${pageNum}&limit=5&filter=${currentFilter}&category=${currentCategory}`);
       if (res.ok) {
         const data = await res.json();
         if (pageNum === 1) {
@@ -302,10 +305,17 @@ export default function AdminKiePage() {
     setHasMore(true);
   };
 
-  // Fetch when page or filter changes
+  const handleCategoryChange = (newCat: "all" | "student_active" | "student_alumni" | "employee") => {
+    setCategoryFilter(newCat);
+    setPage(1);
+    setUsers([]);
+    setHasMore(true);
+  };
+
+  // Fetch when page, filter, or category changes
   useEffect(() => {
-    fetchSubmissions(page, filter);
-  }, [page, filter, fetchSubmissions]);
+    fetchSubmissions(page, filter, categoryFilter);
+  }, [page, filter, categoryFilter, fetchSubmissions]);
 
   // Infinite scroll Intersection Observer
   useEffect(() => {
@@ -564,38 +574,87 @@ export default function AdminKiePage() {
       {/* Conditionally render Tab Content */}
       {activeTab === "submissions" ? (
         <>
-          {/* Filter Bar */}
-          <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-150 w-fit select-none">
-            <button
-              onClick={() => handleFilterChange("all")}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                filter === "all"
-                  ? "bg-[#1C3D3F] text-white shadow-3xs"
-                  : "text-gray-500 hover:text-gray-800"
-              }`}
-            >
-              Semua
-            </button>
-            <button
-              onClick={() => handleFilterChange("debt")}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                filter === "debt"
-                  ? "bg-red-600 text-white shadow-3xs"
-                  : "text-red-500 hover:bg-red-50/50"
-              }`}
-            >
-              Mempunyai Hutang
-            </button>
-            <button
-              onClick={() => handleFilterChange("nodebt")}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                filter === "nodebt"
-                  ? "bg-emerald-600 text-white shadow-3xs"
-                  : "text-emerald-500 hover:bg-emerald-50/50"
-              }`}
-            >
-              Bebas Hutang
-            </button>
+          {/* Filter Bar: Category & Debt Status */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-gray-150 shadow-2xs">
+            {/* Category Filter */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-gray-50/80 p-1 rounded-xl border border-gray-100">
+              <button
+                onClick={() => handleCategoryChange("all")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  categoryFilter === "all"
+                    ? "bg-[#1C3D3F] text-white shadow-3xs"
+                    : "text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                Semua Kategori
+              </button>
+              <button
+                onClick={() => handleCategoryChange("student_active")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  categoryFilter === "student_active"
+                    ? "bg-emerald-600 text-white shadow-3xs"
+                    : "text-emerald-700 hover:bg-emerald-50/60"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                Siswa Aktif
+              </button>
+              <button
+                onClick={() => handleCategoryChange("student_alumni")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  categoryFilter === "student_alumni"
+                    ? "bg-purple-600 text-white shadow-3xs"
+                    : "text-purple-700 hover:bg-purple-50/60"
+                }`}
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                Arsip Alumni
+              </button>
+              <button
+                onClick={() => handleCategoryChange("employee")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  categoryFilter === "employee"
+                    ? "bg-blue-600 text-white shadow-3xs"
+                    : "text-blue-700 hover:bg-blue-50/60"
+                }`}
+              >
+                Karyawan
+              </button>
+            </div>
+
+            {/* Debt Filter */}
+            <div className="flex items-center gap-1.5 bg-gray-50/80 p-1 rounded-xl border border-gray-100">
+              <button
+                onClick={() => handleFilterChange("all")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  filter === "all"
+                    ? "bg-[#1C3D3F] text-white shadow-3xs"
+                    : "text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                Semua Status
+              </button>
+              <button
+                onClick={() => handleFilterChange("debt")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  filter === "debt"
+                    ? "bg-red-600 text-white shadow-3xs"
+                    : "text-red-500 hover:bg-red-50/50"
+                }`}
+              >
+                Hutang
+              </button>
+              <button
+                onClick={() => handleFilterChange("nodebt")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  filter === "nodebt"
+                    ? "bg-emerald-600 text-white shadow-3xs"
+                    : "text-emerald-500 hover:bg-emerald-50/50"
+                }`}
+              >
+                Bebas Hutang
+              </button>
+            </div>
           </div>
 
           {/* Main content list */}
@@ -646,6 +705,24 @@ export default function AdminKiePage() {
                           )}
                           {user.role === "student" && (
                             <>
+                              <span className="text-gray-300">•</span>
+                              {(() => {
+                                const isAlumni = user.pkl_status === "COMPLETED" || user.pkl_status === "ARCHIVED" || (user.pkl_end_date && new Date(user.pkl_end_date) < new Date());
+                                if (isAlumni) {
+                                  return (
+                                    <span className="text-[8.5px] px-2 py-0.5 rounded-md font-black bg-purple-100 text-purple-700 border border-purple-200 uppercase tracking-wider inline-flex items-center gap-1">
+                                      <GraduationCap className="w-3 h-3" />
+                                      Alumni PKL
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className="text-[8.5px] px-2 py-0.5 rounded-md font-black bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider inline-flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    PKL Aktif
+                                  </span>
+                                );
+                              })()}
                               <span className="text-gray-300">•</span>
                               {user.kie_debt && user.kie_debt > 0 ? (
                                 <span className="text-[8.5px] px-2 py-0.5 rounded-md font-black bg-red-50 text-red-600 border border-red-100 uppercase tracking-wider">
@@ -855,8 +932,25 @@ export default function AdminKiePage() {
                             }
                           }
 
+                          const isStudentAlumni = user.pkl_status === "COMPLETED" || user.pkl_status === "ARCHIVED" || (user.pkl_end_date && new Date(user.pkl_end_date) < new Date());
+
                           return (
                             <div className="space-y-5">
+                              {/* Alumni Notice Banner */}
+                              {isStudentAlumni && (
+                                <div className="bg-purple-50/80 border border-purple-200 rounded-2xl p-3.5 flex items-center gap-3 text-xs text-purple-800">
+                                  <div className="p-2 bg-purple-100 text-purple-600 rounded-xl">
+                                    <GraduationCap className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                    <div className="font-extrabold text-purple-900">Arsip Alumni PKL</div>
+                                    <p className="text-[11px] text-purple-700 mt-0.5">
+                                      Siswa ini telah menyelesaikan magang pada <span className="font-bold">{formattedPklEnd}</span>. Perhitungan hutang KIE otomatis dibekukan dan data tersimpan dalam arsip.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
                               {/* KPI & Info Banner */}
                               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-gray-150 shadow-3xs">
                                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 flex-1">
@@ -1881,45 +1975,101 @@ export default function AdminKiePage() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-gray-700">Pilih Siswa PKL</label>
-                  <button
-                    onClick={() => {
-                      if (selectedStudentIds.length === startDateStudents.length) {
-                        setSelectedStudentIds([]);
-                      } else {
-                        setSelectedStudentIds(startDateStudents.map(s => s.id));
-                      }
-                    }}
-                    className="text-xs font-bold text-[#2AB0B2] cursor-pointer hover:underline"
-                  >
-                    {selectedStudentIds.length === startDateStudents.length ? "Deselect All" : "Select All"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-semibold text-gray-700">Pilih Siswa PKL</label>
+                    <div className="flex items-center bg-gray-100 p-0.5 rounded-lg text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setModalFilterStatus("active")}
+                        className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                          modalFilterStatus === "active" ? "bg-white text-[#1C3D3F] shadow-2xs" : "text-gray-500 hover:text-gray-800"
+                        }`}
+                      >
+                        Siswa Aktif
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModalFilterStatus("all")}
+                        className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                          modalFilterStatus === "all" ? "bg-white text-[#1C3D3F] shadow-2xs" : "text-gray-500 hover:text-gray-800"
+                        }`}
+                      >
+                        Semua ({startDateStudents.length})
+                      </button>
+                    </div>
+                  </div>
+                  {(() => {
+                    const displayed = modalFilterStatus === "active"
+                      ? startDateStudents.filter(s => s.pkl_status !== "COMPLETED" && s.pkl_status !== "ARCHIVED")
+                      : startDateStudents;
+                    const displayedIds = displayed.map(s => s.id);
+                    const allSelected = displayedIds.length > 0 && displayedIds.every(id => selectedStudentIds.includes(id));
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (allSelected) {
+                            setSelectedStudentIds(selectedStudentIds.filter(id => !displayedIds.includes(id)));
+                          } else {
+                            setSelectedStudentIds(Array.from(new Set([...selectedStudentIds, ...displayedIds])));
+                          }
+                        }}
+                        className="text-xs font-bold text-[#2AB0B2] cursor-pointer hover:underline"
+                      >
+                        {allSelected ? "Deselect All" : "Select All"}
+                      </button>
+                    );
+                  })()}
                 </div>
                 
                 <div className="border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-                  {startDateStudents.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-gray-500">Memuat data siswa...</div>
-                  ) : (
-                    <div className="divide-y divide-gray-100">
-                      {startDateStudents.map(student => (
-                        <label key={student.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={selectedStudentIds.includes(student.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedStudentIds([...selectedStudentIds, student.id]);
-                              } else {
-                                setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
-                              }
-                            }}
-                            className="w-4 h-4 text-[#2AB0B2] rounded focus:ring-[#2AB0B2]"
-                          />
-                          <span className="text-sm text-gray-700 font-medium">{student.nama_lengkap}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
+                  {(() => {
+                    const displayed = modalFilterStatus === "active"
+                      ? startDateStudents.filter(s => s.pkl_status !== "COMPLETED" && s.pkl_status !== "ARCHIVED")
+                      : startDateStudents;
+                    if (displayed.length === 0) {
+                      return (
+                        <div className="p-4 text-center text-xs text-gray-500">
+                          {startDateStudents.length === 0 ? "Memuat data siswa..." : "Tidak ada siswa yang sesuai filter."}
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="divide-y divide-gray-100">
+                        {displayed.map(student => {
+                          const isStudentAlumni = student.pkl_status === "COMPLETED" || student.pkl_status === "ARCHIVED";
+                          return (
+                            <label key={student.id} className="flex items-center justify-between p-3 hover:bg-gray-50 cursor-pointer transition-colors">
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedStudentIds.includes(student.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedStudentIds([...selectedStudentIds, student.id]);
+                                    } else {
+                                      setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-[#2AB0B2] rounded focus:ring-[#2AB0B2]"
+                                />
+                                <span className="text-sm text-gray-700 font-medium">{student.nama_lengkap}</span>
+                              </div>
+                              {isStudentAlumni ? (
+                                <span className="text-[9px] px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold border border-purple-200">
+                                  Alumni
+                                </span>
+                              ) : (
+                                <span className="text-[9px] px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                                  Aktif
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <p className="text-xs font-medium text-[#2AB0B2]">{selectedStudentIds.length} Siswa dipilih</p>
               </div>
