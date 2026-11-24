@@ -1163,7 +1163,7 @@ export default function AdminKiePage() {
                                             } else {
                                               bgClass = "bg-white border-dashed border-gray-200 text-gray-400";
                                               badgeColor = "bg-gray-50 text-gray-400";
-                                              badgeText = "4 Key";
+                                              badgeText = `${dailyTarget} Key`;
                                             }
                                           } else if (isHoliday) {
                                             // Holiday
@@ -1189,29 +1189,29 @@ export default function AdminKiePage() {
                                             }
                                           } else {
                                             // Active working day within PKL
-                                            if (count >= 4) {
+                                            if (count >= dailyTarget) {
                                               bgClass = "bg-emerald-50/90 border-emerald-200 hover:bg-emerald-100/80 text-emerald-900";
                                               badgeColor = "bg-emerald-600 text-white font-black";
-                                              badgeText = count > 4 ? `${count} (+${count - 4})` : `${count} Key`;
+                                              badgeText = count > dailyTarget ? `${count} (+${count - dailyTarget})` : `${count} Key`;
                                             } else if (isFullyPaid) {
                                               // Fully Paid off by subsequent surplus!
                                               bgClass = "bg-teal-50/85 border-teal-200 hover:bg-teal-100/80 text-teal-900";
                                               badgeColor = "bg-teal-600 text-white font-bold";
-                                              badgeText = `${count}/4 (Lunas ✓)`;
+                                              badgeText = `${count}/${dailyTarget} (Lunas ✓)`;
                                             } else if (isPartiallyPaid) {
                                               bgClass = "bg-amber-50/90 border-amber-200 hover:bg-amber-100/80 text-amber-900";
                                               badgeColor = "bg-amber-500 text-white font-black";
-                                              badgeText = `${count}/4 (Kurang ${defObj.remainingDeficit})`;
+                                              badgeText = `${count}/${dailyTarget} (Kurang ${defObj.remainingDeficit})`;
                                             } else if (isToday) {
                                               // Today is currently in progress (not a historical debt)
                                               bgClass = "bg-sky-50/80 border-sky-300 hover:bg-sky-100/80 text-sky-900";
                                               badgeColor = "bg-sky-500 text-white font-bold";
-                                              badgeText = `${count}/4 (Hari Ini)`;
+                                              badgeText = `${count}/${dailyTarget} (Hari Ini)`;
                                             } else {
                                               // Completely Unpaid past day
                                               bgClass = "bg-rose-50/90 border-rose-200 hover:bg-rose-100 text-rose-900";
                                               badgeColor = "bg-rose-500 text-white font-black";
-                                              badgeText = count === 0 ? "0/4 (Hutang)" : `${count}/4 (Hutang)`;
+                                              badgeText = count === 0 ? `0/${dailyTarget} (Hutang)` : `${count}/${dailyTarget} (Hutang)`;
                                             }
                                           }
 
@@ -1252,7 +1252,7 @@ export default function AdminKiePage() {
                                       <div className="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-gray-500 pt-2 border-t border-gray-100">
                                         <div className="flex items-center gap-1">
                                           <span className="w-2.5 h-2.5 rounded bg-emerald-500"></span>
-                                          <span>Setor Langsung (≥4)</span>
+                                          <span>Setor Langsung (≥{dailyTarget})</span>
                                         </div>
                                         <div className="flex items-center gap-1">
                                           <span className="w-2.5 h-2.5 rounded bg-teal-600"></span>
@@ -1292,7 +1292,7 @@ export default function AdminKiePage() {
                                             ? "text-purple-600 bg-purple-50 border-purple-200"
                                             : (rawPklEnd && selectedDate > rawPklEnd)
                                               ? "text-slate-600 bg-slate-100 border-slate-200"
-                                              : selectedCount >= 4
+                                              : selectedCount >= dailyTarget
                                                 ? "text-emerald-700 bg-emerald-50 border-emerald-200"
                                                 : (selectedDeficit && selectedDeficit.remainingDeficit === 0)
                                                   ? "text-teal-700 bg-teal-50 border-teal-200"
@@ -1304,15 +1304,15 @@ export default function AdminKiePage() {
                                             ? "Sebelum Periode KIE"
                                             : (rawPklEnd && selectedDate > rawPklEnd)
                                               ? "Selesai Masa PKL"
-                                              : selectedCount >= 4
-                                                ? (selectedCount > 4 ? `Surplus +${selectedCount - 4} Keys` : `Target Terpenuhi (4/4)`)
+                                              : selectedCount >= dailyTarget
+                                                ? (selectedCount > dailyTarget ? `Surplus +${selectedCount - dailyTarget} Keys` : `Target Terpenuhi (${dailyTarget}/${dailyTarget})`)
                                                 : (selectedDeficit && selectedDeficit.remainingDeficit === 0)
-                                                  ? `Status: LUNAS (Disetor ${selectedCount}/4)`
+                                                  ? `Status: LUNAS (Disetor ${selectedCount}/${dailyTarget})`
                                                   : selectedDate === todayStr
-                                                    ? `Sedang Berjalan (${selectedCount}/4)`
+                                                    ? `Sedang Berjalan (${selectedCount}/${dailyTarget})`
                                                     : selectedCount > 0
-                                                      ? `Belum Lunas (${selectedCount}/4, Kurang ${selectedDeficit?.remainingDeficit || (4 - selectedCount)})`
-                                                      : "Belum Lunas (0/4, Kurang 4)"}
+                                                      ? `Belum Lunas (${selectedCount}/${dailyTarget}, Kurang ${selectedDeficit?.remainingDeficit || (dailyTarget - selectedCount)})`
+                                                      : `Belum Lunas (0/${dailyTarget}, Kurang ${dailyTarget})`}
                                         </span>
                                       </div>
 
@@ -1351,7 +1351,7 @@ export default function AdminKiePage() {
                                                 <span>Status: SUDAH LUNAS 100%</span>
                                               </div>
                                               <p className="text-[11px] text-teal-700 leading-relaxed font-medium">
-                                                Hari ini disetor <b>{selectedCount} dari target 4 KIE</b> (kurang {selectedDeficit.originalDeficit} Keys).
+                                                Hari ini disetor <b>{selectedCount} dari target {dailyTarget} KIE</b> (kurang {selectedDeficit.originalDeficit} Keys).
                                               </p>
                                               <div className="pt-2 border-t border-teal-200/60 space-y-1">
                                                 <div className="text-[10px] font-bold text-teal-800 uppercase tracking-wider">
@@ -1380,7 +1380,7 @@ export default function AdminKiePage() {
                                                   <span>Status: SEDANG BERJALAN (Target Hari Ini)</span>
                                                 </div>
                                                 <p className="text-[11px] text-sky-800 leading-relaxed font-medium">
-                                                  Disetor <b>{selectedCount} dari target 4 KIE</b>. Target hari ini masih berjalan. Siswa masih memiliki waktu untuk menyetor <b>{selectedDeficit.remainingDeficit} Keys</b> hari ini sebelum dicatat sebagai hutang.
+                                                  Disetor <b>{selectedCount} dari target {dailyTarget} KIE</b>. Target hari ini masih berjalan. Siswa masih memiliki waktu untuk menyetor <b>{selectedDeficit.remainingDeficit} Keys</b> hari ini sebelum dicatat sebagai hutang.
                                                 </p>
                                               </div>
                                             );
@@ -1393,7 +1393,7 @@ export default function AdminKiePage() {
                                                 <span>Status: BELUM LUNAS (Hutang Aktif)</span>
                                               </div>
                                               <p className="text-[11px] text-rose-700 leading-relaxed font-medium">
-                                                Disetor <b>{selectedCount} dari target 4 KIE</b>. Masih terdapat kekurangan <b>{selectedDeficit.remainingDeficit} Keys</b> yang belum tertutupi sampai saat ini.
+                                                Disetor <b>{selectedCount} dari target {dailyTarget} KIE</b>. Masih terdapat kekurangan <b>{selectedDeficit.remainingDeficit} Keys</b> yang belum tertutupi sampai saat ini.
                                               </p>
                                               {selectedDeficit.paidBy.length > 0 && (
                                                 <div className="pt-2 border-t border-rose-200/60 space-y-1">
@@ -1423,7 +1423,7 @@ export default function AdminKiePage() {
                                                 <span>Surplus +{selectedSurplus.originalSurplus} Keys (Pelunas Hutang)</span>
                                               </div>
                                               <p className="text-[11px] text-emerald-700 leading-relaxed font-medium">
-                                                Target harian 4 KIE terpenuhi. Kelebihan <b>{selectedSurplus.originalSurplus} Keys</b> hari ini dialokasikan untuk melunasi hutang di hari-hari sebelumnya:
+                                                Target harian {dailyTarget} KIE terpenuhi. Kelebihan <b>{selectedSurplus.originalSurplus} Keys</b> hari ini dialokasikan untuk melunasi hutang di hari-hari sebelumnya:
                                               </p>
                                               <div className="pt-2 border-t border-emerald-200/60 space-y-1">
                                                 <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
@@ -1567,7 +1567,7 @@ export default function AdminKiePage() {
                                           <span>Total: {monthDeficitsList.length} Hari</span>
                                         </div>
                                         {monthDeficitsList.length === 0 ? (
-                                          <div className="text-[10.5px] text-gray-400 py-1">Semua hari kerja di bulan ini setor penuh (≥4 Keys).</div>
+                                          <div className="text-[10.5px] text-gray-400 py-1">Semua hari kerja di bulan ini setor penuh (≥{dailyTarget} Keys).</div>
                                         ) : (
                                           <div className="flex flex-wrap gap-1.5 pt-0.5">
                                             {monthDeficitsList.map((d) => (
@@ -1583,7 +1583,7 @@ export default function AdminKiePage() {
                                                 title="Klik untuk lihat detail pelunasan"
                                               >
                                                 <span>{parseSafeDate(d.dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}:</span>
-                                                <span>{d.count}/4</span>
+                                                <span>{d.count}/{dailyTarget}</span>
                                                 <span>{d.isCovered ? '✓ LUNAS' : `❌ Sisa ${d.remainingDeficit}`}</span>
                                               </button>
                                             ))}
