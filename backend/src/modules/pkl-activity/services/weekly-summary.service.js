@@ -102,7 +102,7 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
     });
 
     // Hitung week_number relatif siswa untuk pekan cohort ini
-    const progress = studentService.calculatePklProgress(student.start_date, 4, range.startDate);
+    const progress = studentService.calculatePklProgress(student.start_date, student.duration_months || 4, range.startDate);
     const relativeWeek = progress.active_week;
 
     // Ambil rekap tersimpan jika ada berdasarkan relativeWeek
@@ -165,7 +165,7 @@ async function saveWeeklyFeedback(dbClient, mentorId, studentId, feedbackData) {
   const range = studentService.getWeekDateRange(baselineStartStr, feedbackData.week_number);
 
   // Hitung week_number relatif siswa untuk pekan cohort ini
-  const progress = studentService.calculatePklProgress(student.start_date, 4, range.startDate);
+  const progress = studentService.calculatePklProgress(student.start_date, student.duration_months || 4, range.startDate);
   const relativeWeek = progress.active_week;
 
   // 4. Hitung total poin dari evaluasi harian

@@ -159,7 +159,7 @@ async function computeRankingsForWeek(dbClient, students, cohortWeekNumber) {
 
     // Hitung week_number relatif siswa untuk pekan cohort ini
     // Kita gunakan tanggal awal pekan cohort (cohortRange.startDate) untuk mengevaluasi pekan relatif
-    const progress = studentService.calculatePklProgress(student.start_date, 4, cohortRange.startDate);
+    const progress = studentService.calculatePklProgress(student.start_date, student.duration_months || 4, cohortRange.startDate);
     const relativeWeek = progress.active_week;
 
     // Ambil daily evaluations yang sudah dikelompokkan

@@ -28,9 +28,9 @@ async function findByStudentId(dbClient, studentId) {
 }
 
 /**
- * Mendapatkan data tabungan seluruh siswa aktif (left join)
+ * Mendapatkan data tabungan seluruh siswa PKL (aktif maupun alumni/selesai)
  * @param {object} dbClient - Database client/pool
- * @returns {Promise<Array<object>>} Daftar tabungan seluruh siswa aktif
+ * @returns {Promise<Array<object>>} Daftar tabungan seluruh siswa
  */
 async function findAll(dbClient) {
   const query = `
@@ -38,13 +38,19 @@ async function findAll(dbClient) {
       s.id AS student_id,
       u.nama_lengkap AS student_name,
       s.school_name,
+      s.start_date,
+      s.end_date,
+      CASE 
+        WHEN s.end_date IS NOT NULL AND s.end_date < CURRENT_DATE THEN 'COMPLETED'
+        ELSE COALESCE(s.status, 'ACTIVE')
+      END AS status,
       COALESCE(sa.saved_amount, 0) AS saved_amount,
       COALESCE(sa.target_amount, 70000) AS target_amount,
       sa.updated_at
     FROM pkl_students s
     JOIN users u ON s.user_id = u.id
     LEFT JOIN pkl_savings sa ON s.id = sa.student_id
-    WHERE s.status = 'ACTIVE' AND u.role = 'student'
+    WHERE u.role = 'student'
     ORDER BY u.nama_lengkap ASC
   `;
   const [rows] = await dbClient.query(query);

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { BookOpen, Search, Plus, Check, Pencil } from "lucide-react";
+import { BookOpen, Search, Plus, Check, Pencil, GraduationCap, Users } from "lucide-react";
 
 interface StudentSavings {
   student_id: string;
@@ -10,6 +10,9 @@ interface StudentSavings {
   saved_amount: number;
   target_amount: number;
   updated_at: string | null;
+  status?: string;
+  start_date?: string | null;
+  end_date?: string | null;
 }
 
 const DEFAULT_TARGET_AMOUNT = 70000;
@@ -22,6 +25,7 @@ export default function AdminSavingsPage() {
   const [students, setStudents] = useState<StudentSavings[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [savingsTab, setSavingsTab] = useState<"active" | "alumni">("active");
   const [globalTarget, setGlobalTarget] = useState(DEFAULT_TARGET_AMOUNT);
   const [editingGlobalTarget, setEditingGlobalTarget] = useState(false);
   const [globalTargetInput, setGlobalTargetInput] = useState("");
@@ -233,14 +237,25 @@ export default function AdminSavingsPage() {
     fetchSavings();
   };
 
-  const filteredStudents = students.filter(s =>
+  const isStudentActive = (s: StudentSavings) => {
+    if (s.status === "COMPLETED" || s.status === "ARCHIVED") return false;
+    if (s.end_date && new Date(s.end_date) < new Date(new Date().setHours(0, 0, 0, 0))) return false;
+    return s.status === "ACTIVE" || !s.status;
+  };
+
+  const activeStudents = students.filter(isStudentActive);
+  const alumniStudents = students.filter(s => !isStudentActive(s));
+
+  const currentTabStudents = savingsTab === "active" ? activeStudents : alumniStudents;
+
+  const filteredStudents = currentTabStudents.filter(s =>
     s.student_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.school_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const totalCollected = students.reduce((sum, s) => sum + s.saved_amount, 0);
-  const totalTarget = students.reduce((sum, s) => sum + s.target_amount, 0);
-  const completedCount = students.filter(s => s.saved_amount >= s.target_amount).length;
+  const totalCollected = currentTabStudents.reduce((sum, s) => sum + s.saved_amount, 0);
+  const totalTarget = currentTabStudents.reduce((sum, s) => sum + s.target_amount, 0);
+  const completedCount = currentTabStudents.filter(s => s.saved_amount >= s.target_amount).length;
 
   if (loading) {
     return (
@@ -265,8 +280,47 @@ export default function AdminSavingsPage() {
           <h1 className="text-xl font-bold text-gray-800">Tabungan Buku</h1>
         </div>
         <p className="text-sm text-gray-400 ml-[42px]">
-          Kelola progres tabungan buku siswa PKL
+          Kelola progres tabungan buku siswa PKL aktif dan arsip tabungan alumni magang
         </p>
+      </div>
+
+      {/* Tab Filter: Siswa Aktif vs Arsip Alumni */}
+      <div className="flex items-center gap-2 mb-5">
+        <button
+          type="button"
+          onClick={() => setSavingsTab("active")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+            savingsTab === "active"
+              ? "bg-[#2AB0B2] text-white shadow-[#2AB0B2]/20"
+              : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
+          }`}
+        >
+          <Users size={14} />
+          <span>Siswa PKL Aktif</span>
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+            savingsTab === "active" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"
+          }`}>
+            {activeStudents.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setSavingsTab("alumni")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+            savingsTab === "alumni"
+              ? "bg-purple-700 text-white shadow-purple-500/20"
+              : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
+          }`}
+        >
+          <GraduationCap size={14} />
+          <span>Arsip Alumni PKL</span>
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+            savingsTab === "alumni" ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"
+          }`}>
+            {alumniStudents.length}
+          </span>
+        </button>
       </div>
 
       {/* Summary Cards */}
@@ -279,7 +333,7 @@ export default function AdminSavingsPage() {
         <div className="bg-white rounded-xl p-4 border border-gray-100">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Lunas</p>
           <p className="text-base font-bold text-emerald-600">{completedCount}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">dari {students.length} siswa</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">dari {currentTabStudents.length} siswa</p>
         </div>
         <div className="bg-white rounded-xl p-4 border border-gray-100">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Target</p>
@@ -324,7 +378,7 @@ export default function AdminSavingsPage() {
         <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300" />
         <input
           type="text"
-          placeholder="Cari nama siswa atau sekolah..."
+          placeholder={savingsTab === "active" ? "Cari nama siswa aktif atau sekolah..." : "Cari arsip nama alumni atau sekolah..."}
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 outline-none focus:border-[#2AB0B2] bg-white transition-colors"
@@ -333,7 +387,17 @@ export default function AdminSavingsPage() {
 
       {/* Student List */}
       <div className="space-y-2.5">
-        {filteredStudents.map(student => {
+        {filteredStudents.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-8 text-center select-none">
+            <p className="text-sm font-semibold text-gray-500">
+              {searchQuery ? "Tidak ada siswa yang sesuai pencarian" : (savingsTab === "active" ? "Belum ada data siswa PKL aktif" : "Belum ada arsip tabungan alumni")}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              {savingsTab === "active" ? "Siswa yang selesai magang akan otomatis masuk ke tab Arsip Alumni" : "Data tabungan siswa yang telah lulus akan tersimpan rapi di sini"}
+            </p>
+          </div>
+        ) : (
+        filteredStudents.map(student => {
           const percentage = Math.min(
             Math.round((student.saved_amount / student.target_amount) * 100),
             100
@@ -354,7 +418,15 @@ export default function AdminSavingsPage() {
               {/* Student Info Row */}
               <div className="flex items-center justify-between mb-2.5">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{student.student_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{student.student_name}</p>
+                    {!isStudentActive(student) && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-100 text-purple-700">
+                        <GraduationCap size={10} />
+                        Alumni
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[10px] text-gray-400 truncate">{student.school_name}</p>
                 </div>
                 <div className="text-right flex-shrink-0 ml-3">
@@ -499,16 +571,7 @@ export default function AdminSavingsPage() {
               </div>
             </div>
           );
-        })}
-
-        {filteredStudents.length === 0 && (
-          <div className="text-center py-12 text-gray-400">
-            <BookOpen size={32} className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm font-semibold">
-              {searchQuery ? "Tidak ada siswa yang cocok" : "Belum ada data siswa"}
-            </p>
-          </div>
-        )}
+        }))}
       </div>
     </div>
   );

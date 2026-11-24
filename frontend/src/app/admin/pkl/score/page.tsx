@@ -27,7 +27,11 @@ import {
   BookOpen,
   EyeOff,
   Info,
-  Search
+  Search,
+  Copy,
+  CheckCheck,
+  X,
+  GraduationCap
 } from "lucide-react";
 
 // Types
@@ -43,6 +47,8 @@ interface StudentRekap {
   student_name: string;
   school_name: string;
   start_date?: string;
+  end_date?: string;
+  status?: string;
   week_number: number;
   relative_week_number?: number;
   total_points: number;
@@ -52,6 +58,16 @@ interface StudentRekap {
   progress_override?: number | null;
   is_published: boolean;
   days_status?: number[];
+}
+
+interface CopiedScoreData {
+  sourceStudentId: string;
+  sourceStudentName: string;
+  weekNumber: number;
+  dailyEvals: Record<string, DailyEval>;
+  tags: string[];
+  comments: string;
+  totalPoints: number;
 }
 
 interface DailyEval {
@@ -161,6 +177,13 @@ export default function PklScoreboardPage() {
   const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
   const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
 
+  // Copy & Paste Score States
+  const [copiedScoreData, setCopiedScoreData] = useState<CopiedScoreData | null>(null);
+  const [isCopiedAnim, setIsCopiedAnim] = useState(false);
+  const [isPasting, setIsPasting] = useState(false);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [selectedBatchTargetIds, setSelectedBatchTargetIds] = useState<string[]>([]);
+
   // Tag Presets
   const tagPresets = [
     "Sangat Disiplin",
@@ -221,7 +244,7 @@ export default function PklScoreboardPage() {
     
     let activeWeek = Math.floor(diffDays / 7) + 1;
     if (activeWeek < 1) activeWeek = 1;
-    return Math.min(activeWeek, 16);
+    return activeWeek;
   }, [cohortStartDate]);
 
   // Set selectedWeek ke pekan aktif cohort pada saat data pertama kali dimuat
@@ -541,7 +564,7 @@ export default function PklScoreboardPage() {
   const currentStudentStartWeek = useMemo(() => {
     if (!currentStudent?.start_date) return 1;
     const studentStartStr = formatJakartaDate(currentStudent.start_date);
-    for (let wk = 1; wk <= 16; wk++) {
+    for (let wk = 1; wk <= Math.max(52, cohortActiveWeek); wk++) {
       const monFri = getMonFriDates(cohortStartDate, wk);
       // Jika hari Jumat di minggu ini >= tanggal mulai siswa, maka minggu ini adalah minggu mulai siswa
       if (monFri[4].dateStr >= studentStartStr) {
@@ -786,6 +809,133 @@ export default function PklScoreboardPage() {
         })
         .catch((err) => console.error("Auto-save daily evaluation error:", err))
         .finally(() => setIsAutoSaving(false));
+    }
+  };
+
+  // Handler: Copy Score from selected student
+  const handleCopyScore = () => {
+    if (!currentStudent || !selectedStudentId) return;
+
+    const points = Object.values(dailyEvals).reduce((acc, curr) => {
+      return (
+        acc +
+        (curr.wkt_point || 0) +
+        (curr.skp_point || 0) +
+        (curr.has_point || 0) +
+        (curr.ker_point || 0) +
+        (curr.ini_point || 0)
+      );
+    }, 0);
+
+    const data: CopiedScoreData = {
+      sourceStudentId: selectedStudentId,
+      sourceStudentName: currentStudent.student_name,
+      weekNumber: selectedWeek,
+      dailyEvals: JSON.parse(JSON.stringify(dailyEvals)),
+      tags: [...selectedTags],
+      comments: commentInput,
+      totalPoints: points,
+    };
+
+    setCopiedScoreData(data);
+    setIsCopiedAnim(true);
+    setTimeout(() => setIsCopiedAnim(false), 2000);
+
+    setSuccessMsg(`📋 Nilai & evaluasi "${currentStudent.student_name}" berhasil disalin! Pilih siswa lain untuk menempelkan.`);
+    setTimeout(() => setSuccessMsg(""), 4000);
+  };
+
+  // Handler: Paste Score to one or multiple students
+  const handlePasteScore = async (targetStudentIds: string[]) => {
+    if (!mentor || !copiedScoreData || targetStudentIds.length === 0) return;
+    setIsPasting(true);
+    setErrorMsg("");
+
+    try {
+      const dates = getMonFriDates(cohortStartDate, selectedWeek);
+
+      for (const targetId of targetStudentIds) {
+        const targetStudent = students.find((s) => s.student_id === targetId);
+        if (!targetStudent) continue;
+
+        // 1. Simpan nilai harian Senin s.d Jumat
+        for (const day of dates) {
+          const sourceEval = copiedScoreData.dailyEvals[day.dateStr] || {
+            evaluation_date: day.dateStr,
+            wkt_point: 0,
+            skp_point: 0,
+            has_point: 0,
+            ker_point: 0,
+            ini_point: 0,
+          };
+
+          await fetch("/api/v1/mentor/evaluasi-harian", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-id": mentor.id,
+              "x-device-id": mentor.device_id || "",
+            },
+            body: JSON.stringify({
+              student_id: targetId,
+              evaluation_date: day.dateStr,
+              wkt_point: sourceEval.wkt_point || 0,
+              skp_point: sourceEval.skp_point || 0,
+              has_point: sourceEval.has_point || 0,
+              ker_point: sourceEval.ker_point || 0,
+              ini_point: sourceEval.ini_point || 0,
+            }),
+          });
+        }
+
+        // 2. Simpan Rekap Mingguan (Tag & Catatan)
+        await fetch(`/api/v1/mentor/rekap-mingguan/${targetId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-id": mentor.id,
+            "x-device-id": mentor.device_id || "",
+          },
+          body: JSON.stringify({
+            week_number: selectedWeek,
+            tags: copiedScoreData.tags,
+            comments: copiedScoreData.comments,
+            extended_days: targetStudent.extended_days || 0,
+            progress_override: targetStudent.progress_override ?? null,
+          }),
+        });
+      }
+
+      // 3. Update state lokal untuk siswa yang sedang dipilih jika termasuk target
+      if (selectedStudentId && targetStudentIds.includes(selectedStudentId)) {
+        setDailyEvals(JSON.parse(JSON.stringify(copiedScoreData.dailyEvals)));
+        setSelectedTags([...copiedScoreData.tags]);
+        setCommentInput(copiedScoreData.comments);
+      }
+
+      // 4. Sinkronkan ulang data evaluasi dan rekap
+      await fetchWeekEvaluations(selectedWeek, mentor.id, mentor.device_id || "");
+      await fetchWeeklyRecap(selectedWeek, mentor.id, mentor.device_id || "");
+
+      setIsBatchModalOpen(false);
+      setSelectedBatchTargetIds([]);
+
+      const targetNames = targetStudentIds
+        .map((id) => students.find((s) => s.student_id === id)?.student_name)
+        .filter(Boolean)
+        .join(", ");
+
+      setSuccessMsg(
+        targetStudentIds.length === 1
+          ? `✅ Nilai dari ${copiedScoreData.sourceStudentName} berhasil ditempelkan ke ${targetNames}!`
+          : `✅ Nilai dari ${copiedScoreData.sourceStudentName} berhasil ditempelkan ke ${targetStudentIds.length} siswa!`
+      );
+      setTimeout(() => setSuccessMsg(""), 5000);
+    } catch (err: any) {
+      console.error("Paste error:", err);
+      setErrorMsg(err.message || "Gagal menempelkan nilai");
+    } finally {
+      setIsPasting(false);
     }
   };
 
@@ -1306,7 +1456,7 @@ export default function PklScoreboardPage() {
                 
                 {/* Dropdown Options List */}
                 <div className="absolute top-[48px] right-0 min-w-[320px] bg-white rounded-2xl shadow-xl border border-slate-150/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[360px] overflow-y-auto">
-                  {Array.from({ length: 16 }, (_, i) => {
+                  {Array.from({ length: Math.max(16, cohortActiveWeek) }, (_, i) => {
                     const wkNum = i + 1;
                     const isCurrent = wkNum === cohortActiveWeek;
                     const isSelected = wkNum === selectedWeek;
@@ -1432,6 +1582,9 @@ export default function PklScoreboardPage() {
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider select-none pr-1">Siswa</span>
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 leading-tight">
                       <span>{currentStudent ? currentStudent.student_name : "Pilih Siswa"}</span>
+                      {currentStudent?.status && currentStudent.status !== "ACTIVE" && (
+                        <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-purple-100 text-purple-700 shrink-0">Alumni</span>
+                      )}
                       <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 ${isStudentDropdownOpen ? "rotate-180" : ""}`} />
                     </div>
                   </button>
@@ -1442,28 +1595,101 @@ export default function PklScoreboardPage() {
                       <div className="fixed inset-0 z-40" onClick={() => setIsStudentDropdownOpen(false)} />
                       
                       {/* Dropdown Options List */}
-                      <div className="absolute top-[40px] left-0 min-w-[240px] bg-white rounded-2xl shadow-xl border border-slate-150/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[320px] overflow-y-auto">
-                        {students.map((student) => {
-                          const isSelected = student.student_id === selectedStudentId;
+                      <div className="absolute top-[40px] left-0 min-w-[270px] bg-white rounded-2xl shadow-xl border border-slate-150/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[320px] overflow-y-auto">
+                        {(() => {
+                          const isStudentActive = (s: StudentRekap) => {
+                            if (s.status === "COMPLETED" || s.status === "ARCHIVED") return false;
+                            if (s.end_date && new Date(s.end_date) < new Date(new Date().setHours(0, 0, 0, 0))) return false;
+                            return s.status === "ACTIVE" || !s.status;
+                          };
+                          const activeList = students.filter(isStudentActive);
+                          const alumniList = students.filter(s => !isStudentActive(s));
+
                           return (
-                            <button
-                              key={student.student_id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedStudentId(student.student_id);
-                                setIsStudentDropdownOpen(false);
-                              }}
-                              className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer select-none ${
-                                isSelected
-                                  ? "bg-[#2AB0B2] text-white"
-                                  : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
-                              }`}
-                            >
-                              <span>{student.student_name}</span>
-                              {isSelected && <Check size={12} className="text-white flex-shrink-0" />}
-                            </button>
+                            <>
+                              {/* Kelompok Siswa Aktif */}
+                              <div className="px-3 py-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50/80 rounded-lg uppercase tracking-wider mb-1 flex items-center justify-between">
+                                <span>Siswa PKL Aktif</span>
+                                <span className="bg-emerald-200/60 text-emerald-800 px-1.5 py-0.2 rounded-full text-[9px] font-black">{activeList.length}</span>
+                              </div>
+                              {activeList.length === 0 ? (
+                                <p className="text-[10px] text-slate-400 px-3 py-1 italic">Tidak ada siswa aktif</p>
+                              ) : (
+                                activeList.map((student) => {
+                                  const isSelected = student.student_id === selectedStudentId;
+                                  return (
+                                    <button
+                                      key={student.student_id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedStudentId(student.student_id);
+                                        setIsStudentDropdownOpen(false);
+                                      }}
+                                      className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer select-none mb-0.5 ${
+                                        isSelected
+                                          ? "bg-[#2AB0B2] text-white"
+                                          : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
+                                      }`}
+                                    >
+                                      <div className="flex flex-col min-w-0">
+                                        <span className="truncate">{student.student_name}</span>
+                                        <span className={`text-[9px] font-semibold mt-0.5 ${isSelected ? "text-white/70" : "text-slate-400"}`}>
+                                          {student.school_name}
+                                        </span>
+                                      </div>
+                                      {isSelected && <Check size={12} className="text-white flex-shrink-0" />}
+                                    </button>
+                                  );
+                                })
+                              )}
+
+                              <div className="border-t border-slate-100 my-1.5" />
+
+                              {/* Kelompok Alumni */}
+                              <div className="px-3 py-1.5 text-[10px] font-bold text-purple-700 bg-purple-50/80 rounded-lg uppercase tracking-wider mb-1 flex items-center justify-between">
+                                <span>Arsip Alumni PKL</span>
+                                <span className="bg-purple-200/60 text-purple-800 px-1.5 py-0.2 rounded-full text-[9px] font-black">{alumniList.length}</span>
+                              </div>
+                              {alumniList.length === 0 ? (
+                                <p className="text-[10px] text-slate-400 px-3 py-1 italic">Belum ada alumni</p>
+                              ) : (
+                                alumniList.map((student) => {
+                                  const isSelected = student.student_id === selectedStudentId;
+                                  return (
+                                    <button
+                                      key={student.student_id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedStudentId(student.student_id);
+                                        setIsStudentDropdownOpen(false);
+                                      }}
+                                      className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer select-none mb-0.5 ${
+                                        isSelected
+                                          ? "bg-purple-700 text-white"
+                                          : "text-slate-650 hover:bg-purple-50/50 hover:text-purple-900"
+                                      }`}
+                                    >
+                                      <div className="flex flex-col min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="truncate">{student.student_name}</span>
+                                          <span className={`px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
+                                            isSelected ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"
+                                          }`}>
+                                            Alumni
+                                          </span>
+                                        </div>
+                                        <span className={`text-[9px] font-semibold mt-0.5 ${isSelected ? "text-white/70" : "text-slate-400"}`}>
+                                          {student.school_name}
+                                        </span>
+                                      </div>
+                                      {isSelected && <Check size={12} className="text-white flex-shrink-0" />}
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </>
                           );
-                        })}
+                        })()}
                       </div>
                     </>
                   )}
@@ -1521,8 +1747,130 @@ export default function PklScoreboardPage() {
                     )}
                   </div>
                 )}
+
+                {/* Tombol Salin Nilai */}
+                {selectedStudentId && (
+                  <button
+                    type="button"
+                    onClick={handleCopyScore}
+                    disabled={isPasting}
+                    className={`flex items-center gap-1.5 font-bold text-xs px-3.5 py-1.5 rounded-xl border transition-all h-[36px] cursor-pointer active:scale-95 ${
+                      isCopiedAnim
+                        ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+                        : "bg-white border-slate-200 text-slate-750 hover:bg-slate-50 hover:border-slate-300 shadow-3xs"
+                    }`}
+                    title={`Salin nilai evaluasi dan catatan ${currentStudent?.student_name || ""}`}
+                  >
+                    {isCopiedAnim ? (
+                      <>
+                        <Check size={13} className="text-emerald-600" />
+                        <span>Tersalin!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={13} className="text-slate-500" />
+                        <span>Salin Nilai</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* Tombol Tempel Nilai Per-Siswa */}
+                {copiedScoreData && selectedStudentId && (
+                  <button
+                    type="button"
+                    onClick={() => handlePasteScore([selectedStudentId])}
+                    disabled={copiedScoreData.sourceStudentId === selectedStudentId || isPasting}
+                    className={`flex items-center gap-1.5 font-bold text-xs px-3.5 py-1.5 rounded-xl border transition-all h-[36px] cursor-pointer active:scale-95 ${
+                      copiedScoreData.sourceStudentId === selectedStudentId
+                        ? "opacity-50 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400"
+                        : "bg-amber-500 hover:bg-amber-600 border-amber-500 text-white shadow-xs"
+                    }`}
+                    title={
+                      copiedScoreData.sourceStudentId === selectedStudentId
+                        ? "Sedang berada di siswa yang disalin"
+                        : `Tempel nilai dari ${copiedScoreData.sourceStudentName} ke ${currentStudent?.student_name}`
+                    }
+                  >
+                    {isPasting ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin" />
+                        <span>Menempelkan...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={13} />
+                        <span>Tempel Nilai</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
+
+            {/* Banner Indikator Nilai Tersalin */}
+            {copiedScoreData && (
+              <div className="mb-4 bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-200/80 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-amber-900 animate-in fade-in slide-in-from-top-1 shadow-3xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-1.5 bg-amber-500/15 text-amber-700 rounded-lg shrink-0">
+                    <Copy size={14} />
+                  </span>
+                  <div>
+                    <span className="text-slate-500 font-medium">Nilai tersalin dari: </span>
+                    <strong className="font-extrabold text-amber-900">{copiedScoreData.sourceStudentName}</strong>
+                    <span className="text-amber-700 font-semibold text-[11px] ml-1.5">
+                      ({copiedScoreData.totalPoints} Poin • Minggu {copiedScoreData.weekNumber})
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {selectedStudentId && selectedStudentId !== copiedScoreData.sourceStudentId && (
+                    <button
+                      type="button"
+                      onClick={() => handlePasteScore([selectedStudentId])}
+                      disabled={isPasting}
+                      className="bg-amber-600 hover:bg-amber-700 disabled:bg-slate-350 text-white font-extrabold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                    >
+                      {isPasting ? (
+                        <Loader2 className="animate-spin" size={12} />
+                      ) : (
+                        <Save size={12} />
+                      )}
+                      <span>Tempel ke {currentStudent?.student_name}</span>
+                    </button>
+                  )}
+
+                  {students.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBatchTargetIds(
+                          students
+                            .filter((s) => s.student_id !== copiedScoreData.sourceStudentId)
+                            .map((s) => s.student_id)
+                        );
+                        setIsBatchModalOpen(true);
+                      }}
+                      disabled={isPasting}
+                      className="bg-white border border-amber-300 hover:bg-amber-100/70 text-amber-900 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow-3xs"
+                    >
+                      <Users size={12} className="text-amber-700" />
+                      <span>Tempel ke Banyak...</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setCopiedScoreData(null)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-amber-100/60 rounded-lg transition-colors cursor-pointer"
+                    title="Batal / Hapus salinan"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {!selectedStudentId ? (
               <div className="text-center py-12">
@@ -2354,6 +2702,123 @@ export default function PklScoreboardPage() {
               );
             })()
           )}
+        </div>
+      )}
+
+      {/* Modal: Tempel Nilai ke Banyak Siswa */}
+      {isBatchModalOpen && copiedScoreData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full p-5 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-slate-800 font-extrabold text-sm">
+                <span className="p-1.5 bg-[#2AB0B2]/10 rounded-lg text-[#2AB0B2]">
+                  <Users size={16} />
+                </span>
+                <h3>Tempel Nilai ke Banyak Siswa</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBatchModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-3 text-xs text-slate-600">
+              <span className="text-[10px] uppercase font-black text-slate-400 block mb-0.5">Sumber Nilai</span>
+              <div className="font-bold text-slate-800">{copiedScoreData.sourceStudentName} (Minggu {copiedScoreData.weekNumber})</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                {copiedScoreData.totalPoints} Poin • {copiedScoreData.tags.length} Tag • {copiedScoreData.comments ? "Ada catatan" : "Tanpa catatan"}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[11px] font-bold text-slate-700">Pilih Siswa Target:</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const eligible = students.filter(s => s.student_id !== copiedScoreData.sourceStudentId).map(s => s.student_id);
+                    if (selectedBatchTargetIds.length === eligible.length) {
+                      setSelectedBatchTargetIds([]);
+                    } else {
+                      setSelectedBatchTargetIds(eligible);
+                    }
+                  }}
+                  className="text-[10px] font-extrabold text-[#2AB0B2] hover:underline cursor-pointer"
+                >
+                  {selectedBatchTargetIds.length === students.filter(s => s.student_id !== copiedScoreData.sourceStudentId).length
+                    ? "Batal Pilih Semua"
+                    : "Pilih Semua"}
+                </button>
+              </div>
+
+              <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-1 border border-slate-150 rounded-xl p-2 bg-slate-50/50">
+                {students
+                  .filter((s) => s.student_id !== copiedScoreData.sourceStudentId)
+                  .map((s) => {
+                    const checked = selectedBatchTargetIds.includes(s.student_id);
+                    return (
+                      <label
+                        key={s.student_id}
+                        className={`flex items-center justify-between p-2 rounded-lg border text-xs font-semibold cursor-pointer transition-colors ${
+                          checked
+                            ? "bg-[#2AB0B2]/10 border-[#2AB0B2]/40 text-slate-900"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedBatchTargetIds((prev) => [...prev, s.student_id]);
+                              } else {
+                                setSelectedBatchTargetIds((prev) => prev.filter((id) => id !== s.student_id));
+                              }
+                            }}
+                            className="rounded text-[#2AB0B2] focus:ring-[#2AB0B2]"
+                          />
+                          <span>{s.student_name}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-medium">{s.school_name}</span>
+                      </label>
+                    );
+                  })}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsBatchModalOpen(false)}
+                disabled={isPasting}
+                className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePasteScore(selectedBatchTargetIds)}
+                disabled={isPasting || selectedBatchTargetIds.length === 0}
+                className="px-4 py-2 bg-[#2AB0B2] hover:bg-[#1E8E90] disabled:bg-slate-350 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+              >
+                {isPasting ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Menerapkan...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCheck size={14} />
+                    <span>Terapkan ke {selectedBatchTargetIds.length} Siswa</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

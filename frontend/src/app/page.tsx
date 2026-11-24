@@ -21,9 +21,16 @@ function AppLogo({ size = 80 }: { size?: number }) {
 
 function getOrCreateDeviceId() {
   if (typeof window === "undefined") return "";
+
+  try {
+    const existing = localStorage.getItem("v2_device_id");
+    if (existing) return existing;
+  } catch (e) {
+    // localStorage not accessible
+  }
   
-  const screenSpec = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
-  const userAgent = navigator.userAgent;
+  const screenSpec = `${window.screen?.width || 0}x${window.screen?.height || 0}x${window.screen?.colorDepth || 0}`;
+  const userAgent = navigator.userAgent || "";
   const language = navigator.language || "";
   
   let canvasHash = "";
@@ -77,7 +84,9 @@ function getOrCreateDeviceId() {
   }
   
   const fingerprint = "hw-" + Math.abs(finalHash).toString(36);
-  localStorage.setItem("v2_device_id", fingerprint);
+  try {
+    localStorage.setItem("v2_device_id", fingerprint);
+  } catch (e) {}
   return fingerprint;
 }
 
@@ -131,10 +140,23 @@ export default function LoginPage() {
   useEffect(() => {
     let active = true;
 
+    // Safety timeout: ensure the loading screen never hangs indefinitely
+    const safetyTimeout = setTimeout(() => {
+      if (active) {
+        setIsCheckingDevice(false);
+      }
+    }, 2500);
+
     const checkDeviceBinding = async () => {
       if (typeof window === "undefined") return;
 
-      const deviceId = getOrCreateDeviceId();
+      let deviceId = "";
+      try {
+        deviceId = getOrCreateDeviceId();
+      } catch (e) {
+        console.error("Gagal mendapatkan device ID:", e);
+      }
+      
       const stored = localStorage.getItem("v2_user");
 
       const params = new URLSearchParams(window.location.search);
@@ -143,14 +165,29 @@ export default function LoginPage() {
         sessionStorage.setItem("v2_scanned_token", token);
       }
 
+      // If user directly requested admin login
+      if (params.get("admin") === "true") {
+        setMode("admin-login");
+        clearTimeout(safetyTimeout);
+        setIsCheckingDevice(false);
+        return;
+      }
+
       try {
-        const response = await fetch(`/api/auth/check-device?device_id=${deviceId}`);
+        const controller = new AbortController();
+        const fetchTimer = setTimeout(() => controller.abort(), 2000);
+
+        const response = await fetch(`/api/auth/check-device?device_id=${encodeURIComponent(deviceId)}`, {
+          signal: controller.signal
+        });
+        clearTimeout(fetchTimer);
         const data = await response.json();
 
         if (active) {
           if (response.ok && data.registered) {
             localStorage.setItem("v2_user", JSON.stringify(data.user));
             if (data.user.role === "admin") {
+              clearTimeout(safetyTimeout);
               router.replace("/admin");
               return;
             }
@@ -172,15 +209,18 @@ export default function LoginPage() {
                     const hasClockedIn = todayLogs.some((log: any) => log.status === "Hadir" || log.status === "Terlambat");
                     const hasIzinSakit = todayLogs.some((log: any) => log.status === "Izin" || log.status === "Sakit");
                     if (hasIzinSakit || hasClockedOut) {
+                      clearTimeout(safetyTimeout);
                       router.replace("/user");
                       return;
                     } else if (hasClockedIn) {
                       localStorage.setItem("v2_clockInDate", new Date().toDateString());
                       sessionStorage.setItem("v2_absen_type", "pulang");
+                      clearTimeout(safetyTimeout);
                       router.replace("/user/selfie");
                       return;
                     } else {
                       sessionStorage.setItem("v2_absen_type", "masuk");
+                      clearTimeout(safetyTimeout);
                       router.replace("/user/selfie");
                       return;
                     }
@@ -189,6 +229,7 @@ export default function LoginPage() {
                   console.error("Gagal memeriksa status absensi:", e);
                 }
               }
+              clearTimeout(safetyTimeout);
               router.replace("/user");
               return;
             }
@@ -200,10 +241,12 @@ export default function LoginPage() {
           try {
             const parsed = JSON.parse(stored);
             if (parsed.role === "admin") {
+              clearTimeout(safetyTimeout);
               router.replace("/admin");
               return;
             }
             if (parsed.is_active === 1) {
+              clearTimeout(safetyTimeout);
               router.replace("/user");
               return;
             }
@@ -212,12 +255,16 @@ export default function LoginPage() {
       }
 
       if (active) {
+        clearTimeout(safetyTimeout);
         setIsCheckingDevice(false);
       }
     };
 
     checkDeviceBinding();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      clearTimeout(safetyTimeout);
+    };
   }, [router]);
 
   // Camera management
@@ -443,7 +490,7 @@ export default function LoginPage() {
   // Loading screen — checking device
   if (isCheckingDevice) {
     return (
-      <div className="min-h-screen w-full bg-gradient-to-br from-[#1C3D3F] via-[#2AB0B2] to-[#209092] flex flex-col items-center justify-center text-white p-6">
+      <div className="min-h-screen w-full bg-gradient-to-br from-[#1C3D3F] via-[#2AB0B2] to-[#209092] flex flex-col items-center justify-center text-white p-6 relative">
         <div className="flex flex-col items-center max-w-sm text-center space-y-6 animate-fade-in">
           <div className="bg-white/10 backdrop-blur-md p-4 rounded-3xl border border-white/20 shadow-xl animate-pulse">
             <AppLogo size={80} />
@@ -452,10 +499,32 @@ export default function LoginPage() {
             <h2 className="text-xl font-bold tracking-wide animate-pulse">Mencocokkan Perangkat...</h2>
             <p className="text-xs text-white/70">Sistem sedang memverifikasi HP Anda secara aman.</p>
           </div>
-          <div className="flex items-center gap-1.5 pt-4">
+          <div className="flex items-center gap-1.5 pt-2">
             <div className="w-2.5 h-2.5 rounded-full bg-white animate-bounce [animation-delay:-0.3s]" />
             <div className="w-2.5 h-2.5 rounded-full bg-[#F6C13B] animate-bounce [animation-delay:-0.15s]" />
             <div className="w-2.5 h-2.5 rounded-full bg-white animate-bounce" />
+          </div>
+
+          {/* Quick bypass buttons so users or admins are never stuck */}
+          <div className="flex flex-col gap-2 pt-6 w-full max-w-xs">
+            <button
+              type="button"
+              onClick={() => setIsCheckingDevice(false)}
+              className="w-full text-xs text-white/90 hover:text-white py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/20 transition-all font-medium border border-white/20 cursor-pointer shadow-sm active:scale-95"
+            >
+              Lewati ke Scan Kartu
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("admin-login");
+                setIsCheckingDevice(false);
+              }}
+              className="w-full flex items-center justify-center gap-1.5 text-xs text-white/60 hover:text-[#F6C13B] py-2 transition-colors cursor-pointer"
+            >
+              <Shield size={13} />
+              Masuk sebagai Administrator
+            </button>
           </div>
         </div>
       </div>

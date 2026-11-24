@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info, Bell, Unlock, Key, CreditCard, Download, Globe, Mail, Phone, UserPlus, LogIn } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info, Bell, Unlock, Key, CreditCard, Download, Globe, Mail, Phone, UserPlus, LogIn, Archive, GraduationCap, RotateCcw, Search } from "lucide-react";
 import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 
@@ -33,6 +33,8 @@ interface UserAccount {
   program_template_id?: string;
   start_date?: string;
   end_date?: string;
+  pkl_status?: string;
+  student_id?: string;
   kie_submissions_count?: number;
   telegram_chat_id?: string;
   telegram_chat_name?: string;
@@ -47,6 +49,21 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [telegramGroups, setTelegramGroups] = useState<{ id: number; name: string; chat_id: string }[]>([]);
   const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  const isAlumniStudent = (u: UserAccount) => {
+    if (u.role?.toLowerCase() !== "student") return false;
+    if (u.pkl_status === "COMPLETED" || u.pkl_status === "ARCHIVED") return true;
+    if (u.end_date) {
+      const endStr = String(u.end_date).slice(0, 10);
+      return endStr < todayStr;
+    }
+    return false;
+  };
+
+  // Tab Filter & Search State
+  const [activeFilterTab, setActiveFilterTab] = useState<"all" | "employee" | "student_active" | "student_alumni" | "admin">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [pklStatus, setPklStatus] = useState<string>("ACTIVE");
 
   // Card print modal state
   const [cardModalUser, setCardModalUser] = useState<UserAccount | null>(null);
@@ -220,6 +237,7 @@ export default function AdminUsersPage() {
     setProgramTemplateId("");
     setStartDate("");
     setEndDate("");
+    setPklStatus("ACTIVE");
     setTelegramChatId("");
     setAttendanceTelegramGroupId("");
     setEmail("");
@@ -239,12 +257,37 @@ export default function AdminUsersPage() {
     setProgramTemplateId(u.program_template_id || "");
     setStartDate(u.start_date || "");
     setEndDate(u.end_date || "");
+    setPklStatus(u.pkl_status || "ACTIVE");
     setTelegramChatId(u.telegram_chat_id || "");
     setAttendanceTelegramGroupId(u.attendance_telegram_group_id || "");
     setEmail(u.email || "");
     setNoTelp(u.no_telp || "");
     setIsUserModalOpen(true);
     showToast(`✏️ Mode edit untuk "${u.nama_lengkap}" aktif`);
+  };
+
+  const handleToggleArchiveStudent = async (targetUser: UserAccount, newStatus: "COMPLETED" | "ACTIVE") => {
+    const isArchiving = newStatus === "COMPLETED";
+    const actionText = isArchiving ? "mengarsipkan siswa ini ke data Alumni" : "mengaktifkan kembali siswa ini ke Siswa PKL Aktif";
+    if (!confirm(`Apakah Anda yakin ingin ${actionText}?`)) return;
+
+    try {
+      const res = await fetch(`/api/students/${targetUser.id}/archive-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (res.ok) {
+        showToast(isArchiving ? `🎓 ${targetUser.nama_lengkap} berhasil diarsipkan ke Alumni!` : `✅ ${targetUser.nama_lengkap} diaktifkan kembali sebagai Siswa PKL Aktif.`);
+        fetchUsers();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || "Gagal mengubah status arsip siswa");
+      }
+    } catch (err) {
+      showToast("⚠️ Terjadi kesalahan koneksi");
+    }
   };
 
   const handleSaveUser = async (e: React.FormEvent) => {
@@ -306,6 +349,7 @@ export default function AdminUsersPage() {
           program_template_id: editingUserRole === "student" ? programTemplateId : undefined,
           start_date: editingUserRole === "student" ? startDate : undefined,
           end_date: editingUserRole === "student" ? endDate : undefined,
+          pkl_status: editingUserRole === "student" ? pklStatus : undefined,
           telegram_chat_id: telegramChatId.trim(),
           attendance_telegram_group_id: attendanceTelegramGroupId ? Number(attendanceTelegramGroupId) : null
         };
@@ -342,6 +386,7 @@ export default function AdminUsersPage() {
           program_template_id: role === "student" ? programTemplateId : undefined,
           start_date: role === "student" ? startDate : undefined,
           end_date: role === "student" ? endDate : undefined,
+          pkl_status: role === "student" ? pklStatus : undefined,
           telegram_chat_id: telegramChatId.trim(),
           attendance_telegram_group_id: attendanceTelegramGroupId ? Number(attendanceTelegramGroupId) : null
         };
@@ -483,7 +528,10 @@ export default function AdminUsersPage() {
 
       {/* Header section */}
       <div className="flex items-center justify-between mb-6 md:mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-[#1C3D3F]">Manajemen Pengguna</h1>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#1C3D3F]">Manajemen Pengguna</h1>
+          <p className="text-xs text-gray-400 mt-1">Kelola akun karyawan, siswa PKL aktif, dan arsip data alumni magang.</p>
+        </div>
         <button
           onClick={() => {
             resetForm();
@@ -496,160 +544,357 @@ export default function AdminUsersPage() {
         </button>
       </div>
 
+      {/* Tab Filter & Search Bar */}
+      {(() => {
+        const countAll = users.length;
+        const countEmployee = users.filter((u) => u.role.toLowerCase() === "employee").length;
+        const countStudentActive = users.filter(
+          (u) => u.role.toLowerCase() === "student" && !isAlumniStudent(u)
+        ).length;
+        const countStudentAlumni = users.filter(
+          (u) => isAlumniStudent(u)
+        ).length;
+        const countAdmin = users.filter(
+          (u) => u.role.toLowerCase() === "admin" || u.role.toLowerCase() === "mentor"
+        ).length;
+
+        return (
+          <div className="mb-6 space-y-3">
+            {/* Filter Tabs */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveFilterTab("all")}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeFilterTab === "all"
+                    ? "bg-[#1C3D3F] text-white shadow-sm"
+                    : "bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-50"
+                }`}
+              >
+                <span>Semua</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeFilterTab === "all" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
+                  {countAll}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveFilterTab("employee")}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeFilterTab === "employee"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-50"
+                }`}
+              >
+                <Users size={13} />
+                <span>Karyawan</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeFilterTab === "employee" ? "bg-white/20 text-white" : "bg-blue-50 text-blue-600 font-bold"}`}>
+                  {countEmployee}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveFilterTab("student_active")}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeFilterTab === "student_active"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-50"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Siswa PKL Aktif</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeFilterTab === "student_active" ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-700 font-bold"}`}>
+                  {countStudentActive}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveFilterTab("student_alumni")}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeFilterTab === "student_alumni"
+                    ? "bg-purple-700 text-white shadow-sm"
+                    : "bg-white text-gray-600 border border-purple-200 hover:bg-purple-50/50"
+                }`}
+              >
+                <GraduationCap size={14} className={activeFilterTab === "student_alumni" ? "text-purple-200" : "text-purple-600"} />
+                <span>Arsip Alumni PKL</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeFilterTab === "student_alumni" ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"}`}>
+                  {countStudentAlumni}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveFilterTab("admin")}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeFilterTab === "admin"
+                    ? "bg-teal-700 text-white shadow-sm"
+                    : "bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-50"
+                }`}
+              >
+                <ShieldCheck size={13} />
+                <span>Admin & Mentor</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeFilterTab === "admin" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
+                  {countAdmin}
+                </span>
+              </button>
+            </div>
+
+            {/* Search Input Bar */}
+            <div className="relative">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari berdasarkan nama, username, sekolah, atau no. karyawan..."
+                className="w-full pl-10 pr-4 py-2.5 text-xs bg-white rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* User Account List Table */}
-      <div className="bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[550px]">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/50">
-                  {["Username", "Nama Lengkap", "Role", "Perangkat Terikat", "Aksi"].map((h) => (
-                    <th key={h} className="text-left px-5 py-4 text-sm font-semibold text-gray-700">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={5} className="text-center py-8 text-sm text-gray-400 font-medium">
-                      Memuat daftar karyawan...
-                    </td>
+      {(() => {
+        const filteredUsers = users.filter((u) => {
+          if (activeFilterTab === "employee" && u.role.toLowerCase() !== "employee") return false;
+          if (activeFilterTab === "student_active") {
+            if (u.role.toLowerCase() !== "student" || isAlumniStudent(u)) return false;
+          }
+          if (activeFilterTab === "student_alumni") {
+            if (!isAlumniStudent(u)) return false;
+          }
+          if (activeFilterTab === "admin" && u.role.toLowerCase() !== "admin" && u.role.toLowerCase() !== "mentor") return false;
+
+          if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            const matchName = u.nama_lengkap.toLowerCase().includes(q);
+            const matchUsername = u.username.toLowerCase().includes(q);
+            const matchNoKaryawan = u.no_karyawan?.toLowerCase().includes(q);
+            const matchSchool = u.school_name?.toLowerCase().includes(q);
+            return matchName || matchUsername || matchNoKaryawan || matchSchool;
+          }
+
+          return true;
+        });
+
+        return (
+          <div className="bg-white rounded-2xl shadow-xs overflow-hidden border border-gray-100/50">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[550px]">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    {["Username", "Nama Lengkap", "Role & Status", "Perangkat Terikat", "Aksi"].map((h) => (
+                      <th key={h} className="text-left px-5 py-4 text-sm font-semibold text-gray-700">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ) : users.length > 0 ? (
-                  users.map((u, i) => (
-                    <tr key={i} className="border-b border-gray-55 last:border-0 hover:bg-gray-50/30 transition-colors">
-                      <td className="px-5 py-4 text-sm font-mono text-[#1C3D3F] font-semibold">
-                        @{u.username}
-                      </td>
-                      <td className="px-5 py-4 text-sm text-gray-600 font-medium">
-                        <div className="font-bold text-[#1C3D3F]">{u.nama_lengkap}</div>
-                        {u.no_karyawan && (
-                          <div className="text-[10px] text-[#2AB0B2] font-mono font-bold mt-0.5">{u.no_karyawan}</div>
-                        )}
-                        {u.jabatan && (
-                          <div className="text-xs text-gray-400 font-normal mt-0.5">{u.jabatan}</div>
-                        )}
-                        {(u.email || u.no_telp) && (
-                          <div className="text-[10px] text-gray-500 font-mono mt-0.5 flex flex-wrap items-center gap-1.5">
-                            {u.email && <span className="flex items-center gap-0.5"><Mail size={9} className="text-[#2AB0B2]" />{u.email}</span>}
-                            {u.email && u.no_telp && <span className="text-gray-300">|</span>}
-                            {u.no_telp && <span className="flex items-center gap-0.5"><Phone size={9} className="text-[#2AB0B2]" />{u.no_telp}</span>}
-                          </div>
-                        )}
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          {u.attendance_telegram_group_name ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title={`Chat ID: ${u.attendance_telegram_chat_id || ''}`}>
-                              📢 Absen: {u.attendance_telegram_group_name}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
-                              ⚠️ Absen: Belum Ada Grup
-                            </span>
-                          )}
-                          {u.telegram_chat_name && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-200" title={`KIE Chat ID: ${u.telegram_chat_id}`}>
-                              💬 KIE: {u.telegram_chat_name}
-                            </span>
-                          )}
-                        </div>
-                        {u.kie_submissions_count !== undefined && u.kie_submissions_count > 0 && (
-                          <div className="mt-1">
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-600 border border-teal-100">
-                              <Key size={10} className="mr-1 text-teal-600" /> KIE API: {u.kie_submissions_count}x Setor
-                            </span>
-                          </div>
-                        )}
-                        {!u.is_active && (
-                          <span className="mt-1 inline-block px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded animate-pulse">
-                            Menunggu Persetujuan
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className={`px-2.5 py-1 rounded text-xs font-semibold capitalize ${ROLE_STYLE[u.role.toLowerCase()] ?? "bg-gray-100 text-gray-600"}`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-sm max-w-[160px] truncate">
-                        {u.device_info ? (
-                          <span className="font-semibold px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs inline-flex items-center gap-1" title={u.device_info}>
-                            <Smartphone size={10} className="text-slate-500" /> {u.device_info}
-                          </span>
-                        ) : (
-                          <span className="font-semibold px-2 py-1 bg-gray-50 text-gray-400 rounded text-xs">
-                            Belum Terikat
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2.5">
-                          {u.role !== "admin" && (
-                            <button
-                              onClick={() => handleLoginAsUser(u)}
-                              className="text-teal-600 bg-teal-50 hover:bg-teal-100 border border-teal-200/80 px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0 active:scale-95 shadow-3xs"
-                              title={`Masuk langsung ke dashboard @${u.username} tanpa QR`}
-                            >
-                              <LogIn size={13} />
-                              <span className="text-[10.5px]">Masuk</span>
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleEditTrigger(u)}
-                            className="text-gray-300 hover:text-[#2AB0B2] transition-colors cursor-pointer"
-                            title="Edit Akun"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          {!u.is_active && (
-                            <button
-                              onClick={() => handleApproveUser(u.username)}
-                              className="text-gray-300 hover:text-emerald-500 transition-colors cursor-pointer"
-                              title="Setujui Akun"
-                            >
-                              <Check size={16} />
-                            </button>
-                          )}
-                          {u.device_id && (
-                            <button
-                              onClick={() => handleResetDevice(u.username)}
-                              className="text-gray-300 hover:text-amber-500 transition-colors cursor-pointer"
-                              title="Reset Perangkat HP"
-                            >
-                              <Smartphone size={16} />
-                            </button>
-                          )}
-                          {u.role !== "admin" && (
-                            <button
-                              onClick={() => setCardModalUser(u)}
-                              className="text-gray-300 hover:text-[#2AB0B2] transition-colors cursor-pointer"
-                              title="Cetak Kartu Karyawan"
-                            >
-                              <CreditCard size={16} />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDeleteUser(u.username)}
-                            className="text-gray-300 hover:text-red-500 transition-colors cursor-pointer"
-                            title="Hapus Akun Permanen"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={5} className="text-center py-8 text-sm text-gray-400 font-medium">
+                        Memuat daftar pengguna...
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="text-center py-8 text-sm text-gray-400 font-medium">
-                      Tidak ada data pengguna ditemukan
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  ) : filteredUsers.length > 0 ? (
+                    filteredUsers.map((u, i) => (
+                      <tr key={i} className="border-b border-gray-55 last:border-0 hover:bg-gray-50/30 transition-colors">
+                        <td className="px-5 py-4 text-sm font-mono text-[#1C3D3F] font-semibold">
+                          @{u.username}
+                        </td>
+                        <td className="px-5 py-4 text-sm text-gray-600 font-medium">
+                          <div className="font-bold text-[#1C3D3F] flex items-center gap-2">
+                            <span>{u.nama_lengkap}</span>
+                            {u.role.toLowerCase() === "student" && (
+                              isAlumniStudent(u) ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">
+                                  <GraduationCap size={11} /> Alumni
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> PKL Aktif
+                                </span>
+                              )
+                            )}
+                          </div>
+                          {u.no_karyawan && (
+                            <div className="text-[10px] text-[#2AB0B2] font-mono font-bold mt-0.5">{u.no_karyawan}</div>
+                          )}
+                          {u.school_name && (
+                            <div className="text-xs text-gray-500 font-medium mt-0.5 flex items-center gap-1">
+                              🏫 {u.school_name}
+                            </div>
+                          )}
+                          {u.jabatan && !u.school_name && (
+                            <div className="text-xs text-gray-400 font-normal mt-0.5">{u.jabatan}</div>
+                          )}
+                          {(u.start_date || u.end_date) && (
+                            <div className="text-[10px] text-gray-400 font-mono mt-0.5">
+                              Periode: {u.start_date || "-"} s/d {u.end_date || "-"}
+                            </div>
+                          )}
+                          {(u.email || u.no_telp) && (
+                            <div className="text-[10px] text-gray-500 font-mono mt-0.5 flex flex-wrap items-center gap-1.5">
+                              {u.email && <span className="flex items-center gap-0.5"><Mail size={9} className="text-[#2AB0B2]" />{u.email}</span>}
+                              {u.email && u.no_telp && <span className="text-gray-300">|</span>}
+                              {u.no_telp && <span className="flex items-center gap-0.5"><Phone size={9} className="text-[#2AB0B2]" />{u.no_telp}</span>}
+                            </div>
+                          )}
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            {u.attendance_telegram_group_name ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title={`Chat ID: ${u.attendance_telegram_chat_id || ''}`}>
+                                📢 Absen: {u.attendance_telegram_group_name}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                                ⚠️ Absen: Belum Ada Grup
+                              </span>
+                            )}
+                            {u.telegram_chat_name && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-200" title={`KIE Chat ID: ${u.telegram_chat_id}`}>
+                                💬 KIE: {u.telegram_chat_name}
+                              </span>
+                            )}
+                          </div>
+                          {u.kie_submissions_count !== undefined && u.kie_submissions_count > 0 && (
+                            <div className="mt-1">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-600 border border-teal-100">
+                                <Key size={10} className="mr-1 text-teal-600" /> KIE API: {u.kie_submissions_count}x Setor
+                              </span>
+                            </div>
+                          )}
+                          {!u.is_active && (
+                            <span className="mt-1 inline-block px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded animate-pulse">
+                              Menunggu Persetujuan
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className={`px-2.5 py-1 rounded text-xs font-semibold capitalize ${ROLE_STYLE[u.role.toLowerCase()] ?? "bg-gray-100 text-gray-600"}`}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-sm max-w-[160px] truncate">
+                          {u.device_info ? (
+                            <span className="font-semibold px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs inline-flex items-center gap-1" title={u.device_info}>
+                              <Smartphone size={10} className="text-slate-500" /> {u.device_info}
+                            </span>
+                          ) : (
+                            <span className="font-semibold px-2 py-1 bg-gray-50 text-gray-400 rounded text-xs">
+                              Belum Terikat
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2.5">
+                            {u.role !== "admin" && (
+                              <button
+                                onClick={() => handleLoginAsUser(u)}
+                                className="text-teal-600 bg-teal-50 hover:bg-teal-100 border border-teal-200/80 px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0 active:scale-95 shadow-3xs"
+                                title={`Masuk langsung ke dashboard @${u.username} tanpa QR`}
+                              >
+                                <LogIn size={13} />
+                                <span className="text-[10.5px]">Masuk</span>
+                              </button>
+                            )}
+
+                            {/* Tombol Arsipkan ke Alumni / Kembalikan ke Aktif untuk Siswa PKL */}
+                            {u.role.toLowerCase() === "student" && (
+                              isAlumniStudent(u) ? (
+                                <button
+                                  onClick={() => handleToggleArchiveStudent(u, "ACTIVE")}
+                                  className="text-gray-300 hover:text-emerald-500 transition-colors cursor-pointer"
+                                  title="Kembalikan ke Siswa PKL Aktif"
+                                >
+                                  <RotateCcw size={16} />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleToggleArchiveStudent(u, "COMPLETED")}
+                                  className="text-gray-300 hover:text-purple-600 transition-colors cursor-pointer"
+                                  title="Arsipkan ke Data Alumni PKL"
+                                >
+                                  <Archive size={16} />
+                                </button>
+                              )
+                            )}
+
+                            <button
+                              onClick={() => handleEditTrigger(u)}
+                              className="text-gray-300 hover:text-[#2AB0B2] transition-colors cursor-pointer"
+                              title="Edit Akun"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            {!u.is_active && (
+                              <button
+                                onClick={() => handleApproveUser(u.username)}
+                                className="text-gray-300 hover:text-emerald-500 transition-colors cursor-pointer"
+                                title="Setujui Akun"
+                              >
+                                <Check size={16} />
+                              </button>
+                            )}
+                            {u.device_id && (
+                              <button
+                                onClick={() => handleResetDevice(u.username)}
+                                className="text-gray-300 hover:text-amber-500 transition-colors cursor-pointer"
+                                title="Reset Perangkat HP"
+                              >
+                                <Smartphone size={16} />
+                              </button>
+                            )}
+                            {u.role !== "admin" && (
+                              <button
+                                onClick={() => setCardModalUser(u)}
+                                className="text-gray-300 hover:text-[#2AB0B2] transition-colors cursor-pointer"
+                                title="Cetak Kartu Karyawan"
+                              >
+                                <CreditCard size={16} />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteUser(u.username)}
+                              className="text-gray-300 hover:text-red-500 transition-colors cursor-pointer"
+                              title="Hapus Akun Permanen"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="text-center py-8 text-sm text-gray-400 font-medium">
+                        {activeFilterTab === "student_alumni"
+                          ? "Belum ada data arsip alumni PKL"
+                          : activeFilterTab === "student_active"
+                          ? "Belum ada siswa yang sedang aktif PKL"
+                          : "Tidak ada data pengguna ditemukan"}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        );
+      })()}
 
         {/* Create / Edit User Modal Overlay */}
         {isUserModalOpen && (
@@ -814,6 +1059,19 @@ export default function AdminUsersPage() {
                         required
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status Keaktifan PKL</label>
+                    <select
+                      value={pklStatus}
+                      onChange={(e) => setPklStatus(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none bg-white text-gray-700 transition-colors cursor-pointer font-medium"
+                    >
+                      <option value="ACTIVE">🟢 Siswa PKL Aktif (Sedang Berjalan)</option>
+                      <option value="COMPLETED">🎓 Alumni PKL (Selesai / Lulus Magang)</option>
+                      <option value="ARCHIVED">📁 Diarsipkan / Nonaktif</option>
+                    </select>
                   </div>
 
                   {/* Notice Tanggal Mulai Magang */}

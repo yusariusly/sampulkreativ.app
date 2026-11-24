@@ -136,6 +136,12 @@ async function findWeeklySummariesByMentor(dbClient, mentorId, weekNumber) {
       s.id as student_id,
       u.nama_lengkap as student_name,
       s.school_name,
+      s.start_date,
+      s.end_date,
+      CASE 
+        WHEN s.end_date IS NOT NULL AND s.end_date < CURRENT_DATE THEN 'COMPLETED'
+        ELSE COALESCE(s.status, 'ACTIVE')
+      END AS status,
       ws.id as summary_id,
       ws.week_number,
       COALESCE(ws.total_points, 0) as total_points,
@@ -145,7 +151,7 @@ async function findWeeklySummariesByMentor(dbClient, mentorId, weekNumber) {
     FROM pkl_students s
     JOIN users u ON s.user_id = u.id
     LEFT JOIN pkl_weekly_summaries ws ON s.id = ws.student_id AND ws.week_number = ?
-    WHERE s.status = 'ACTIVE' AND u.role = 'student'
+    WHERE s.status IN ('ACTIVE', 'COMPLETED', 'ARCHIVED') AND u.role = 'student'
   `;
   const params = [weekNumber];
   if (mentorId) {

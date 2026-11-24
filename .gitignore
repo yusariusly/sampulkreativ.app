@@ -35,3 +35,4 @@ backend/rollback_*.js
 backend/delete_*.js
 backend/verify_*.js
 backend/list_*.js
+deploy_server.py

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Search, Calendar, ChevronDown, Download, CheckCircle2, XCircle, Send, ChevronLeft, ChevronRight, AlertTriangle, Edit2, Users, User } from "lucide-react";
+import { Search, Calendar, ChevronDown, Download, CheckCircle2, XCircle, Send, ChevronLeft, ChevronRight, AlertTriangle, Edit2, Users, User, GraduationCap } from "lucide-react";
 
 const TEAL = "#2AB0B2";
 
@@ -34,6 +34,18 @@ export default function AdminDataPage() {
   const [loading, setLoading] = useState(true);
   const [holidays, setHolidays] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<"daily" | "user">("daily");
+
+  // Filters
+  const [dailyCategoryFilter, setDailyCategoryFilter] = useState<"all" | "employee" | "student_active" | "student_alumni">("all");
+  const [userCategoryFilter, setUserCategoryFilter] = useState<"all" | "employee" | "student_active" | "student_alumni">("all");
+
+  const isAlumniUser = (u: any) => {
+    if (!u) return false;
+    if (u.role?.toLowerCase() !== "student") return false;
+    if (u.pkl_status === "COMPLETED" || u.pkl_status === "ARCHIVED") return true;
+    if (u.end_date && new Date(u.end_date) < new Date(new Date().setHours(0, 0, 0, 0))) return true;
+    return false;
+  };
 
   // User list view state
   const [selectedUserForHistory, setSelectedUserForHistory] = useState<any | null>(null);
@@ -315,18 +327,28 @@ export default function AdminDataPage() {
 
   const AVATAR_COLORS = [TEAL, "#F6C13B", "#10B981", "#3B82F6", "#6B7280", "#8B5CF6", "#F59E0B"];
 
-  // Filter rows based on search query and selected date
+  // Filter rows based on search query, selected date, and category filter
   const filteredRows = rows.filter((row) => {
     // 1. Match selected date
     const logDateStr = getLocalDateString(new Date(row.waktu_absen));
     if (logDateStr !== selectedDate) return false;
 
     // 2. Match search query
-    return (
+    const matchesSearch =
       row.nama_lengkap.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (row.username && row.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      row.status.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+      row.status.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+
+    // 3. Match category filter
+    if (dailyCategoryFilter !== "all") {
+      const u = users.find(usr => usr.id === row.user_id || usr.username === row.username);
+      if (dailyCategoryFilter === "employee") return u?.role === "employee";
+      if (dailyCategoryFilter === "student_active") return u?.role === "student" && !isAlumniUser(u);
+      if (dailyCategoryFilter === "student_alumni") return isAlumniUser(u);
+    }
+
+    return true;
   });
 
   const formatDateTime = (isoString: string) => {
@@ -451,14 +473,34 @@ export default function AdminDataPage() {
                     onChange={(e) => setOverrideUser(e.target.value)}
                     className="w-full pl-3.5 pr-10 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] focus:ring-2 focus:ring-[#2AB0B2]/10 outline-none bg-white text-gray-700 transition-all cursor-pointer font-semibold shadow-xs appearance-none"
                   >
-                    <option value="">Pilih Karyawan</option>
-                    {users
-                      .filter((u) => u.role !== "admin")
-                      .map((u) => (
-                        <option key={u.username} value={u.username} className="font-semibold text-gray-700">
-                          {u.nama_lengkap}
-                        </option>
-                      ))}
+                    <option value="">Pilih Karyawan / Siswa</option>
+                    <optgroup label="Karyawan">
+                      {users
+                        .filter((u) => u.role === "employee")
+                        .map((u) => (
+                          <option key={u.username} value={u.username} className="font-semibold text-gray-700">
+                            {u.nama_lengkap}
+                          </option>
+                        ))}
+                    </optgroup>
+                    <optgroup label="Siswa PKL Aktif">
+                      {users
+                        .filter((u) => u.role === "student" && !isAlumniUser(u))
+                        .map((u) => (
+                          <option key={u.username} value={u.username} className="font-semibold text-gray-700">
+                            {u.nama_lengkap}
+                          </option>
+                        ))}
+                    </optgroup>
+                    <optgroup label="Arsip Alumni PKL">
+                      {users
+                        .filter((u) => isAlumniUser(u))
+                        .map((u) => (
+                          <option key={u.username} value={u.username} className="font-semibold text-gray-700">
+                            🎓 {u.nama_lengkap} (Alumni)
+                          </option>
+                        ))}
+                    </optgroup>
                   </select>
                   <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-gray-400">
                     <ChevronDown size={16} />
@@ -691,6 +733,30 @@ export default function AdminDataPage() {
               </button>
             </div>
 
+            {/* Filter Kategori: Semua, Karyawan, Siswa Aktif, Alumni */}
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+              {[
+                { key: "all", label: "Semua" },
+                { key: "employee", label: "Karyawan" },
+                { key: "student_active", label: "Siswa Aktif" },
+                { key: "student_alumni", label: "Alumni PKL" },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setDailyCategoryFilter(tab.key as any)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    dailyCategoryFilter === tab.key
+                      ? (tab.key === "student_alumni" ? "bg-purple-700 text-white shadow-xs" : "bg-[#2AB0B2] text-white shadow-xs")
+                      : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                  }`}
+                >
+                  {tab.key === "student_alumni" && <GraduationCap size={12} className="inline mr-1" />}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             {/* Search bar */}
             <div className="flex items-center gap-2 bg-white border border-gray-250 rounded-xl px-4 py-2 w-full md:w-64 shadow-xs">
               <Search size={16} className="text-gray-400 flex-shrink-0" />
@@ -731,12 +797,38 @@ export default function AdminDataPage() {
                         {formatDateTime(r.waktu_absen)}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-gray-800">
-                        {r.nama_lengkap}
-                        {r.diubah_oleh_admin && (
-                          <span className="text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded ml-2 font-semibold text-[10px]">
-                            Manual Override
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span>{r.nama_lengkap}</span>
+                          {(() => {
+                            const u = users.find(usr => usr.id === r.user_id || usr.username === r.username);
+                            if (!u) return null;
+                            if (isAlumniUser(u)) {
+                              return (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-100 text-purple-700">
+                                  <GraduationCap size={10} />
+                                  Alumni
+                                </span>
+                              );
+                            }
+                            if (u.role === "student") {
+                              return (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700">
+                                  Siswa PKL
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-600">
+                                Karyawan
+                              </span>
+                            );
+                          })()}
+                          {r.diubah_oleh_admin && (
+                            <span className="text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded font-semibold text-[10px]">
+                              Manual Override
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {r.latitude ? `${r.latitude.toFixed(6)}, ${r.longitude.toFixed(6)}` : "Tanpa GPS"}
@@ -801,14 +893,38 @@ export default function AdminDataPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Column: User Selection List */}
           <div className="lg:col-span-4 bg-white rounded-2xl border border-gray-100 p-4 shadow-xs">
-            <h2 className="text-sm font-bold text-[#1C3D3F] mb-3">Daftar Karyawan</h2>
+            <h2 className="text-sm font-bold text-[#1C3D3F] mb-3">Daftar Pengguna & Alumni</h2>
             
+            {/* Filter Pills Kategori User */}
+            <div className="grid grid-cols-2 gap-1.5 mb-3 select-none">
+              {[
+                { key: "all", label: "Semua" },
+                { key: "employee", label: "Karyawan" },
+                { key: "student_active", label: "Siswa Aktif" },
+                { key: "student_alumni", label: "Alumni PKL" },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setUserCategoryFilter(tab.key as any)}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
+                    userCategoryFilter === tab.key
+                      ? (tab.key === "student_alumni" ? "bg-purple-700 text-white shadow-xs" : "bg-[#2AB0B2] text-white shadow-xs")
+                      : "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200/70"
+                  }`}
+                >
+                  {tab.key === "student_alumni" && <GraduationCap size={11} className="inline mr-1" />}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             {/* Search Input for User List */}
-            <div className="flex items-center gap-2 bg-gray-55 border border-gray-200 rounded-xl px-3 py-2 mb-4">
+            <div className="flex items-center gap-2 bg-gray-55 border border-gray-200 rounded-xl px-3 py-2 mb-3">
               <Search size={14} className="text-gray-400 flex-shrink-0" />
               <input
                 type="text"
-                placeholder="Cari karyawan..."
+                placeholder="Cari nama karyawan / siswa..."
                 value={userSearchQuery}
                 onChange={(e) => setUserSearchQuery(e.target.value)}
                 className="flex-1 outline-none text-xs text-gray-700 bg-transparent min-w-0 font-semibold"
@@ -819,32 +935,59 @@ export default function AdminDataPage() {
             <div className="space-y-2 overflow-y-auto max-h-[500px] pr-1">
               {users
                 .filter(u => u.role !== 'admin' && u.nama_lengkap.toLowerCase().includes(userSearchQuery.toLowerCase()))
+                .filter(u => {
+                  if (userCategoryFilter === "employee") return u.role === "employee";
+                  if (userCategoryFilter === "student_active") return u.role === "student" && !isAlumniUser(u);
+                  if (userCategoryFilter === "student_alumni") return isAlumniUser(u);
+                  return true;
+                })
                 .map((u, i) => {
                   const isSelected = selectedUserForHistory?.id === u.id;
+                  const isAlumni = isAlumniUser(u);
+                  const isStudent = u.role === "student";
+
                   return (
                     <button
                       key={u.id}
                       onClick={() => setSelectedUserForHistory(u)}
                       className={`w-full text-left p-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer ${
                         isSelected 
-                          ? "bg-[#2AB0B2]/10 border border-[#2AB0B2] text-[#1C3D3F]" 
+                          ? (isAlumni ? "bg-purple-50 border border-purple-500 text-purple-950" : "bg-[#2AB0B2]/10 border border-[#2AB0B2] text-[#1C3D3F]")
                           : "bg-white hover:bg-gray-50 border border-gray-100 text-gray-700"
                       }`}
                     >
                       {/* Avatar */}
                       <div 
                         className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white uppercase shrink-0 ${
-                          isSelected ? "bg-[#2AB0B2]" : "bg-gray-300"
+                          isSelected ? (isAlumni ? "bg-purple-700" : "bg-[#2AB0B2]") : "bg-gray-300"
                         }`}
-                        style={{ backgroundColor: isSelected ? undefined : AVATAR_COLORS[i % AVATAR_COLORS.length] }}
+                        style={{ backgroundColor: isSelected ? undefined : (isAlumni ? "#7e22ce" : AVATAR_COLORS[i % AVATAR_COLORS.length]) }}
                       >
                         {u.nama_lengkap.split(" ").map((w: string) => w[0]).join("").slice(0, 2)}
                       </div>
                       
                       {/* Details */}
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold truncate leading-tight">{u.nama_lengkap}</p>
-                        <p className="text-[10px] text-gray-400 mt-1 uppercase font-black tracking-wider">{u.role === 'student' ? 'Siswa PKL' : 'Karyawan'}</p>
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-sm font-bold truncate leading-tight">{u.nama_lengkap}</p>
+                          {isAlumni ? (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8.5px] font-black bg-purple-100 text-purple-700 shrink-0">
+                              <GraduationCap size={9} />
+                              Alumni
+                            </span>
+                          ) : isStudent ? (
+                            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-black bg-emerald-100 text-emerald-700 shrink-0">
+                              PKL Aktif
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-black bg-slate-100 text-slate-600 shrink-0">
+                              Karyawan
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1 uppercase font-semibold tracking-wider">
+                          {isAlumni ? `${u.school_name || "Alumni Magang"}` : (isStudent ? `${u.school_name || "Siswa PKL"}` : (u.jabatan || "Karyawan"))}
+                        </p>
                       </div>
                     </button>
                   );

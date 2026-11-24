@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 interface Curriculum { id: string; title: string; duration_months: number; student_count: number; }
-interface Student { student_id: string; student_name: string; school_name?: string; no_karyawan?: string | null; start_date: string; end_date: string; }
+interface Student { student_id: string; student_name: string; school_name?: string; no_karyawan?: string | null; start_date: string; end_date: string; status?: string; }
 interface Criterion { id: number; name: string; sort_order: number; }
 interface MonthData {
   month_number: number; month_label: string; month_start: string; month_end: string;
@@ -507,6 +507,7 @@ export default function CertificatePage() {
         student_name: s.nama_lengkap,
         school_name: s.school_name || 'Politeknik Negeri Bandung',
         no_karyawan: s.no_karyawan || null,
+        status: s.status || 'ACTIVE',
         start_date: s.start_date ? new Date(s.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
         end_date: s.end_date ? new Date(s.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
       }));
@@ -823,10 +824,91 @@ export default function CertificatePage() {
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Siswa</span>
                 <div className="relative">
                   <button type="button" onClick={() => setIsStudentOpen(!isStudentOpen)} disabled={!students.length} className="flex items-center gap-2 bg-slate-50 px-3.5 py-1.5 border border-slate-200 rounded-xl h-[36px] cursor-pointer hover:border-slate-300 transition-colors disabled:opacity-60">
-                    <span className="text-xs font-bold text-slate-700">{currentStudent?.student_name ?? "—"}</span>
+                    <span className="text-xs font-bold text-slate-700 truncate max-w-[160px]">{currentStudent?.student_name ?? "—"}</span>
+                    {currentStudent?.status && currentStudent.status !== "ACTIVE" && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-700 shrink-0">Alumni</span>
+                    )}
                     <ChevronDown size={12} className={`text-slate-400 transition-transform ${isStudentOpen ? "rotate-180" : ""}`} />
                   </button>
-                  {isStudentOpen && students.length > 0 && (<><div className="fixed inset-0 z-40" onClick={() => setIsStudentOpen(false)} /><div className="absolute top-[40px] left-0 min-w-[260px] bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[280px] overflow-y-auto">{students.map(s => (<button key={s.student_id} type="button" onClick={() => { setSelectedStudentId(s.student_id); setIsStudentOpen(false); }} className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer ${s.student_id === selectedStudentId ? "bg-[#2AB0B2] text-white" : "text-slate-700 hover:bg-slate-50"}`}><div className="flex flex-col min-w-0"><span className="truncate">{s.student_name}</span><span className={`text-[9px] font-semibold mt-0.5 ${s.student_id === selectedStudentId ? "text-white/70" : "text-slate-400"}`}>{s.start_date} – {s.end_date}</span></div>{s.student_id === selectedStudentId && <Check size={12} className="ml-2 flex-shrink-0" />}</button>))}</div></>)}
+                  {isStudentOpen && students.length > 0 && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsStudentOpen(false)} />
+                      <div className="absolute top-[40px] left-0 min-w-[290px] bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[320px] overflow-y-auto">
+                        {/* Kelompok Siswa Aktif */}
+                        {(() => {
+                          const activeList = students.filter(s => s.status === "ACTIVE");
+                          const alumniList = students.filter(s => s.status !== "ACTIVE");
+                          return (
+                            <>
+                              <div className="px-3 py-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50/80 rounded-lg uppercase tracking-wider mb-1 flex items-center justify-between">
+                                <span>Siswa PKL Aktif</span>
+                                <span className="bg-emerald-200/60 text-emerald-800 px-1.5 py-0.2 rounded-full text-[9px] font-black">{activeList.length}</span>
+                              </div>
+                              {activeList.length === 0 ? (
+                                <p className="text-[10px] text-slate-400 px-3 py-1.5 italic">Tidak ada siswa aktif di kurikulum ini</p>
+                              ) : (
+                                activeList.map(s => (
+                                  <button
+                                    key={s.student_id}
+                                    type="button"
+                                    onClick={() => { setSelectedStudentId(s.student_id); setIsStudentOpen(false); }}
+                                    className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer mb-0.5 ${
+                                      s.student_id === selectedStudentId ? "bg-[#2AB0B2] text-white" : "text-slate-700 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="truncate">{s.student_name}</span>
+                                      <span className={`text-[9px] font-semibold mt-0.5 ${s.student_id === selectedStudentId ? "text-white/70" : "text-slate-400"}`}>
+                                        {s.school_name}
+                                      </span>
+                                    </div>
+                                    {s.student_id === selectedStudentId && <Check size={12} className="ml-2 flex-shrink-0" />}
+                                  </button>
+                                ))
+                              )}
+
+                              <div className="border-t border-slate-100 my-1.5" />
+
+                              {/* Kelompok Alumni */}
+                              <div className="px-3 py-1.5 text-[10px] font-bold text-purple-700 bg-purple-50/80 rounded-lg uppercase tracking-wider mb-1 flex items-center justify-between">
+                                <span>Arsip Alumni PKL</span>
+                                <span className="bg-purple-200/60 text-purple-800 px-1.5 py-0.2 rounded-full text-[9px] font-black">{alumniList.length}</span>
+                              </div>
+                              {alumniList.length === 0 ? (
+                                <p className="text-[10px] text-slate-400 px-3 py-1.5 italic">Belum ada arsip alumni di kurikulum ini</p>
+                              ) : (
+                                alumniList.map(s => (
+                                  <button
+                                    key={s.student_id}
+                                    type="button"
+                                    onClick={() => { setSelectedStudentId(s.student_id); setIsStudentOpen(false); }}
+                                    className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer mb-0.5 ${
+                                      s.student_id === selectedStudentId ? "bg-purple-700 text-white" : "text-slate-700 hover:bg-purple-50/50"
+                                    }`}
+                                  >
+                                    <div className="flex flex-col min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="truncate">{s.student_name}</span>
+                                        <span className={`px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
+                                          s.student_id === selectedStudentId ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"
+                                        }`}>
+                                          Alumni
+                                        </span>
+                                      </div>
+                                      <span className={`text-[9px] font-semibold mt-0.5 ${s.student_id === selectedStudentId ? "text-white/70" : "text-slate-400"}`}>
+                                        {s.start_date || "-"} s/d {s.end_date || "-"}
+                                      </span>
+                                    </div>
+                                    {s.student_id === selectedStudentId && <Check size={12} className="ml-2 flex-shrink-0" />}
+                                  </button>
+                                ))
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 

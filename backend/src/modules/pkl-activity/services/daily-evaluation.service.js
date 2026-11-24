@@ -69,7 +69,7 @@ async function saveDailyEvaluation(dbClient, mentorId, evalData) {
       const student = await studentRepo.findById(dbClient, evalData.student_id);
       if (student) {
         // Hitung progres minggu aktif evaluasi
-        const progress = studentService.calculatePklProgress(student.start_date, 4, evalData.evaluation_date);
+        const progress = studentService.calculatePklProgress(student.start_date, student.duration_months || 4, evalData.evaluation_date);
         const activeWeek = progress.active_week;
 
         // Dapatkan range Senin s.d Minggu

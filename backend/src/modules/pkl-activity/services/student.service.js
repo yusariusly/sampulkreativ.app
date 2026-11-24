@@ -58,14 +58,13 @@ function calculatePklProgress(startDateStr, durationMonths, currentDateStr) {
   let activeWeek = Math.floor(diffDays / 7) + 1;
   const totalWeeks = durationMonths * 4; // Ketentuan V1: 1 bulan = 4 minggu
 
-  // Batasi activeWeek agar tidak kurang dari 1 atau melebihi totalWeeks
+  // Batasi activeWeek agar tidak kurang dari 1
   if (activeWeek < 1) activeWeek = 1;
-  const cappedActiveWeek = Math.min(activeWeek, totalWeeks);
-  const percentage = Math.min(100, Math.max(0, Math.round((cappedActiveWeek / totalWeeks) * 100)));
+  const percentage = Math.min(100, Math.max(0, Math.round((activeWeek / totalWeeks) * 100)));
 
   return {
-    active_week: cappedActiveWeek,
-    total_weeks: totalWeeks,
+    active_week: activeWeek,
+    total_weeks: Math.max(totalWeeks, activeWeek),
     percentage
   };
 }

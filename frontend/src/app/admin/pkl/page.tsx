@@ -20,6 +20,7 @@ import {
   Edit,
   Check,
   X,
+  GraduationCap,
 } from "lucide-react";
 
 
@@ -46,6 +47,7 @@ interface AssignedStudent {
   id: string;
   nama_lengkap: string;
   school_name: string;
+  status?: string;
 }
 
 /** Which view is currently active in the single-panel navigation */
@@ -871,37 +873,70 @@ export default function PklManagementPage() {
               </button>
             </div>
 
-            {/* Siswa Aktif */}
-            <div className="border-t border-slate-100 mt-4 pt-4">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2.5 flex items-center gap-1.5">
-                <Users size={12} />
-                Siswa Aktif ({assignedStudents.length})
-              </span>
-
-              {loadingStudents ? (
-                <div className="flex items-center gap-1.5 py-1">
-                  <Loader2 className="animate-spin text-[#2AB0B2]" size={12} />
-                  <span className="text-xs text-slate-400">Memuat...</span>
-                </div>
-              ) : assignedStudents.length === 0 ? (
-                <p className="text-xs text-slate-400 font-medium">
-                  Belum ada siswa aktif yang terdaftar di kurikulum ini.
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {assignedStudents.map((st) => (
-                    <span
-                      key={st.id}
-                      className="text-xs font-semibold px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg"
-                      title={st.school_name}
-                    >
-                      {st.nama_lengkap}
-                      <span className="font-normal text-emerald-500 ml-1">({st.school_name})</span>
+            {/* Pemisahan Siswa Aktif & Arsip Alumni */}
+            {(() => {
+              const activeStudents = assignedStudents.filter((st) => st.status === "ACTIVE" || !st.status);
+              const alumniStudents = assignedStudents.filter((st) => st.status === "COMPLETED" || st.status === "ARCHIVED");
+              return (
+                <div className="border-t border-slate-100 mt-4 pt-4 space-y-4">
+                  {/* Siswa PKL Aktif */}
+                  <div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2.5 flex items-center gap-1.5">
+                      <Users size={12} className="text-emerald-500" />
+                      Siswa PKL Aktif ({activeStudents.length})
                     </span>
-                  ))}
+
+                    {loadingStudents ? (
+                      <div className="flex items-center gap-1.5 py-1">
+                        <Loader2 className="animate-spin text-[#2AB0B2]" size={12} />
+                        <span className="text-xs text-slate-400">Memuat...</span>
+                      </div>
+                    ) : activeStudents.length === 0 ? (
+                      <p className="text-xs text-slate-400 font-medium">
+                        Tidak ada siswa yang sedang aktif di kurikulum ini.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {activeStudents.map((st) => (
+                          <span
+                            key={st.id}
+                            className="text-xs font-semibold px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg inline-flex items-center gap-1.5"
+                            title={st.school_name}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            {st.nama_lengkap}
+                            <span className="font-normal text-emerald-600/70 ml-0.5">({st.school_name})</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Arsip Alumni PKL */}
+                  {alumniStudents.length > 0 && (
+                    <div className="pt-3 border-t border-dashed border-slate-200">
+                      <span className="text-[9px] font-black text-purple-600 uppercase tracking-widest block mb-2.5 flex items-center gap-1.5">
+                        <GraduationCap size={13} />
+                        Arsip Alumni PKL ({alumniStudents.length})
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {alumniStudents.map((st) => (
+                          <span
+                            key={st.id}
+                            className="text-xs font-semibold px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200/60 rounded-lg inline-flex items-center gap-1.5"
+                            title={`Alumni: ${st.school_name}`}
+                          >
+                            <GraduationCap size={11} className="text-purple-500" />
+                            {st.nama_lengkap}
+                            <span className="font-normal text-purple-500 ml-0.5">({st.school_name})</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
 
           {/* Form: Tambah Aktivitas Mingguan */}

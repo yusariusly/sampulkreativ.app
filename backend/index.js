@@ -1897,13 +1897,33 @@ const fillAlpaForAllUsers = async () => {
   }
 };
 
+// Fungsi otomatisasi arsip siswa PKL yang sudah melewati tanggal selesai magang (end_date < CURRENT_DATE)
+const autoArchiveExpiredPklStudents = async () => {
+  try {
+    const [result] = await pool.query(`
+      UPDATE pkl_students 
+      SET status = 'COMPLETED', updated_at = NOW() 
+      WHERE status = 'ACTIVE' 
+        AND end_date IS NOT NULL 
+        AND end_date < CURRENT_DATE
+    `);
+    if (result && (result.affectedRows > 0 || result.rowCount > 0)) {
+      console.log(`[AutoArchive] Siswa PKL yang lewat masa magang otomatis diarsipkan ke status COMPLETED`);
+    }
+  } catch (err) {
+    console.error("[AutoArchive] Gagal auto-archive siswa PKL:", err);
+  }
+};
+
 // Auto-run periodic auto-alpa check every 30 minutes and after server startup
 if (!process.env.VERCEL) {
   setTimeout(() => {
     fillAlpaForAllUsers().catch(err => console.error("Error initial fillAlpaForAllUsers:", err));
+    autoArchiveExpiredPklStudents().catch(err => console.error("Error initial autoArchiveExpiredPklStudents:", err));
   }, 10000);
   setInterval(() => {
     fillAlpaForAllUsers().catch(err => console.error("Error periodic fillAlpaForAllUsers:", err));
+    autoArchiveExpiredPklStudents().catch(err => console.error("Error periodic autoArchiveExpiredPklStudents:", err));
   }, 30 * 60 * 1000);
 }
 
@@ -2914,7 +2934,18 @@ app.get('/api/pkl-templates/:templateId/students', async (req, res) => {
   try {
     const { templateId } = req.params;
     const [rows] = await pool.query(`
-      SELECT u.id, s.id AS student_id, u.nama_lengkap, u.no_karyawan, s.school_name, s.start_date, s.end_date
+      SELECT 
+        u.id, 
+        s.id AS student_id, 
+        u.nama_lengkap, 
+        u.no_karyawan, 
+        s.school_name, 
+        s.start_date, 
+        s.end_date, 
+        CASE 
+          WHEN s.end_date IS NOT NULL AND s.end_date < CURRENT_DATE THEN 'COMPLETED'
+          ELSE COALESCE(s.status, 'ACTIVE')
+        END AS status
       FROM pkl_students s
       JOIN users u ON s.user_id = u.id
       WHERE s.program_template_id = ? AND s.status IN ('ACTIVE', 'COMPLETED', 'ARCHIVED')
@@ -2927,9 +2958,37 @@ app.get('/api/pkl-templates/:templateId/students', async (req, res) => {
   }
 });
 
+// Endpoint untuk ubah status arsip/alumni siswa PKL (ACTIVE, COMPLETED, ARCHIVED)
+app.post('/api/students/:id/archive-status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!status || !['ACTIVE', 'COMPLETED', 'ARCHIVED'].includes(status)) {
+      return res.status(400).json({ error: 'Status tidak valid. Harus ACTIVE, COMPLETED, atau ARCHIVED' });
+    }
+
+    const [result] = await pool.query(
+      "UPDATE pkl_students SET status = ?, updated_at = NOW() WHERE user_id = ? OR id = ?",
+      [status, id, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Data siswa PKL tidak ditemukan' });
+    }
+
+    res.json({ success: true, status, message: `Status siswa berhasil diubah menjadi ${status}` });
+  } catch (err) {
+    console.error("Gagal mengubah status arsip siswa:", err);
+    res.status(500).json({ error: 'Gagal mengubah status arsip siswa' });
+  }
+});
+
 // 4. Users CRUD API
 app.get('/api/users', async (req, res) => {
   try {
+    // Sinkronisasi status siswa pkl yang melewati masa magang secara berkala di background
+    autoArchiveExpiredPklStudents().catch(() => {});
+
     const [rows] = await pool.query(`
       SELECT 
         u.id, u.username, u.nama_lengkap, u.role, u.is_active, u.foto_profile, u.device_id, u.device_info, 
@@ -2937,7 +2996,11 @@ app.get('/api/users', async (req, res) => {
         u.attendance_telegram_group_id, tg.name AS attendance_telegram_group_name, tg.chat_id AS attendance_telegram_chat_id,
         s.school_name, s.mentor_id, m.nama_lengkap AS mentor_name, 
         s.program_template_id, t.title AS program_template_name, 
-        s.start_date, s.end_date, s.status AS pkl_status,
+        s.start_date, s.end_date, 
+        CASE 
+          WHEN s.end_date IS NOT NULL AND s.end_date < CURRENT_DATE THEN 'COMPLETED'
+          ELSE COALESCE(s.status, 'ACTIVE')
+        END AS pkl_status,
         (SELECT COUNT(*) FROM kie_submissions k WHERE k.user_id = u.id) AS kie_submissions_count
       FROM users u
       LEFT JOIN telegram_groups tg ON u.attendance_telegram_group_id = tg.id
@@ -3188,20 +3251,22 @@ app.put('/api/users', async (req, res) => {
       await pool.queryWithClient(client, `UPDATE users SET ${updateFields} WHERE id = ?`, params);
 
       if (targetRole === 'student') {
-        const [studentRows] = await pool.queryWithClient(client, 'SELECT id FROM pkl_students WHERE user_id = ?', [id]);
+        const pkl_status_val = req.body.pkl_status || 'ACTIVE';
+        const [studentRows] = await pool.queryWithClient(client, 'SELECT id, status FROM pkl_students WHERE user_id = ?', [id]);
         if (studentRows.length > 0) {
+          const finalStatus = req.body.pkl_status !== undefined ? pkl_status_val : (studentRows[0].status || 'ACTIVE');
           await pool.queryWithClient(client,
             `UPDATE pkl_students 
-             SET mentor_id = ?, program_template_id = ?, school_name = ?, start_date = ?, end_date = ?, status = 'ACTIVE' 
+             SET mentor_id = ?, program_template_id = ?, school_name = ?, start_date = ?, end_date = ?, status = ? 
              WHERE user_id = ?`,
-            [mentor_id_val, program_template_id_val, school_name_val.trim(), start_date_val, end_date_val, id]
+            [mentor_id_val, program_template_id_val, school_name_val.trim(), start_date_val, end_date_val, finalStatus, id]
           );
         } else {
           const studentProfileId = `std-${Date.now()}`;
           await pool.queryWithClient(client,
             `INSERT INTO pkl_students (id, user_id, mentor_id, program_template_id, school_name, start_date, end_date, status) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
-            [studentProfileId, id, mentor_id_val, program_template_id_val, school_name_val.trim(), start_date_val, end_date_val]
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [studentProfileId, id, mentor_id_val, program_template_id_val, school_name_val.trim(), start_date_val, end_date_val, pkl_status_val]
           );
         }
       } else if (currentRole === 'student' && targetRole !== 'student') {
