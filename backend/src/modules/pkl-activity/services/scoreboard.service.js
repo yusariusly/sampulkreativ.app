@@ -196,6 +196,9 @@ async function computeRankingsForWeek(dbClient, students, cohortWeekNumber) {
       profile_photo: student.student_avatar,
       school_name: student.school_name,
       program_template_id: student.program_template_id,
+      status: student.status,
+      start_date: student.start_date,
+      end_date: student.end_date,
       total_points: finalPoints,
       badges: allBadges,
       badges_count: allBadges.length,
@@ -299,6 +302,9 @@ async function getScoreboard(dbClient, user, weekNumber) {
       profile_photo: curr.student_avatar,
       school_name: curr.school_name,
       program_template_id: curr.program_template_id,
+      status: curr.status,
+      start_date: curr.start_date,
+      end_date: curr.end_date,
       total_points: curr.total_points,
       badges: curr.badges,
       rank: curr.rank,
@@ -323,7 +329,7 @@ async function getScoreboard(dbClient, user, weekNumber) {
  */
 async function getStudentScoreboardHistory(dbClient, studentId) {
   // Verifikasi siswa ada
-  const [stuRows] = await dbClient.query("SELECT start_date FROM pkl_students WHERE id = ? AND status = 'ACTIVE' LIMIT 1", [studentId]);
+  const [stuRows] = await dbClient.query("SELECT start_date FROM pkl_students WHERE id = ? AND status IN ('ACTIVE', 'COMPLETED', 'ARCHIVED') LIMIT 1", [studentId]);
   if (stuRows.length === 0) {
     const err = new Error('Siswa tidak ditemukan');
     err.code = 'NOT_FOUND';

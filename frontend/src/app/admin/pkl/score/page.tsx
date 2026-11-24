@@ -147,6 +147,7 @@ export default function PklScoreboardPage() {
   const [loadingScoreboard, setLoadingScoreboard] = useState(false);
   const [selectedSchool, setSelectedSchool] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<"all" | "active" | "alumni">("all");
   const [allTemplates, setAllTemplates] = useState<any[]>([]);
 
   // Loading States
@@ -574,12 +575,30 @@ export default function PklScoreboardPage() {
     return 1;
   }, [currentStudent, cohortStartDate]);
 
-  // Auto-switch jika minggu yang sedang dipilih berada sebelum tanggal siswa mulai magang
-  useEffect(() => {
-    if (activeTab === "evaluation" && currentStudent && selectedWeek < currentStudentStartWeek) {
-      setSelectedWeek(currentStudentStartWeek);
+  // Menghitung minggu akhir siswa selesai magang (relatif terhadap cohort)
+  const currentStudentEndWeek = useMemo(() => {
+    if (!currentStudent?.end_date) return 52;
+    const studentEndStr = formatJakartaDate(currentStudent.end_date);
+    for (let wk = 1; wk <= Math.max(52, cohortActiveWeek); wk++) {
+      const monFri = getMonFriDates(cohortStartDate, wk);
+      if (monFri[0].dateStr > studentEndStr) {
+        return Math.max(1, wk - 1);
+      }
     }
-  }, [selectedStudentId, currentStudentStartWeek, activeTab, selectedWeek, currentStudent]);
+    return Math.max(16, cohortActiveWeek);
+  }, [currentStudent, cohortStartDate, cohortActiveWeek]);
+
+  // Auto-switch jika minggu yang sedang dipilih berada di luar masa magang siswa
+  useEffect(() => {
+    if (activeTab === "evaluation" && currentStudent) {
+      const isAlumni = currentStudent.status === "COMPLETED" || currentStudent.status === "ARCHIVED" || (currentStudent.end_date && new Date(currentStudent.end_date) < new Date(new Date().setHours(0, 0, 0, 0)));
+      if (selectedWeek < currentStudentStartWeek) {
+        setSelectedWeek(currentStudentStartWeek);
+      } else if (isAlumni && selectedWeek > currentStudentEndWeek) {
+        setSelectedWeek(currentStudentEndWeek);
+      }
+    }
+  }, [selectedStudentId, currentStudentStartWeek, currentStudentEndWeek, activeTab, currentStudent]);
 
   // Fetch daily evaluations for the entire week when selected week, active tab or mentor changes
   useEffect(() => {
@@ -1461,7 +1480,9 @@ export default function PklScoreboardPage() {
                     const isCurrent = wkNum === cohortActiveWeek;
                     const isSelected = wkNum === selectedWeek;
                     const isBeforeStart = activeTab === "evaluation" && currentStudent && wkNum < currentStudentStartWeek;
+                    const isAfterEnd = activeTab === "evaluation" && currentStudent && wkNum > currentStudentEndWeek;
                     const isStartWeek = activeTab === "evaluation" && currentStudent && wkNum === currentStudentStartWeek;
+                    const isEndWeek = activeTab === "evaluation" && currentStudent && wkNum === currentStudentEndWeek;
 
                     if (isBeforeStart) {
                       return (
@@ -1473,6 +1494,21 @@ export default function PklScoreboardPage() {
                           <span className="line-through decoration-slate-350">{getWeekRangeLabel(wkNum)}</span>
                           <span className="text-[9px] font-bold text-slate-400 bg-slate-200/70 px-2 py-0.5 rounded-md">
                             Belum Magang
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (isAfterEnd) {
+                      return (
+                        <div
+                          key={wkNum}
+                          className="w-full text-left px-3.5 py-2 text-xs font-medium rounded-xl flex items-center justify-between select-none opacity-50 bg-purple-50/40 text-purple-700/60 cursor-not-allowed border border-dashed border-purple-200/60 mb-1"
+                          title="Siswa sudah selesai magang pada minggu ini"
+                        >
+                          <span className="line-through decoration-purple-300">{getWeekRangeLabel(wkNum)}</span>
+                          <span className="text-[9px] font-bold text-purple-700 bg-purple-100/80 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            <GraduationCap size={10} /> Selesai Magang
                           </span>
                         </div>
                       );
@@ -2399,6 +2435,45 @@ export default function PklScoreboardPage() {
             </div>
 
             <div className="flex flex-wrap gap-3 items-center">
+              {/* Status Filter Tabs (Semua / Siswa Aktif / Alumni) */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setSelectedStatusFilter("all")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    selectedStatusFilter === "all"
+                      ? "bg-white text-slate-800 shadow-xs"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Semua
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStatusFilter("active")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedStatusFilter === "active"
+                      ? "bg-white text-emerald-700 shadow-xs"
+                      : "text-slate-500 hover:text-emerald-700"
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Siswa Aktif
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStatusFilter("alumni")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedStatusFilter === "alumni"
+                      ? "bg-white text-purple-700 shadow-xs"
+                      : "text-slate-500 hover:text-purple-700"
+                  }`}
+                >
+                  <GraduationCap size={12} className="text-purple-600" />
+                  Alumni
+                </button>
+              </div>
+
               {/* School Filter */}
               <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 border border-slate-200 rounded-xl">
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase">Sekolah</span>
@@ -2444,10 +2519,19 @@ export default function PklScoreboardPage() {
             </div>
           ) : (
             (() => {
+              // Helper checking alumni status
+              const isAlumniScoreItem = (item: any) => {
+                if (item.status === "COMPLETED" || item.status === "ARCHIVED") return true;
+                if (item.end_date && new Date(item.end_date) < new Date(new Date().setHours(0, 0, 0, 0))) return true;
+                return false;
+              };
+
               // Apply Frontend Filters
               const filteredList = scoreboardData.filter((item) => {
                 if (selectedSchool && item.school_name !== selectedSchool) return false;
                 if (selectedTemplate && String(item.program_template_id) !== String(selectedTemplate)) return false;
+                if (selectedStatusFilter === "active" && isAlumniScoreItem(item)) return false;
+                if (selectedStatusFilter === "alumni" && !isAlumniScoreItem(item)) return false;
                 return true;
               });
 
@@ -2482,6 +2566,11 @@ export default function PklScoreboardPage() {
                           </div>
                           <h3 className="text-xs font-bold text-slate-800 line-clamp-1">{topPerformers[1].student_name}</h3>
                           <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{topPerformers[1].school_name}</p>
+                          {isAlumniScoreItem(topPerformers[1]) && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-purple-100 text-purple-700 border border-purple-200 mt-1">
+                              <GraduationCap size={9} /> Alumni
+                            </span>
+                          )}
                           <div className="mt-3 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl">
                             <span className="text-xs font-extrabold text-[#2AB0B2]">{topPerformers[1].student_id === selectedStudentId ? currentStudentTotalPoints : topPerformers[1].total_points} Poin</span>
                           </div>
@@ -2512,6 +2601,11 @@ export default function PklScoreboardPage() {
                           </div>
                           <h3 className="text-sm font-black text-white line-clamp-1">{topPerformers[0].student_name}</h3>
                           <p className="text-[10px] text-[#2AB0B2] font-semibold line-clamp-1 mt-0.5">{topPerformers[0].school_name}</p>
+                          {isAlumniScoreItem(topPerformers[0]) && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-purple-200/20 text-purple-200 border border-purple-300/30 mt-1">
+                              <GraduationCap size={9} /> Alumni
+                            </span>
+                          )}
                           <div className="mt-4 bg-[#2AB0B2]/10 border border-[#2AB0B2]/20 px-4 py-1.5 rounded-xl">
                             <span className="text-sm font-black text-[#2AB0B2]">{topPerformers[0].student_id === selectedStudentId ? currentStudentTotalPoints : topPerformers[0].total_points} Poin</span>
                           </div>
@@ -2539,6 +2633,11 @@ export default function PklScoreboardPage() {
                           </div>
                           <h3 className="text-xs font-bold text-slate-800 line-clamp-1">{topPerformers[2].student_name}</h3>
                           <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{topPerformers[2].school_name}</p>
+                          {isAlumniScoreItem(topPerformers[2]) && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-purple-100 text-purple-700 border border-purple-200 mt-1">
+                              <GraduationCap size={9} /> Alumni
+                            </span>
+                          )}
                           <div className="mt-3 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl">
                             <span className="text-xs font-extrabold text-[#2AB0B2]">{topPerformers[2].student_id === selectedStudentId ? currentStudentTotalPoints : topPerformers[2].total_points} Poin</span>
                           </div>
@@ -2626,7 +2725,18 @@ export default function PklScoreboardPage() {
                                           </div>
                                         )}
                                         <div className="min-w-0">
-                                          <h4 className="text-xs font-bold text-slate-800 truncate">{item.student_name}</h4>
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <h4 className="text-xs font-bold text-slate-800 truncate">{item.student_name}</h4>
+                                            {isAlumniScoreItem(item) ? (
+                                              <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-purple-100 text-purple-700 border border-purple-200 shrink-0 flex items-center gap-0.5">
+                                                <GraduationCap size={9} /> Alumni
+                                              </span>
+                                            ) : (
+                                              <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                                                PKL Aktif
+                                              </span>
+                                            )}
+                                          </div>
                                           <span className="text-[9px] text-slate-400 sm:hidden block truncate mt-0.5">{item.school_name}</span>
                                         </div>
                                       </div>

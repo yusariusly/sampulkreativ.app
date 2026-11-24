@@ -147,7 +147,7 @@ async function getPointsSummaryForMentorStudents(dbClient, mentorId, startDate, 
     FROM pkl_students s
     JOIN users u ON s.user_id = u.id
     LEFT JOIN pkl_daily_evaluations e ON s.id = e.student_id AND e.evaluation_date BETWEEN ? AND ?
-    WHERE s.status = 'ACTIVE' AND u.role = 'student'
+    WHERE s.status IN ('ACTIVE', 'COMPLETED', 'ARCHIVED') AND u.role = 'student'
     GROUP BY s.id
   `;
   const [rows] = await dbClient.query(query, [startDate, endDate]);

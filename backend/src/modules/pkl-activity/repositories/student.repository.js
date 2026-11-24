@@ -28,7 +28,7 @@ async function findById(dbClient, studentId) {
     JOIN users u ON s.user_id = u.id
     LEFT JOIN users m ON s.mentor_id = m.id
     JOIN pkl_program_templates t ON s.program_template_id = t.id
-    WHERE s.id = ? AND s.status = 'ACTIVE' AND u.role = 'student'
+    WHERE s.id = ? AND s.status IN ('ACTIVE', 'COMPLETED', 'ARCHIVED') AND u.role = 'student'
   `;
   const [rows] = await dbClient.query(query, [studentId]);
   return rows[0] || null;
@@ -60,7 +60,7 @@ async function findByUserId(dbClient, userId) {
     JOIN users u ON s.user_id = u.id
     LEFT JOIN users m ON s.mentor_id = m.id
     JOIN pkl_program_templates t ON s.program_template_id = t.id
-    WHERE s.user_id = ? AND s.status = 'ACTIVE' AND u.role = 'student'
+    WHERE s.user_id = ? AND s.status IN ('ACTIVE', 'COMPLETED', 'ARCHIVED') AND u.role = 'student'
   `;
   const [rows] = await dbClient.query(query, [userId]);
   return rows[0] || null;
@@ -82,13 +82,17 @@ async function findByMentorId(dbClient, mentorId) {
       s.school_name,
       s.start_date,
       s.end_date,
+      CASE 
+        WHEN s.end_date IS NOT NULL AND s.end_date < CURRENT_DATE THEN 'COMPLETED'
+        ELSE COALESCE(s.status, 'ACTIVE')
+      END AS status,
       u.nama_lengkap as student_name,
       u.foto_profile as student_avatar,
       t.title as program_title
     FROM pkl_students s
     JOIN users u ON s.user_id = u.id
     JOIN pkl_program_templates t ON s.program_template_id = t.id
-    WHERE s.status = 'ACTIVE' AND u.role = 'student'
+    WHERE s.status IN ('ACTIVE', 'COMPLETED', 'ARCHIVED') AND u.role = 'student'
   `;
   const params = [];
   if (mentorId) {
@@ -115,6 +119,10 @@ async function findAll(dbClient) {
       s.school_name,
       s.start_date,
       s.end_date,
+      CASE 
+        WHEN s.end_date IS NOT NULL AND s.end_date < CURRENT_DATE THEN 'COMPLETED'
+        ELSE COALESCE(s.status, 'ACTIVE')
+      END AS status,
       u.nama_lengkap as student_name,
       u.foto_profile as student_avatar,
       m.nama_lengkap as mentor_name,
@@ -123,7 +131,7 @@ async function findAll(dbClient) {
     JOIN users u ON s.user_id = u.id
     LEFT JOIN users m ON s.mentor_id = m.id
     JOIN pkl_program_templates t ON s.program_template_id = t.id
-    WHERE s.status = 'ACTIVE' AND u.role = 'student'
+    WHERE s.status IN ('ACTIVE', 'COMPLETED', 'ARCHIVED') AND u.role = 'student'
     ORDER BY u.nama_lengkap ASC
   `;
   const [rows] = await dbClient.query(query);
@@ -240,7 +248,7 @@ async function findStudentsWithDailyEvaluation(dbClient, mentorId, date) {
     JOIN users u ON s.user_id = u.id
     JOIN pkl_program_templates t ON s.program_template_id = t.id
     LEFT JOIN pkl_daily_evaluations e ON s.id = e.student_id AND e.evaluation_date = ?
-    WHERE s.status = 'ACTIVE' AND u.role = 'student'
+    WHERE s.status IN ('ACTIVE', 'COMPLETED', 'ARCHIVED') AND u.role = 'student'
   `;
   const params = [date];
   if (mentorId) {
