@@ -3510,7 +3510,8 @@ app.get('/api/settings', async (req, res) => {
       payroll_notice_text: '',
       payroll_notice_active: '0',
       payroll_notice_date: '',
-      payroll_notice_template_id: '1'
+      payroll_notice_template_id: '1',
+      kie_daily_target: '4'
     };
     rows.forEach(row => {
       settings[row.key_name] = row.key_value;
@@ -3544,7 +3545,8 @@ app.post('/api/settings', async (req, res) => {
       payroll_notice_text,
       payroll_notice_active,
       payroll_notice_date,
-      payroll_notice_template_id
+      payroll_notice_template_id,
+      kie_daily_target
     } = req.body;
     
     if (deadline_time) {
@@ -3745,6 +3747,28 @@ app.post('/api/settings', async (req, res) => {
         "INSERT INTO settings (key_name, key_value) VALUES ('payroll_notice_template_id', ?) ON DUPLICATE KEY UPDATE key_value = ?",
         [val, val]
       );
+    }
+
+    if (kie_daily_target !== undefined) {
+      const parsedTarget = parseInt(kie_daily_target, 10);
+      if (isNaN(parsedTarget) || parsedTarget < 1) {
+        return res.status(400).json({ error: 'Target harian KIE harus berupa angka minimal 1' });
+      }
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('kie_daily_target', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [String(parsedTarget), String(parsedTarget)]
+      );
+
+      // Resync all active students debt immediately with the new daily target
+      const [activeStudents] = await pool.query(`
+        SELECT u.id 
+        FROM users u 
+        LEFT JOIN pkl_students p ON u.id = p.user_id 
+        WHERE u.role = 'student' AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)
+      `);
+      for (const s of activeStudents) {
+        await syncUserKieDebt(s.id);
+      }
     }
 
     res.json({ 
@@ -4032,9 +4056,24 @@ function getWeekdaysCount(startDate, endDate) {
   return count;
 }
 
+// Helper to get dynamic daily KIE target from settings
+async function getKieDailyTarget() {
+  try {
+    const [rows] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'kie_daily_target'");
+    if (rows.length > 0 && rows[0].key_value) {
+      const parsed = parseInt(rows[0].key_value, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+  } catch (err) {
+    console.error("Gagal mengambil kie_daily_target:", err);
+  }
+  return 4;
+}
+
 // Helper to calculate and synchronize student KIE API submission debt
 async function syncUserKieDebt(userId) {
   try {
+    const dailyTarget = await getKieDailyTarget();
     const [userRows] = await pool.query(
       "SELECT id, role, kie_start_date FROM users WHERE id = ?",
       [userId]
@@ -4107,7 +4146,7 @@ async function syncUserKieDebt(userId) {
       const isWeekday = (day !== 0 && day !== 6);
       const isHoliday = holidaySet.has(dateStr);
       
-      const targetToday = (isWeekday && !isHoliday) ? 4 : 0;
+      const targetToday = (isWeekday && !isHoliday) ? dailyTarget : 0;
       totalTarget += targetToday;
 
       const subToday = subMap[dateStr] || 0;
@@ -4119,11 +4158,11 @@ async function syncUserKieDebt(userId) {
 
     const pastDebt = Math.max(0, totalTarget - C);
 
-    // Any surplus submitted today (e.g. > 4 on weekday, or > 0 on weekend) pays off past debt
+    // Any surplus submitted today (e.g. > dailyTarget on weekday, or > 0 on weekend) pays off past debt
     const todayDay = todayDate.getDay();
     const isTodayWeekday = (todayDay !== 0 && todayDay !== 6);
     const isTodayHoliday = holidaySet.has(todayStr);
-    const todayTarget = (isTodayWeekday && !isTodayHoliday) ? 4 : 0;
+    const todayTarget = (isTodayWeekday && !isTodayHoliday) ? dailyTarget : 0;
     const todaySubmissions = subMap[todayStr] || 0;
     const todaySurplus = Math.max(0, todaySubmissions - todayTarget);
 
@@ -4465,9 +4504,12 @@ app.get('/api/kie/today-count', validateDeviceSession, async (req, res) => {
       }
     }
 
+    const dailyTarget = await getKieDailyTarget();
+
     res.json({ 
       success: true, 
       count_today: countRows[0].count_today || 0,
+      daily_target: dailyTarget,
       kie_debt: userRows[0]?.role === 'student' ? (userRows[0]?.kie_debt || 0) : 0,
       created_at: userRows[0]?.created_at,
       submissions: submissions || [],
@@ -4573,8 +4615,11 @@ app.get('/api/kie/admin/users-submissions', async (req, res) => {
       submissions: submissionsMap[u.id] || []
     }));
 
+    const dailyTarget = await getKieDailyTarget();
+
     res.json({
       users: result,
+      daily_target: dailyTarget,
       hasMore: offset + users.length < totalUsers,
       total: totalUsers
     });
@@ -6285,6 +6330,7 @@ app.get('/api/cert-grades', async (req, res) => {
     );
 
     const dailyRecords = {}; // dateStr -> { counted, cumulativeTarget }
+    const certDailyTarget = await getKieDailyTarget();
     let C_run = 0;
     let cumulativeTarget = 0;
     let cur_day = new Date(startStr);
@@ -6305,7 +6351,7 @@ app.get('/api/cert-grades', async (req, res) => {
       const isBeforeKieStart = dateStr < kieStartStr;
       const isHoliday = holidaySet.has(dateStr);
       
-      const targetToday = (isWeekday && !isBeforeKieStart && !isHoliday) ? 4 : 0;
+      const targetToday = (isWeekday && !isBeforeKieStart && !isHoliday) ? certDailyTarget : 0;
       cumulativeTarget += targetToday;
 
       const subToday = subMap[dateStr] || 0;

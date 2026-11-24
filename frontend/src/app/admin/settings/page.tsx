@@ -5,7 +5,7 @@ import {
   Settings, CheckCircle2, Save, MapPin, Send, Mail, 
   Trophy, AlertTriangle, Calendar, CalendarDays, Trash2, 
   ChevronLeft, ChevronRight, Plus, Palmtree,
-  Users, UserCheck, Edit2, Search, Copy, Check, X, MessageSquare, ShieldCheck
+  Users, UserCheck, Edit2, Search, Copy, Check, X, MessageSquare, ShieldCheck, Key
 } from "lucide-react";
 
 interface TelegramGroupMember {
@@ -33,6 +33,7 @@ export default function AdminSettingsPage() {
   const [telegramChatIdKaryawan, setTelegramChatIdKaryawan] = useState("");
   const [telegramChatIdKie, setTelegramChatIdKie] = useState("");
   const [showPklScoreboard, setShowPklScoreboard] = useState(true);
+  const [kieDailyTarget, setKieDailyTarget] = useState("4");
 
   // SMTP state
   const [smtpHost, setSmtpHost] = useState("");
@@ -97,6 +98,7 @@ export default function AdminSettingsPage() {
         if (data.smtp_to !== undefined) setSmtpTo(data.smtp_to);
         if (data.smtp_sender !== undefined) setSmtpSender(data.smtp_sender);
         if (data.show_pkl_scoreboard !== undefined) setShowPklScoreboard(data.show_pkl_scoreboard === '1');
+        if (data.kie_daily_target !== undefined) setKieDailyTarget(String(data.kie_daily_target));
       }
     } catch (err) {
       console.error("Gagal mengambil pengaturan:", err);
@@ -317,7 +319,8 @@ export default function AdminSettingsPage() {
           smtp_pass: smtpPass,
           smtp_to: smtpTo,
           smtp_sender: smtpSender,
-          show_pkl_scoreboard: showPklScoreboard ? "1" : "0"
+          show_pkl_scoreboard: showPklScoreboard ? "1" : "0",
+          kie_daily_target: kieDailyTarget
         }),
       });
 
@@ -823,6 +826,70 @@ export default function AdminSettingsPage() {
                   />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2AB0B2]"></div>
                 </label>
+              </div>
+
+              {/* Target Harian Setor API KIE Section */}
+              <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4 pt-4">
+                <Key size={22} className="text-[#2AB0B2]" />
+                <div>
+                  <h3 className="font-bold text-gray-800 text-lg">Target Harian Setor API KIE</h3>
+                  <p className="text-xs text-gray-400">Atur jumlah wajib setor key API KIE harian untuk siswa PKL.</p>
+                </div>
+              </div>
+
+              <div className="p-5 bg-gradient-to-br from-slate-50 via-teal-50/10 to-teal-50/20 rounded-2xl border border-gray-200/80 shadow-2xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-800 mb-1">
+                      Jumlah Wajib Setor per Hari Kerja
+                    </label>
+                    <p className="text-xs text-gray-500 leading-relaxed max-w-md">
+                      Target kunci API KIE yang harus disetor siswa PKL setiap hari kerja (Senin–Jumat). Hari libur akhir pekan dan tanggal merah otomatis bernilai 0.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={kieDailyTarget}
+                        onChange={(e) => setKieDailyTarget(e.target.value)}
+                        className="w-28 px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none text-gray-800 font-black text-center bg-white shadow-2xs text-lg transition-all"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 pointer-events-none">
+                        Key
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200/50">
+                  <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mr-1">
+                    Pilihan Cepat:
+                  </span>
+                  {[
+                    { val: "4", label: "4 Key (Standar)" },
+                    { val: "5", label: "5 Key" },
+                    { val: "6", label: "6 Key" },
+                    { val: "8", label: "8 Key" },
+                    { val: "10", label: "10 Key" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.val}
+                      type="button"
+                      onClick={() => setKieDailyTarget(preset.val)}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                        kieDailyTarget === preset.val
+                          ? "bg-[#2AB0B2] text-white border-[#2AB0B2] shadow-3xs"
+                          : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="pt-4 border-t border-gray-100">

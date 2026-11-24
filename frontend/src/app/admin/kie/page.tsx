@@ -73,7 +73,7 @@ const groupSubmissionsByDate = (subs: KieSubmission[]) => {
     }));
 };
 
-const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string, holidayMap: Record<string, string> = {}, userKieStartDate?: string, userPklEndDate?: string) => {
+const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string, holidayMap: Record<string, string> = {}, userKieStartDate?: string, userPklEndDate?: string, dailyTarget: number = 4) => {
   const groups: Record<string, KieSubmission[]> = {};
   subs.forEach((sub) => {
     const dateObj = new Date(sub.submitted_at);
@@ -150,7 +150,7 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string, hol
       return;
     }
 
-    const targetToday = (isWeekend || isBeforeKieStart || isHoliday) ? 0 : 4;
+    const targetToday = (isWeekend || isBeforeKieStart || isHoliday) ? 0 : dailyTarget;
     totalTarget += targetToday;
     
     C = Math.min(C + count, totalTarget);
@@ -189,7 +189,7 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string, hol
         }
       } else {
         if (isToday) {
-          statusLabel = `Sedang Berjalan (Target 4 Key | Terkumpul ${count})`;
+          statusLabel = `Sedang Berjalan (Target ${dailyTarget} Key | Terkumpul ${count})`;
           statusColor = "text-sky-700 bg-sky-50 border-sky-200 font-bold";
         } else {
           const missedToday = targetToday - count;
@@ -232,6 +232,7 @@ export default function AdminKiePage() {
   const [editValue, setEditValue] = useState("");
   const [filter, setFilter] = useState<"all" | "debt" | "nodebt">("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "student_active" | "student_alumni" | "employee">("all");
+  const [dailyTarget, setDailyTarget] = useState(4);
   const [holidayMap, setHolidayMap] = useState<Record<string, string>>({});
   const [userCalMonths, setUserCalMonths] = useState<Record<string, Date>>({});
   const [userSelectedDates, setUserSelectedDates] = useState<Record<string, string>>({});
@@ -279,6 +280,9 @@ export default function AdminKiePage() {
       const res = await fetch(`/api/kie/admin/users-submissions?page=${pageNum}&limit=5&filter=${currentFilter}&category=${currentCategory}`);
       if (res.ok) {
         const data = await res.json();
+        if (data.daily_target) {
+          setDailyTarget(Number(data.daily_target));
+        }
         if (pageNum === 1) {
           setUsers(data.users);
         } else {
@@ -535,9 +539,19 @@ export default function AdminKiePage() {
           <h1 className="text-2xl font-extrabold text-[#1C3D3F] tracking-tight">API KIE</h1>
           <p className="text-gray-400 text-xs mt-1">Daftar kunci API KIE yang dikirimkan oleh tiap pengguna (Karyawan & Siswa PKL).</p>
         </div>
-        <div className="flex items-center gap-2 bg-[#2AB0B2]/10 border border-[#2AB0B2]/20 px-3.5 py-1.5 rounded-full">
-          <ShieldCheck size={16} className="text-[#2AB0B2]" />
-          <span className="text-xs font-bold text-[#1C3D3F]">Panel Keamanan Admin</span>
+        <div className="flex items-center gap-2">
+          <a
+            href="/admin/settings"
+            className="flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-full text-xs font-bold text-gray-700 transition-colors shadow-2xs"
+            title="Klik untuk mengubah target harian di Pengaturan"
+          >
+            <Key size={13} className="text-[#2AB0B2]" />
+            <span>Target: <strong className="text-[#1C3D3F]">{dailyTarget} KIE/Hari</strong></span>
+          </a>
+          <div className="flex items-center gap-2 bg-[#2AB0B2]/10 border border-[#2AB0B2]/20 px-3.5 py-1.5 rounded-full">
+            <ShieldCheck size={16} className="text-[#2AB0B2]" />
+            <span className="text-xs font-bold text-[#1C3D3F]">Panel Keamanan Admin</span>
+          </div>
         </div>
       </div>
 
@@ -757,7 +771,7 @@ export default function AdminKiePage() {
                     <div className="border-t border-gray-100 bg-slate-50/50 p-4.5">
                       {(() => {
                         if (user.role === "student") {
-                          const auditList = getDailyAuditList(user.submissions, user.pkl_start_date, holidayMap, user.kie_start_date, user.pkl_end_date);
+                          const auditList = getDailyAuditList(user.submissions, user.pkl_start_date, holidayMap, user.kie_start_date, user.pkl_end_date, dailyTarget);
                           const viewMode = userViewModes[user.id] || "calendar";
 
                           // Dates setup
@@ -814,7 +828,7 @@ export default function AdminKiePage() {
                               const isWknd = (dOfWeek === 0 || dOfWeek === 6);
                               const isHldy = !!holidayMap[dStr];
                               const isAfterEnd = rawPklEnd ? dStr > rawPklEnd : false;
-                              const target = (isWknd || isHldy || isAfterEnd) ? 0 : 4;
+                              const target = (isWknd || isHldy || isAfterEnd) ? 0 : dailyTarget;
                               const count = (directSubMap[dStr] || []).length;
 
                               activeDays.push({ dateStr: dStr, target, count });

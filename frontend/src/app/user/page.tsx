@@ -277,6 +277,7 @@ function UserDashboardContent() {
   
   // KIE progress states
   const [kieCount, setKieCount] = useState(0);
+  const [kieDailyTarget, setKieDailyTarget] = useState(4);
   const [kieDebt, setKieDebt] = useState(0);
   const [userCreatedAt, setUserCreatedAt] = useState<string | undefined>(undefined);
   const [kieSubmissions, setKieSubmissions] = useState<any[]>([]);
@@ -301,6 +302,9 @@ function UserDashboardContent() {
       if (res.ok) {
         const data = await res.json();
         setKieCount(data.count_today || 0);
+        if (data.daily_target) {
+          setKieDailyTarget(Number(data.daily_target));
+        }
         setKieDebt(data.kie_debt || 0);
         setUserCreatedAt(data.created_at);
         setKieSubmissions(data.submissions || []);
@@ -973,11 +977,11 @@ function UserDashboardContent() {
   const targetAmount = savings?.data?.target_amount || 70000;
   const savingsPercent = targetAmount > 0 ? Math.round((savedAmount / targetAmount) * 100) : 0;
 
-  // KIE calculations - Daily target is fixed at 4
-  // If PKL period has ended and student has no debt, show completed full target (4/4, 100%)!
+  // KIE calculations - Dynamic daily target configured by admin
+  // If PKL period has ended and student has no debt, show completed full target (100%)!
+  const baseTarget = kieDailyTarget || 4;
   const isCompletedGraduate = isPklEnded && kieDebt === 0;
-  const effectiveKieCount = isCompletedGraduate ? 4 : kieCount;
-  const baseTarget = 4;
+  const effectiveKieCount = isCompletedGraduate ? baseTarget : kieCount;
   const totalBoxes = Math.max(baseTarget, effectiveKieCount);
   const progressPercent = effectiveKieCount > 0 ? (effectiveKieCount / totalBoxes) * 100 : 0;
   const bgSizePercent = effectiveKieCount > 0 ? (totalBoxes / effectiveKieCount) * 100 : 100;
@@ -1102,7 +1106,7 @@ function UserDashboardContent() {
                 HUTANG: {kieDebt}
               </span>
               <span className="text-red-500 font-semibold leading-relaxed">
-                Anda memiliki hutang setoran KIE. Silakan menyetor lebih dari 4 KIE hari ini untuk melunasinya.
+                Anda memiliki hutang setoran KIE. Silakan menyetor lebih dari {baseTarget} KIE hari ini untuk melunasinya.
               </span>
             </div>
           )}
