@@ -106,18 +106,19 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string, hol
     kieStartDate = new Date(Date.UTC(y, m - 1, d));
   }
   
-  const startDate = kieStartDate;
-
-  let earliestSubDate = startDate;
+  // Smart KIE start date: if student has valid earlier submissions, calculation should start from earliest submission
   const groupKeys = Object.keys(groups).sort();
   if (groupKeys.length > 0) {
     const earliestSubStr = groupKeys[0];
     const [y, m, d] = earliestSubStr.split('-').map(Number);
     const subDate = new Date(Date.UTC(y, m - 1, d));
-    if (subDate.getTime() < startDate.getTime()) {
-      earliestSubDate = subDate;
+    if (subDate.getTime() < kieStartDate.getTime()) {
+      kieStartDate = subDate;
     }
   }
+
+  const startDate = kieStartDate;
+  let earliestSubDate = startDate;
 
   // Build list of dates chronologically (oldest to newest)
   const chronologicalDates: Date[] = [];
@@ -160,8 +161,13 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string, hol
     let statusColor = "";
 
     if (isBeforeKieStart) {
-      statusLabel = `Setor Sebelum Mulai KIE (${count} Keys)`;
-      statusColor = "text-purple-600 bg-purple-50 border-purple-200/60 font-medium";
+      if (count >= dailyTarget) {
+        statusLabel = count > dailyTarget ? `Target Terpenuhi (+${count - dailyTarget})` : `Target Terpenuhi (${dailyTarget} Keys)`;
+        statusColor = "text-emerald-700 bg-emerald-50 border-emerald-250/60 font-black";
+      } else {
+        statusLabel = `Setor Sebelum Mulai KIE (${count} Keys)`;
+        statusColor = "text-purple-600 bg-purple-50 border-purple-200/60 font-medium";
+      }
     } else if (isHoliday) {
       if (count === 0) {
         statusLabel = `Libur: ${holidayName}`;
@@ -262,7 +268,17 @@ export default function AdminKiePage() {
 
   // Set Start Date Modal states
   const [showStartDateModal, setShowStartDateModal] = useState(false);
-  const [startDateStudents, setStartDateStudents] = useState<{id: string, nama_lengkap: string, pkl_status?: string}[]>([]);
+  const [startDateStudents, setStartDateStudents] = useState<{
+    id: string;
+    nama_lengkap: string;
+    username?: string;
+    pkl_status?: string;
+    pkl_start_date?: string;
+    pkl_end_date?: string;
+    kie_start_date?: string;
+    first_submission_date?: string;
+    total_submissions?: number | string;
+  }[]>([]);
   const [modalFilterStatus, setModalFilterStatus] = useState<"active" | "all">("active");
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [selectedStartDate, setSelectedStartDate] = useState("");
@@ -780,7 +796,33 @@ export default function AdminKiePage() {
                           // Format PKL start date, KIE start date, and PKL end date
                           const rawPklStart = user.pkl_start_date ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(user.pkl_start_date)) : '';
                           const rawPklEnd = user.pkl_end_date ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(user.pkl_end_date)) : '';
-                          const rawKieStart = user.kie_start_date ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(user.kie_start_date)) : (rawPklStart || todayStr);
+
+                          // Direct submissions map for all days & earliest submission date
+                          const directSubMap: Record<string, any[]> = {};
+                          user.submissions.forEach((sub) => {
+                            const dStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date(sub.submitted_at));
+                            if (!directSubMap[dStr]) directSubMap[dStr] = [];
+                            directSubMap[dStr].push(sub);
+                          });
+                          const subDateKeys = Object.keys(directSubMap).sort();
+                          const earliestSubDate = subDateKeys.length > 0 ? subDateKeys[0] : '';
+
+                          // Smart KIE start date:
+                          // If student already has submissions starting earlier than user.kie_start_date,
+                          // calculation must start from earliestSubDate so past valid submissions are never discarded as "outside period".
+                          let effectiveKieStart = rawPklStart || todayStr;
+                          if (user.kie_start_date) {
+                            const customKie = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(user.kie_start_date));
+                            if (earliestSubDate && customKie > earliestSubDate) {
+                              effectiveKieStart = earliestSubDate;
+                            } else {
+                              effectiveKieStart = customKie;
+                            }
+                          } else if (earliestSubDate) {
+                            effectiveKieStart = earliestSubDate;
+                          }
+
+                          const rawKieStart = effectiveKieStart;
 
                           const formattedPklStart = rawPklStart ? parseSafeDate(rawPklStart).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "Belum Diatur";
                           const formattedKieStart = rawKieStart ? parseSafeDate(rawKieStart).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "Sama dg PKL";
@@ -798,14 +840,6 @@ export default function AdminKiePage() {
 
                           const firstDayIndex = new Date(calYear, calMonth, 1).getDay();
                           const totalDaysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-
-                          // Direct submissions map for all days
-                          const directSubMap: Record<string, any[]> = {};
-                          user.submissions.forEach((sub) => {
-                            const dStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date(sub.submitted_at));
-                            if (!directSubMap[dStr]) directSubMap[dStr] = [];
-                            directSubMap[dStr].push(sub);
-                          });
 
                           // --- EXACT DATE-BY-DATE FIFO MATCHING LEDGER ---
                           const deficitLedger: Record<string, { originalDeficit: number; remainingDeficit: number; paidBy: { dateStr: string; keys: number }[] }> = {};
@@ -1126,7 +1160,11 @@ export default function AdminKiePage() {
 
                                           if (isBeforeKie) {
                                             // Before KIE start date: NEVER RED!
-                                            if (count > 0) {
+                                            if (count >= dailyTarget) {
+                                              bgClass = "bg-emerald-50/90 border-emerald-200 hover:bg-emerald-100/80 text-emerald-900";
+                                              badgeColor = "bg-emerald-600 text-white font-black";
+                                              badgeText = count > dailyTarget ? `${count} (+${count - dailyTarget})` : `${count} Key`;
+                                            } else if (count > 0) {
                                               bgClass = "bg-purple-50/80 border-purple-200 hover:bg-purple-100";
                                               badgeColor = "bg-purple-600 text-white font-bold";
                                               badgeText = `+${count}`;
@@ -1289,7 +1327,9 @@ export default function AdminKiePage() {
                                         </div>
                                         <span className={`text-[9px] font-black px-2.5 py-1 rounded-full border ${
                                           selectedDate < rawKieStart
-                                            ? "text-purple-600 bg-purple-50 border-purple-200"
+                                            ? (selectedCount >= dailyTarget
+                                                ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                                : (selectedCount > 0 ? "text-purple-600 bg-purple-50 border-purple-200" : "text-gray-500 bg-gray-50 border-gray-200"))
                                             : (rawPklEnd && selectedDate > rawPklEnd)
                                               ? "text-slate-600 bg-slate-100 border-slate-200"
                                               : selectedCount >= dailyTarget
@@ -1301,7 +1341,9 @@ export default function AdminKiePage() {
                                                     : "text-rose-700 bg-rose-50 border-rose-200"
                                         }`}>
                                           {selectedDate < rawKieStart
-                                            ? "Sebelum Periode KIE"
+                                            ? (selectedCount >= dailyTarget
+                                                ? (selectedCount > dailyTarget ? `Surplus +${selectedCount - dailyTarget} Keys` : `Target Terpenuhi (${dailyTarget}/${dailyTarget})`)
+                                                : (selectedCount > 0 ? `Setor Sukarela (+${selectedCount} Keys)` : "Sebelum Periode KIE"))
                                             : (rawPklEnd && selectedDate > rawPklEnd)
                                               ? "Selesai Masa PKL"
                                               : selectedCount >= dailyTarget
@@ -1319,6 +1361,18 @@ export default function AdminKiePage() {
                                       {/* Detailed Explanation for Deficits / Surpluses / Graduation */}
                                       {(() => {
                                         if (selectedDate < rawKieStart) {
+                                          if (selectedCount >= dailyTarget) {
+                                            return (
+                                              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 text-xs">
+                                                <div className="font-bold text-emerald-800 flex items-center gap-1.5">
+                                                  <span>Target Terpenuhi ({selectedCount} Keys)</span>
+                                                </div>
+                                                <p className="text-[11px] text-emerald-700 leading-relaxed font-medium">
+                                                  Target harian {dailyTarget} KIE terpenuhi ({selectedCount} Keys disetor).
+                                                </p>
+                                              </div>
+                                            );
+                                          }
                                           return (
                                             <div className="text-center py-8 text-gray-400 text-xs font-medium bg-slate-50/70 border border-dashed border-gray-200 rounded-xl space-y-1">
                                               <p className="font-bold text-gray-600">Sebelum Periode Wajib KIE</p>
@@ -1977,14 +2031,44 @@ export default function AdminKiePage() {
             
             <div className="p-5 flex-1 overflow-y-auto space-y-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-gray-700">Tanggal Mulai Perhitungan KIE</label>
+                <div className="flex flex-wrap items-center justify-between gap-1">
+                  <label className="text-sm font-semibold text-gray-700">Tanggal Mulai Perhitungan KIE</label>
+                  {selectedStudentIds.length === 1 && (() => {
+                    const selStudent = startDateStudents.find(s => s.id === selectedStudentIds[0]);
+                    if (!selStudent) return null;
+                    return (
+                      <div className="flex items-center gap-1.5">
+                        {selStudent.first_submission_date && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStartDate(selStudent.first_submission_date!)}
+                            className="text-[10px] bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold px-2 py-0.5 rounded-md border border-teal-200 transition-colors cursor-pointer"
+                            title="Gunakan tanggal setoran pertama siswa"
+                          >
+                            ⚡ Setoran 1 ({selStudent.first_submission_date})
+                          </button>
+                        )}
+                        {selStudent.pkl_start_date && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStartDate(selStudent.pkl_start_date!.split('T')[0])}
+                            className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-md border border-blue-200 transition-colors cursor-pointer"
+                            title="Gunakan tanggal masuk PKL siswa"
+                          >
+                            📅 Masuk ({selStudent.pkl_start_date.split('T')[0]})
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
                 <input
                   type="date"
                   value={selectedStartDate}
                   onChange={(e) => setSelectedStartDate(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#2AB0B2] focus:ring-1 focus:ring-[#2AB0B2]"
                 />
-                <p className="text-xs text-gray-500">Hutang KIE akan dihitung mulai dari tanggal ini.</p>
+                <p className="text-xs text-gray-500">Hutang KIE akan dihitung mulai dari tanggal ini (hari kerja sebelum tanggal ini tidak akan dikenai denda).</p>
               </div>
 
               <div className="space-y-2">
@@ -2061,20 +2145,34 @@ export default function AdminKiePage() {
                                   onChange={(e) => {
                                     if (e.target.checked) {
                                       setSelectedStudentIds([...selectedStudentIds, student.id]);
+                                      if (!selectedStartDate) {
+                                        const autoDate = student.first_submission_date || (student.pkl_start_date ? student.pkl_start_date.split('T')[0] : '');
+                                        if (autoDate) setSelectedStartDate(autoDate);
+                                      }
                                     } else {
                                       setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
                                     }
                                   }}
                                   className="w-4 h-4 text-[#2AB0B2] rounded focus:ring-[#2AB0B2]"
                                 />
-                                <span className="text-sm text-gray-700 font-medium">{student.nama_lengkap}</span>
+                                <div>
+                                  <span className="text-sm text-gray-700 font-medium">{student.nama_lengkap}</span>
+                                  <div className="flex flex-wrap items-center gap-2 text-[10.5px] text-gray-400 mt-0.5">
+                                    {student.pkl_start_date && (
+                                      <span>Masuk: <b className="text-gray-600">{parseSafeDate(student.pkl_start_date).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</b></span>
+                                    )}
+                                    {student.first_submission_date && (
+                                      <span className="text-teal-600 font-medium">Setoran 1: <b>{parseSafeDate(student.first_submission_date).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</b> ({student.total_submissions || 0} Keys)</span>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                               {isStudentAlumni ? (
-                                <span className="text-[9px] px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold border border-purple-200">
+                                <span className="text-[9px] px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold border border-purple-200 shrink-0">
                                   Alumni
                                 </span>
                               ) : (
-                                <span className="text-[9px] px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                                <span className="text-[9px] px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 shrink-0">
                                   Aktif
                                 </span>
                               )}

@@ -4092,13 +4092,43 @@ async function syncUserKieDebt(userId) {
       [userId]
     );
 
+    // Fetch all submissions with Jakarta dates using to_char to avoid node pg timezone date shift
+    const [submissions] = await pool.query(
+      `SELECT to_char(submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD') as date_str, COUNT(*) as count
+       FROM kie_submissions
+       WHERE user_id = ?
+       GROUP BY 1
+       ORDER BY 1 ASC`,
+      [userId]
+    );
+
+    const subMap = {};
+    let earliestSubDateStr = null;
+    submissions.forEach(s => {
+      subMap[s.date_str] = parseInt(s.count);
+      if (!earliestSubDateStr || s.date_str < earliestSubDateStr) {
+        earliestSubDateStr = s.date_str;
+      }
+    });
+
     // Determine calculation start date
+    // Smart guard: if student has valid earlier submissions, calculation start date should not cut off those submissions
     let startDate;
     if (user.kie_start_date) {
-      startDate = parseJakartaDate(user.kie_start_date);
+      const userKieStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(user.kie_start_date));
+      if (earliestSubDateStr && userKieStr > earliestSubDateStr) {
+        startDate = parseJakartaDate(earliestSubDateStr);
+      } else {
+        startDate = parseJakartaDate(userKieStr);
+      }
     } else {
-      if (pklRows.length === 0) return;
-      startDate = parseJakartaDate(pklRows[0].start_date);
+      if (earliestSubDateStr) {
+        startDate = parseJakartaDate(earliestSubDateStr);
+      } else if (pklRows.length > 0 && pklRows[0].start_date) {
+        startDate = parseJakartaDate(pklRows[0].start_date);
+      } else {
+        return;
+      }
     }
 
     // Determine calculation end date: calculate past debt up to yesterday because today is still ongoing
@@ -4110,20 +4140,6 @@ async function syncUserKieDebt(userId) {
         endDate = pklEndDate;
       }
     }
-
-    // Fetch all submissions with Jakarta dates using to_char to avoid node pg timezone date shift
-    const [submissions] = await pool.query(
-      `SELECT to_char(submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD') as date_str, COUNT(*) as count
-       FROM kie_submissions
-       WHERE user_id = ?
-       GROUP BY 1`,
-      [userId]
-    );
-
-    const subMap = {};
-    submissions.forEach(s => {
-      subMap[s.date_str] = parseInt(s.count);
-    });
 
     // Fetch all registered holidays
     const [holidayRows] = await pool.query('SELECT tanggal FROM holidays');
@@ -4659,7 +4675,11 @@ app.post('/api/kie/admin/set-start-date', async (req, res) => {
 app.get('/api/kie/admin/students', async (req, res) => {
   try {
     const [students] = await pool.query(`
-      SELECT u.id, u.nama_lengkap,
+      SELECT u.id, u.nama_lengkap, u.username, u.kie_start_date,
+        p.start_date as pkl_start_date, p.end_date as pkl_end_date,
+        (SELECT MIN(to_char(submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD')) 
+         FROM kie_submissions WHERE user_id = u.id) as first_submission_date,
+        (SELECT COUNT(*) FROM kie_submissions WHERE user_id = u.id) as total_submissions,
         CASE 
           WHEN p.end_date IS NOT NULL AND p.end_date < CURRENT_DATE THEN 'COMPLETED'
           ELSE COALESCE(p.status, 'ACTIVE')
