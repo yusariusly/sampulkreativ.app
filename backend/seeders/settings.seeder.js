@@ -14,7 +14,8 @@ async function seedSettings(dbClient) {
     { key_name: 'smtp_to', key_value: '' },
     { key_name: 'smtp_sender', key_value: '' },
     { key_name: 'show_pkl_scoreboard', key_value: '1' },
-    { key_name: 'kie_daily_target', key_value: '4' }
+    { key_name: 'kie_daily_target', key_value: '4' },
+    { key_name: 'kie_target_effective_date', key_value: '2026-11-24' }
   ];
 
   for (const setting of settings) {

@@ -34,6 +34,7 @@ export default function AdminSettingsPage() {
   const [telegramChatIdKie, setTelegramChatIdKie] = useState("");
   const [showPklScoreboard, setShowPklScoreboard] = useState(true);
   const [kieDailyTarget, setKieDailyTarget] = useState("4");
+  const [kieTargetEffectiveDate, setKieTargetEffectiveDate] = useState("2026-11-24");
 
   // SMTP state
   const [smtpHost, setSmtpHost] = useState("");
@@ -99,6 +100,7 @@ export default function AdminSettingsPage() {
         if (data.smtp_sender !== undefined) setSmtpSender(data.smtp_sender);
         if (data.show_pkl_scoreboard !== undefined) setShowPklScoreboard(data.show_pkl_scoreboard === '1');
         if (data.kie_daily_target !== undefined) setKieDailyTarget(String(data.kie_daily_target));
+        if (data.kie_target_effective_date !== undefined) setKieTargetEffectiveDate(String(data.kie_target_effective_date));
       }
     } catch (err) {
       console.error("Gagal mengambil pengaturan:", err);
@@ -889,6 +891,15 @@ export default function AdminSettingsPage() {
                       {preset.label}
                     </button>
                   ))}
+                </div>
+
+                {/* Info Tanggal Berlaku */}
+                <div className="p-3 bg-amber-50/90 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
+                  <span className="text-base shrink-0">💡</span>
+                  <div>
+                    <span className="font-bold">Info Target Efektif: </span>
+                    Target <b>{kieDailyTarget} Key/hari</b> dihitung berlaku mulai tanggal <b>{kieTargetEffectiveDate ? new Date(kieTargetEffectiveDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'hari ini'}</b>. Hari-hari sebelum tanggal tersebut tetap menggunakan target standar <b>4 Key/hari</b>, sehingga setoran siswa di hari kemarin tidak menjadi hutang.
+                  </div>
                 </div>
               </div>
 

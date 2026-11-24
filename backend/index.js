@@ -3511,7 +3511,8 @@ app.get('/api/settings', async (req, res) => {
       payroll_notice_active: '0',
       payroll_notice_date: '',
       payroll_notice_template_id: '1',
-      kie_daily_target: '4'
+      kie_daily_target: '4',
+      kie_target_effective_date: '2026-11-24'
     };
     rows.forEach(row => {
       settings[row.key_name] = row.key_value;
@@ -3757,6 +3758,12 @@ app.post('/api/settings', async (req, res) => {
       await pool.query(
         "INSERT INTO settings (key_name, key_value) VALUES ('kie_daily_target', ?) ON DUPLICATE KEY UPDATE key_value = ?",
         [String(parsedTarget), String(parsedTarget)]
+      );
+
+      const todayEffective = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+      await pool.query(
+        "INSERT INTO settings (key_name, key_value) VALUES ('kie_target_effective_date', ?) ON DUPLICATE KEY UPDATE key_value = ?",
+        [todayEffective, todayEffective]
       );
 
       // Resync all active students debt immediately with the new daily target
@@ -4056,24 +4063,48 @@ function getWeekdaysCount(startDate, endDate) {
   return count;
 }
 
-// Helper to get dynamic daily KIE target from settings
-async function getKieDailyTarget() {
+// Helper to get dynamic daily KIE target & effective date from settings
+async function getKieTargetConfig() {
   try {
-    const [rows] = await pool.query("SELECT key_value FROM settings WHERE key_name = 'kie_daily_target'");
-    if (rows.length > 0 && rows[0].key_value) {
-      const parsed = parseInt(rows[0].key_value, 10);
-      if (!isNaN(parsed) && parsed > 0) return parsed;
-    }
+    const [rows] = await pool.query(
+      "SELECT key_name, key_value FROM settings WHERE key_name IN ('kie_daily_target', 'kie_target_effective_date')"
+    );
+    let target = 4;
+    let effectiveDate = '2026-11-24';
+    rows.forEach(r => {
+      if (r.key_name === 'kie_daily_target') {
+        const parsed = parseInt(r.key_value, 10);
+        if (!isNaN(parsed) && parsed > 0) target = parsed;
+      }
+      if (r.key_name === 'kie_target_effective_date' && r.key_value) {
+        effectiveDate = r.key_value.trim();
+      }
+    });
+    return { target, effectiveDate };
   } catch (err) {
-    console.error("Gagal mengambil kie_daily_target:", err);
+    console.error("Gagal mengambil kie_target_config:", err);
+    return { target: 4, effectiveDate: '2026-11-24' };
   }
-  return 4;
+}
+
+// Helper to get dynamic daily KIE target from settings (for current day / backward compatibility)
+async function getKieDailyTarget() {
+  const cfg = await getKieTargetConfig();
+  return cfg.target;
+}
+
+// Helper to determine KIE target on a specific date (historical days before effectiveDate remain 4)
+function getTargetForDate(dateStr, targetConfig) {
+  if (targetConfig && targetConfig.effectiveDate && dateStr >= targetConfig.effectiveDate) {
+    return targetConfig.target;
+  }
+  return 4; // historical base target
 }
 
 // Helper to calculate and synchronize student KIE API submission debt
 async function syncUserKieDebt(userId) {
   try {
-    const dailyTarget = await getKieDailyTarget();
+    const targetConfig = await getKieTargetConfig();
     const [userRows] = await pool.query(
       "SELECT id, role, kie_start_date FROM users WHERE id = ?",
       [userId]
@@ -4162,7 +4193,7 @@ async function syncUserKieDebt(userId) {
       const isWeekday = (day !== 0 && day !== 6);
       const isHoliday = holidaySet.has(dateStr);
       
-      const targetToday = (isWeekday && !isHoliday) ? dailyTarget : 0;
+      const targetToday = (isWeekday && !isHoliday) ? getTargetForDate(dateStr, targetConfig) : 0;
       totalTarget += targetToday;
 
       const subToday = subMap[dateStr] || 0;
@@ -4631,11 +4662,13 @@ app.get('/api/kie/admin/users-submissions', async (req, res) => {
       submissions: submissionsMap[u.id] || []
     }));
 
-    const dailyTarget = await getKieDailyTarget();
+    const targetConfig = await getKieTargetConfig();
 
     res.json({
       users: result,
-      daily_target: dailyTarget,
+      daily_target: targetConfig.target,
+      target_effective_date: targetConfig.effectiveDate,
+      historical_target: 4,
       hasMore: offset + users.length < totalUsers,
       total: totalUsers
     });
@@ -6350,7 +6383,7 @@ app.get('/api/cert-grades', async (req, res) => {
     );
 
     const dailyRecords = {}; // dateStr -> { counted, cumulativeTarget }
-    const certDailyTarget = await getKieDailyTarget();
+    const certTargetConfig = await getKieTargetConfig();
     let C_run = 0;
     let cumulativeTarget = 0;
     let cur_day = new Date(startStr);
@@ -6371,7 +6404,7 @@ app.get('/api/cert-grades', async (req, res) => {
       const isBeforeKieStart = dateStr < kieStartStr;
       const isHoliday = holidaySet.has(dateStr);
       
-      const targetToday = (isWeekday && !isBeforeKieStart && !isHoliday) ? certDailyTarget : 0;
+      const targetToday = (isWeekday && !isBeforeKieStart && !isHoliday) ? getTargetForDate(dateStr, certTargetConfig) : 0;
       cumulativeTarget += targetToday;
 
       const subToday = subMap[dateStr] || 0;

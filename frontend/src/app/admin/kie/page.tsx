@@ -73,7 +73,15 @@ const groupSubmissionsByDate = (subs: KieSubmission[]) => {
     }));
 };
 
-const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string, holidayMap: Record<string, string> = {}, userKieStartDate?: string, userPklEndDate?: string, dailyTarget: number = 4) => {
+const getDailyAuditList = (
+  subs: KieSubmission[], 
+  userPklStartDate?: string, 
+  holidayMap: Record<string, string> = {}, 
+  userKieStartDate?: string, 
+  userPklEndDate?: string, 
+  dailyTarget: number = 6,
+  targetEffectiveDate: string = "2026-11-24"
+) => {
   const groups: Record<string, KieSubmission[]> = {};
   subs.forEach((sub) => {
     const dateObj = new Date(sub.submitted_at);
@@ -151,7 +159,9 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string, hol
       return;
     }
 
-    const targetToday = (isWeekend || isBeforeKieStart || isHoliday) ? 0 : dailyTarget;
+    const isNewTarget = targetEffectiveDate && dateStr >= targetEffectiveDate;
+    const dayTarget = isNewTarget ? dailyTarget : 4;
+    const targetToday = (isWeekend || isBeforeKieStart || isHoliday) ? 0 : dayTarget;
     totalTarget += targetToday;
     
     C = Math.min(C + count, totalTarget);
@@ -161,8 +171,8 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string, hol
     let statusColor = "";
 
     if (isBeforeKieStart) {
-      if (count >= dailyTarget) {
-        statusLabel = count > dailyTarget ? `Target Terpenuhi (+${count - dailyTarget})` : `Target Terpenuhi (${dailyTarget} Keys)`;
+      if (count >= dayTarget) {
+        statusLabel = count > dayTarget ? `Target Terpenuhi (+${count - dayTarget})` : `Target Terpenuhi (${dayTarget} Keys)`;
         statusColor = "text-emerald-700 bg-emerald-50 border-emerald-250/60 font-black";
       } else {
         statusLabel = `Setor Sebelum Mulai KIE (${count} Keys)`;
@@ -195,7 +205,7 @@ const getDailyAuditList = (subs: KieSubmission[], userPklStartDate?: string, hol
         }
       } else {
         if (isToday) {
-          statusLabel = `Sedang Berjalan (Target ${dailyTarget} Key | Terkumpul ${count})`;
+          statusLabel = `Sedang Berjalan (Target ${dayTarget} Key | Terkumpul ${count})`;
           statusColor = "text-sky-700 bg-sky-50 border-sky-200 font-bold";
         } else {
           const missedToday = targetToday - count;
@@ -238,7 +248,8 @@ export default function AdminKiePage() {
   const [editValue, setEditValue] = useState("");
   const [filter, setFilter] = useState<"all" | "debt" | "nodebt">("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "student_active" | "student_alumni" | "employee">("all");
-  const [dailyTarget, setDailyTarget] = useState(4);
+  const [dailyTarget, setDailyTarget] = useState(6);
+  const [targetEffectiveDate, setTargetEffectiveDate] = useState("2026-11-24");
   const [holidayMap, setHolidayMap] = useState<Record<string, string>>({});
   const [userCalMonths, setUserCalMonths] = useState<Record<string, Date>>({});
   const [userSelectedDates, setUserSelectedDates] = useState<Record<string, string>>({});
@@ -298,6 +309,9 @@ export default function AdminKiePage() {
         const data = await res.json();
         if (data.daily_target) {
           setDailyTarget(Number(data.daily_target));
+        }
+        if (data.target_effective_date) {
+          setTargetEffectiveDate(String(data.target_effective_date));
         }
         if (pageNum === 1) {
           setUsers(data.users);
@@ -787,7 +801,7 @@ export default function AdminKiePage() {
                     <div className="border-t border-gray-100 bg-slate-50/50 p-4.5">
                       {(() => {
                         if (user.role === "student") {
-                          const auditList = getDailyAuditList(user.submissions, user.pkl_start_date, holidayMap, user.kie_start_date, user.pkl_end_date, dailyTarget);
+                          const auditList = getDailyAuditList(user.submissions, user.pkl_start_date, holidayMap, user.kie_start_date, user.pkl_end_date, dailyTarget, targetEffectiveDate);
                           const viewMode = userViewModes[user.id] || "calendar";
 
                           // Dates setup
@@ -862,7 +876,13 @@ export default function AdminKiePage() {
                               const isWknd = (dOfWeek === 0 || dOfWeek === 6);
                               const isHldy = !!holidayMap[dStr];
                               const isAfterEnd = rawPklEnd ? dStr > rawPklEnd : false;
-                              const target = (isWknd || isHldy || isAfterEnd) ? 0 : dailyTarget;
+
+                              // Dynamic target per date:
+                              // Before targetEffectiveDate, historical target was 4.
+                              // Starting from targetEffectiveDate, current target is dailyTarget (e.g. 6).
+                              const isNewTarget = targetEffectiveDate && dStr >= targetEffectiveDate;
+                              const dayTarget = isNewTarget ? dailyTarget : 4;
+                              const target = (isWknd || isHldy || isAfterEnd) ? 0 : dayTarget;
                               const count = (directSubMap[dStr] || []).length;
 
                               activeDays.push({ dateStr: dStr, target, count });
@@ -1144,6 +1164,10 @@ export default function AdminKiePage() {
                                           const directSubs = directSubMap[dateStr] || [];
                                           const count = directSubs.length;
 
+                                          // Target for this specific date (historical days before targetEffectiveDate remain 4)
+                                          const isCellNewTarget = targetEffectiveDate && dateStr >= targetEffectiveDate;
+                                          const cellDailyTarget = isCellNewTarget ? dailyTarget : 4;
+
                                           // Color & Badge Logic
                                           let bgClass = "bg-white border-gray-200 text-gray-700 hover:border-[#2AB0B2]";
                                           let badgeColor = "bg-gray-100 text-gray-500";
@@ -1160,10 +1184,10 @@ export default function AdminKiePage() {
 
                                           if (isBeforeKie) {
                                             // Before KIE start date: NEVER RED!
-                                            if (count >= dailyTarget) {
+                                            if (count >= cellDailyTarget) {
                                               bgClass = "bg-emerald-50/90 border-emerald-200 hover:bg-emerald-100/80 text-emerald-900";
                                               badgeColor = "bg-emerald-600 text-white font-black";
-                                              badgeText = count > dailyTarget ? `${count} (+${count - dailyTarget})` : `${count} Key`;
+                                              badgeText = count > cellDailyTarget ? `${count} (+${count - cellDailyTarget})` : `${count} Key`;
                                             } else if (count > 0) {
                                               bgClass = "bg-purple-50/80 border-purple-200 hover:bg-purple-100";
                                               badgeColor = "bg-purple-600 text-white font-bold";
@@ -1201,7 +1225,7 @@ export default function AdminKiePage() {
                                             } else {
                                               bgClass = "bg-white border-dashed border-gray-200 text-gray-400";
                                               badgeColor = "bg-gray-50 text-gray-400";
-                                              badgeText = `${dailyTarget} Key`;
+                                              badgeText = `${cellDailyTarget} Key`;
                                             }
                                           } else if (isHoliday) {
                                             // Holiday
@@ -1227,29 +1251,29 @@ export default function AdminKiePage() {
                                             }
                                           } else {
                                             // Active working day within PKL
-                                            if (count >= dailyTarget) {
+                                            if (count >= cellDailyTarget) {
                                               bgClass = "bg-emerald-50/90 border-emerald-200 hover:bg-emerald-100/80 text-emerald-900";
                                               badgeColor = "bg-emerald-600 text-white font-black";
-                                              badgeText = count > dailyTarget ? `${count} (+${count - dailyTarget})` : `${count} Key`;
+                                              badgeText = count > cellDailyTarget ? `${count} (+${count - cellDailyTarget})` : `${count} Key`;
                                             } else if (isFullyPaid) {
                                               // Fully Paid off by subsequent surplus!
                                               bgClass = "bg-teal-50/85 border-teal-200 hover:bg-teal-100/80 text-teal-900";
                                               badgeColor = "bg-teal-600 text-white font-bold";
-                                              badgeText = `${count}/${dailyTarget} (Lunas ✓)`;
+                                              badgeText = `${count}/${cellDailyTarget} (Lunas ✓)`;
                                             } else if (isPartiallyPaid) {
                                               bgClass = "bg-amber-50/90 border-amber-200 hover:bg-amber-100/80 text-amber-900";
                                               badgeColor = "bg-amber-500 text-white font-black";
-                                              badgeText = `${count}/${dailyTarget} (Kurang ${defObj.remainingDeficit})`;
+                                              badgeText = `${count}/${cellDailyTarget} (Kurang ${defObj.remainingDeficit})`;
                                             } else if (isToday) {
                                               // Today is currently in progress (not a historical debt)
                                               bgClass = "bg-sky-50/80 border-sky-300 hover:bg-sky-100/80 text-sky-900";
                                               badgeColor = "bg-sky-500 text-white font-bold";
-                                              badgeText = `${count}/${dailyTarget} (Hari Ini)`;
+                                              badgeText = `${count}/${cellDailyTarget} (Hari Ini)`;
                                             } else {
                                               // Completely Unpaid past day
                                               bgClass = "bg-rose-50/90 border-rose-200 hover:bg-rose-100 text-rose-900";
                                               badgeColor = "bg-rose-500 text-white font-black";
-                                              badgeText = count === 0 ? `0/${dailyTarget} (Hutang)` : `${count}/${dailyTarget} (Hutang)`;
+                                              badgeText = count === 0 ? `0/${cellDailyTarget} (Hutang)` : `${count}/${cellDailyTarget} (Hutang)`;
                                             }
                                           }
 
@@ -1313,190 +1337,199 @@ export default function AdminKiePage() {
 
                                     {/* Right: Selected Day Inspection Panel */}
                                     <div className="lg:col-span-5 bg-white p-4.5 rounded-2xl border border-gray-150 shadow-3xs space-y-3.5">
-                                      <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                                        <div>
-                                          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Detail Setoran Harian</div>
-                                          <h4 className="font-bold text-gray-800 text-sm flex items-center gap-1.5 mt-0.5">
-                                            📅 {parseSafeDate(selectedDate).toLocaleDateString("id-ID", {
-                                              weekday: "long",
-                                              day: "2-digit",
-                                              month: "long",
-                                              year: "numeric"
-                                            })}
-                                          </h4>
-                                        </div>
-                                        <span className={`text-[9px] font-black px-2.5 py-1 rounded-full border ${
-                                          selectedDate < rawKieStart
-                                            ? (selectedCount >= dailyTarget
-                                                ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                                                : (selectedCount > 0 ? "text-purple-600 bg-purple-50 border-purple-200" : "text-gray-500 bg-gray-50 border-gray-200"))
-                                            : (rawPklEnd && selectedDate > rawPklEnd)
-                                              ? "text-slate-600 bg-slate-100 border-slate-200"
-                                              : selectedCount >= dailyTarget
-                                                ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                                                : (selectedDeficit && selectedDeficit.remainingDeficit === 0)
-                                                  ? "text-teal-700 bg-teal-50 border-teal-200"
-                                                  : selectedDate === todayStr
-                                                    ? "text-sky-700 bg-sky-50 border-sky-200"
-                                                    : "text-rose-700 bg-rose-50 border-rose-200"
-                                        }`}>
-                                          {selectedDate < rawKieStart
-                                            ? (selectedCount >= dailyTarget
-                                                ? (selectedCount > dailyTarget ? `Surplus +${selectedCount - dailyTarget} Keys` : `Target Terpenuhi (${dailyTarget}/${dailyTarget})`)
-                                                : (selectedCount > 0 ? `Setor Sukarela (+${selectedCount} Keys)` : "Sebelum Periode KIE"))
-                                            : (rawPklEnd && selectedDate > rawPklEnd)
-                                              ? "Selesai Masa PKL"
-                                              : selectedCount >= dailyTarget
-                                                ? (selectedCount > dailyTarget ? `Surplus +${selectedCount - dailyTarget} Keys` : `Target Terpenuhi (${dailyTarget}/${dailyTarget})`)
-                                                : (selectedDeficit && selectedDeficit.remainingDeficit === 0)
-                                                  ? `Status: LUNAS (Disetor ${selectedCount}/${dailyTarget})`
-                                                  : selectedDate === todayStr
-                                                    ? `Sedang Berjalan (${selectedCount}/${dailyTarget})`
-                                                    : selectedCount > 0
-                                                      ? `Belum Lunas (${selectedCount}/${dailyTarget}, Kurang ${selectedDeficit?.remainingDeficit || (dailyTarget - selectedCount)})`
-                                                      : `Belum Lunas (0/${dailyTarget}, Kurang ${dailyTarget})`}
-                                        </span>
-                                      </div>
-
-                                      {/* Detailed Explanation for Deficits / Surpluses / Graduation */}
                                       {(() => {
-                                        if (selectedDate < rawKieStart) {
-                                          if (selectedCount >= dailyTarget) {
-                                            return (
-                                              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 text-xs">
-                                                <div className="font-bold text-emerald-800 flex items-center gap-1.5">
-                                                  <span>Target Terpenuhi ({selectedCount} Keys)</span>
-                                                </div>
-                                                <p className="text-[11px] text-emerald-700 leading-relaxed font-medium">
-                                                  Target harian {dailyTarget} KIE terpenuhi ({selectedCount} Keys disetor).
-                                                </p>
+                                        const isSelectedNewTarget = targetEffectiveDate && selectedDate >= targetEffectiveDate;
+                                        const selectedDayTarget = isSelectedNewTarget ? dailyTarget : 4;
+
+                                        return (
+                                          <>
+                                            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                                              <div>
+                                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Detail Setoran Harian</div>
+                                                <h4 className="font-bold text-gray-800 text-sm flex items-center gap-1.5 mt-0.5">
+                                                  📅 {parseSafeDate(selectedDate).toLocaleDateString("id-ID", {
+                                                    weekday: "long",
+                                                    day: "2-digit",
+                                                    month: "long",
+                                                    year: "numeric"
+                                                  })}
+                                                </h4>
                                               </div>
-                                            );
-                                          }
-                                          return (
-                                            <div className="text-center py-8 text-gray-400 text-xs font-medium bg-slate-50/70 border border-dashed border-gray-200 rounded-xl space-y-1">
-                                              <p className="font-bold text-gray-600">Sebelum Periode Wajib KIE</p>
-                                              <p className="text-[10px] text-gray-400">Kewajiban setor KIE dimulai pada {formattedKieStart}. Target hari ini 0 Keys.</p>
+                                              <span className={`text-[9px] font-black px-2.5 py-1 rounded-full border ${
+                                                selectedDate < rawKieStart
+                                                  ? (selectedCount >= selectedDayTarget
+                                                      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                                      : (selectedCount > 0 ? "text-purple-600 bg-purple-50 border-purple-200" : "text-gray-500 bg-gray-50 border-gray-200"))
+                                                  : (rawPklEnd && selectedDate > rawPklEnd)
+                                                    ? "text-slate-600 bg-slate-100 border-slate-200"
+                                                    : selectedCount >= selectedDayTarget
+                                                      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                                      : (selectedDeficit && selectedDeficit.remainingDeficit === 0)
+                                                        ? "text-teal-700 bg-teal-50 border-teal-200"
+                                                        : selectedDate === todayStr
+                                                          ? "text-sky-700 bg-sky-50 border-sky-200"
+                                                          : "text-rose-700 bg-rose-50 border-rose-200"
+                                              }`}>
+                                                {selectedDate < rawKieStart
+                                                  ? (selectedCount >= selectedDayTarget
+                                                      ? (selectedCount > selectedDayTarget ? `Surplus +${selectedCount - selectedDayTarget} Keys` : `Target Terpenuhi (${selectedDayTarget}/${selectedDayTarget})`)
+                                                      : (selectedCount > 0 ? `Setor Sukarela (+${selectedCount} Keys)` : "Sebelum Periode KIE"))
+                                                  : (rawPklEnd && selectedDate > rawPklEnd)
+                                                    ? "Selesai Masa PKL"
+                                                    : selectedCount >= selectedDayTarget
+                                                      ? (selectedCount > selectedDayTarget ? `Surplus +${selectedCount - selectedDayTarget} Keys` : `Target Terpenuhi (${selectedDayTarget}/${selectedDayTarget})`)
+                                                      : (selectedDeficit && selectedDeficit.remainingDeficit === 0)
+                                                        ? `Status: LUNAS (Disetor ${selectedCount}/${selectedDayTarget})`
+                                                        : selectedDate === todayStr
+                                                          ? `Sedang Berjalan (${selectedCount}/${selectedDayTarget})`
+                                                          : selectedCount > 0
+                                                            ? `Belum Lunas (${selectedCount}/${selectedDayTarget}, Kurang ${selectedDeficit?.remainingDeficit || (selectedDayTarget - selectedCount)})`
+                                                            : `Belum Lunas (0/${selectedDayTarget}, Kurang ${selectedDayTarget})`}
+                                              </span>
                                             </div>
-                                          );
-                                        }
 
-                                        if (rawPklEnd && selectedDate > rawPklEnd) {
-                                          return (
-                                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs text-center">
-                                              <div className="font-black text-slate-800 flex items-center justify-center gap-1.5 text-sm">
-                                                <span>🏁</span>
-                                                <span>Masa PKL Telah Berakhir</span>
-                                              </div>
-                                              <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-                                                Siswa telah menyelesaikan seluruh masa PKL pada <b>{formattedPklEnd}</b>.
-                                                Mulai tanggal <b>{parseSafeDate(selectedDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</b> sudah <b>bebas kewajiban target KIE (Target: 0 Keys)</b> dan tidak akan menambah hutang.
-                                              </p>
-                                            </div>
-                                          );
-                                        }
-
-                                        // Case 1: Deficit day that is ALREADY PAID OFF (LUNAS)
-                                        if (selectedDeficit && selectedDeficit.remainingDeficit === 0) {
-                                          return (
-                                            <div className="p-3.5 bg-teal-50/70 border border-teal-200 rounded-xl space-y-2 text-xs">
-                                              <div className="font-black text-teal-900 flex items-center gap-1.5">
-                                                <span>✨</span>
-                                                <span>Status: SUDAH LUNAS 100%</span>
-                                              </div>
-                                              <p className="text-[11px] text-teal-700 leading-relaxed font-medium">
-                                                Hari ini disetor <b>{selectedCount} dari target {dailyTarget} KIE</b> (kurang {selectedDeficit.originalDeficit} Keys).
-                                              </p>
-                                              <div className="pt-2 border-t border-teal-200/60 space-y-1">
-                                                <div className="text-[10px] font-bold text-teal-800 uppercase tracking-wider">
-                                                  💸 Dilunasi oleh kelebihan setoran:
-                                                </div>
-                                                <div className="space-y-1">
-                                                  {selectedDeficit.paidBy.map((p, idx) => (
-                                                    <div key={idx} className="flex items-center justify-between px-2.5 py-1 bg-white/80 rounded-lg text-[10.5px] font-bold text-teal-800 border border-teal-150">
-                                                      <span>📅 {parseSafeDate(p.dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>
-                                                      <span className="bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded font-mono">+{p.keys} Keys</span>
-                                                    </div>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        }
-
-                                        // Case 2: Deficit day that is STILL UNPAID
-                                        if (selectedDeficit && selectedDeficit.remainingDeficit > 0) {
-                                          if (selectedDate === todayStr) {
-                                            return (
-                                              <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-xl space-y-2 text-xs">
-                                                <div className="font-black text-sky-900 flex items-center gap-1.5">
-                                                  <span>⏳</span>
-                                                  <span>Status: SEDANG BERJALAN (Target Hari Ini)</span>
-                                                </div>
-                                                <p className="text-[11px] text-sky-800 leading-relaxed font-medium">
-                                                  Disetor <b>{selectedCount} dari target {dailyTarget} KIE</b>. Target hari ini masih berjalan. Siswa masih memiliki waktu untuk menyetor <b>{selectedDeficit.remainingDeficit} Keys</b> hari ini sebelum dicatat sebagai hutang.
-                                                </p>
-                                              </div>
-                                            );
-                                          }
-
-                                          return (
-                                            <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-xl space-y-2 text-xs">
-                                              <div className="font-black text-rose-900 flex items-center gap-1.5">
-                                                <span>❌</span>
-                                                <span>Status: BELUM LUNAS (Hutang Aktif)</span>
-                                              </div>
-                                              <p className="text-[11px] text-rose-700 leading-relaxed font-medium">
-                                                Disetor <b>{selectedCount} dari target {dailyTarget} KIE</b>. Masih terdapat kekurangan <b>{selectedDeficit.remainingDeficit} Keys</b> yang belum tertutupi sampai saat ini.
-                                              </p>
-                                              {selectedDeficit.paidBy.length > 0 && (
-                                                <div className="pt-2 border-t border-rose-200/60 space-y-1">
-                                                  <div className="text-[10px] font-bold text-rose-800 uppercase tracking-wider">
-                                                    💸 Sebagian telah dicicil dari:
-                                                  </div>
-                                                  <div className="space-y-1">
-                                                    {selectedDeficit.paidBy.map((p, idx) => (
-                                                      <div key={idx} className="flex items-center justify-between px-2.5 py-1 bg-white/80 rounded-lg text-[10.5px] font-bold text-rose-800 border border-rose-150">
-                                                        <span>📅 {parseSafeDate(p.dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>
-                                                        <span className="bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-mono">+{p.keys} Keys</span>
+                                            {/* Detailed Explanation for Deficits / Surpluses / Graduation */}
+                                            {(() => {
+                                              if (selectedDate < rawKieStart) {
+                                                if (selectedCount >= selectedDayTarget) {
+                                                  return (
+                                                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 text-xs">
+                                                      <div className="font-bold text-emerald-800 flex items-center gap-1.5">
+                                                        <span>Target Terpenuhi ({selectedCount} Keys)</span>
                                                       </div>
-                                                    ))}
-                                                  </div>
-                                                </div>
-                                              )}
-                                            </div>
-                                          );
-                                        }
-
-                                        // Case 3: Surplus day (Setor > 4)
-                                        if (selectedSurplus && selectedSurplus.originalSurplus > 0) {
-                                          return (
-                                            <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2 text-xs">
-                                              <div className="font-black text-emerald-900 flex items-center gap-1.5">
-                                                <span>🌟</span>
-                                                <span>Surplus +{selectedSurplus.originalSurplus} Keys (Pelunas Hutang)</span>
-                                              </div>
-                                              <p className="text-[11px] text-emerald-700 leading-relaxed font-medium">
-                                                Target harian {dailyTarget} KIE terpenuhi. Kelebihan <b>{selectedSurplus.originalSurplus} Keys</b> hari ini dialokasikan untuk melunasi hutang di hari-hari sebelumnya:
-                                              </p>
-                                              <div className="pt-2 border-t border-emerald-200/60 space-y-1">
-                                                <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
-                                                  🎯 Dipakai melunasi kekurangan tanggal:
-                                                </div>
-                                                <div className="space-y-1">
-                                                  {selectedSurplus.usedFor.map((u, idx) => (
-                                                    <div key={idx} className="flex items-center justify-between px-2.5 py-1 bg-white/80 rounded-lg text-[10.5px] font-bold text-emerald-800 border border-emerald-150">
-                                                      <span>📅 {parseSafeDate(u.dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>
-                                                      <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono">-{u.keys} Keys Hutang</span>
+                                                      <p className="text-[11px] text-emerald-700 leading-relaxed font-medium">
+                                                        Target harian {selectedDayTarget} KIE terpenuhi ({selectedCount} Keys disetor).
+                                                      </p>
                                                     </div>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        }
+                                                  );
+                                                }
+                                                return (
+                                                  <div className="text-center py-8 text-gray-400 text-xs font-medium bg-slate-50/70 border border-dashed border-gray-200 rounded-xl space-y-1">
+                                                    <p className="font-bold text-gray-600">Sebelum Periode Wajib KIE</p>
+                                                    <p className="text-[10px] text-gray-400">Kewajiban setor KIE dimulai pada {formattedKieStart}. Target hari ini 0 Keys.</p>
+                                                  </div>
+                                                );
+                                              }
 
-                                        return null;
+                                              if (rawPklEnd && selectedDate > rawPklEnd) {
+                                                return (
+                                                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs text-center">
+                                                    <div className="font-black text-slate-800 flex items-center justify-center gap-1.5 text-sm">
+                                                      <span>🏁</span>
+                                                      <span>Masa PKL Telah Berakhir</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                                                      Siswa telah menyelesaikan seluruh masa PKL pada <b>{formattedPklEnd}</b>.
+                                                      Mulai tanggal <b>{parseSafeDate(selectedDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</b> sudah <b>bebas kewajiban target KIE (Target: 0 Keys)</b> dan tidak akan menambah hutang.
+                                                    </p>
+                                                  </div>
+                                                );
+                                              }
+
+                                              // Case 1: Deficit day that is ALREADY PAID OFF (LUNAS)
+                                              if (selectedDeficit && selectedDeficit.remainingDeficit === 0) {
+                                                return (
+                                                  <div className="p-3.5 bg-teal-50/70 border border-teal-200 rounded-xl space-y-2 text-xs">
+                                                    <div className="font-black text-teal-900 flex items-center gap-1.5">
+                                                      <span>✨</span>
+                                                      <span>Status: SUDAH LUNAS 100%</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-teal-700 leading-relaxed font-medium">
+                                                      Hari ini disetor <b>{selectedCount} dari target {selectedDayTarget} KIE</b> (kurang {selectedDeficit.originalDeficit} Keys).
+                                                    </p>
+                                                    <div className="pt-2 border-t border-teal-200/60 space-y-1">
+                                                      <div className="text-[10px] font-bold text-teal-800 uppercase tracking-wider">
+                                                        💸 Dilunasi oleh kelebihan setoran:
+                                                      </div>
+                                                      <div className="space-y-1">
+                                                        {selectedDeficit.paidBy.map((p, idx) => (
+                                                          <div key={idx} className="flex items-center justify-between px-2.5 py-1 bg-white/80 rounded-lg text-[10.5px] font-bold text-teal-800 border border-teal-150">
+                                                            <span>📅 {parseSafeDate(p.dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>
+                                                            <span className="bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded font-mono">+{p.keys} Keys</span>
+                                                          </div>
+                                                        ))}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                );
+                                              }
+
+                                              // Case 2: Deficit day that is STILL UNPAID
+                                              if (selectedDeficit && selectedDeficit.remainingDeficit > 0) {
+                                                if (selectedDate === todayStr) {
+                                                  return (
+                                                    <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-xl space-y-2 text-xs">
+                                                      <div className="font-black text-sky-900 flex items-center gap-1.5">
+                                                        <span>⏳</span>
+                                                        <span>Status: SEDANG BERJALAN (Target Hari Ini)</span>
+                                                      </div>
+                                                      <p className="text-[11px] text-sky-800 leading-relaxed font-medium">
+                                                        Disetor <b>{selectedCount} dari target {selectedDayTarget} KIE</b>. Target hari ini masih berjalan. Siswa masih memiliki waktu untuk menyetor <b>{selectedDeficit.remainingDeficit} Keys</b> hari ini sebelum dicatat sebagai hutang.
+                                                      </p>
+                                                    </div>
+                                                  );
+                                                }
+
+                                                return (
+                                                  <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-xl space-y-2 text-xs">
+                                                    <div className="font-black text-rose-900 flex items-center gap-1.5">
+                                                      <span>❌</span>
+                                                      <span>Status: BELUM LUNAS (Hutang Aktif)</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-rose-700 leading-relaxed font-medium">
+                                                      Disetor <b>{selectedCount} dari target {selectedDayTarget} KIE</b>. Masih terdapat kekurangan <b>{selectedDeficit.remainingDeficit} Keys</b> yang belum tertutupi sampai saat ini.
+                                                    </p>
+                                                    {selectedDeficit.paidBy.length > 0 && (
+                                                      <div className="pt-2 border-t border-rose-200/60 space-y-1">
+                                                        <div className="text-[10px] font-bold text-rose-800 uppercase tracking-wider">
+                                                          💸 Sebagian telah dicicil dari:
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                          {selectedDeficit.paidBy.map((p, idx) => (
+                                                            <div key={idx} className="flex items-center justify-between px-2.5 py-1 bg-white/80 rounded-lg text-[10.5px] font-bold text-rose-800 border border-rose-150">
+                                                              <span>📅 {parseSafeDate(p.dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>
+                                                              <span className="bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-mono">+{p.keys} Keys</span>
+                                                            </div>
+                                                          ))}
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                );
+                                              }
+
+                                              // Case 3: Surplus day (Setor > Target)
+                                              if (selectedSurplus && selectedSurplus.originalSurplus > 0) {
+                                                return (
+                                                  <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2 text-xs">
+                                                    <div className="font-black text-emerald-900 flex items-center gap-1.5">
+                                                      <span>🌟</span>
+                                                      <span>Surplus +{selectedSurplus.originalSurplus} Keys (Pelunas Hutang)</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-emerald-700 leading-relaxed font-medium">
+                                                      Target harian {selectedDayTarget} KIE terpenuhi. Kelebihan <b>{selectedSurplus.originalSurplus} Keys</b> hari ini dialokasikan untuk melunasi hutang di hari-hari sebelumnya:
+                                                    </p>
+                                                    <div className="pt-2 border-t border-emerald-200/60 space-y-1">
+                                                      <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
+                                                        🎯 Dipakai melunasi kekurangan tanggal:
+                                                      </div>
+                                                      <div className="space-y-1">
+                                                        {selectedSurplus.usedFor.map((u, idx) => (
+                                                          <div key={idx} className="flex items-center justify-between px-2.5 py-1 bg-white/80 rounded-lg text-[10.5px] font-bold text-emerald-800 border border-emerald-150">
+                                                            <span>📅 {parseSafeDate(u.dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>
+                                                            <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono">-{u.keys} Keys Hutang</span>
+                                                          </div>
+                                                        ))}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                );
+                                              }
+
+                                              return null;
+                                            })()}
+                                          </>
+                                        );
                                       })()}
 
                                       {/* Submissions list for selected date */}
@@ -1637,7 +1670,7 @@ export default function AdminKiePage() {
                                                 title="Klik untuk lihat detail pelunasan"
                                               >
                                                 <span>{parseSafeDate(d.dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}:</span>
-                                                <span>{d.count}/{dailyTarget}</span>
+                                                <span>{d.count}/{(targetEffectiveDate && d.dateStr >= targetEffectiveDate) ? dailyTarget : 4}</span>
                                                 <span>{d.isCovered ? '✓ LUNAS' : `❌ Sisa ${d.remainingDeficit}`}</span>
                                               </button>
                                             ))}
