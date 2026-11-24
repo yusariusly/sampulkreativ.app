@@ -5025,7 +5025,9 @@ app.post('/api/admin/auth/request-otp', async (req, res) => {
       ['admin_credentials_expiry', expiry.toString()]
     );
 
-    // Kirim email notifikasi kode OTP ke email HRD / Admin
+    console.log(`[ADMIN_CREDENTIALS_OTP] Generated OTP for ${hrdEmail}: ${otp}`);
+
+    // Kirim email notifikasi kode OTP ke email HRD / Admin (async background agar tidak blocking)
     if (user && pass && host) {
       const transporter = nodemailer.createTransport({
         host,
@@ -5069,8 +5071,11 @@ app.post('/api/admin/auth/request-otp', async (req, res) => {
         `
       };
 
-      await transporter.sendMail(mailOptions);
-      console.log(`[ADMIN_CREDENTIALS_OTP] Email sent successfully to ${hrdEmail} with OTP: ${otp}`);
+      transporter.sendMail(mailOptions).then(() => {
+        console.log(`[ADMIN_CREDENTIALS_OTP] Email sent successfully to ${hrdEmail} with OTP: ${otp}`);
+      }).catch((mailErr) => {
+        console.error(`[ADMIN_CREDENTIALS_OTP] Gagal mengirim email ke ${hrdEmail}:`, mailErr);
+      });
     } else {
       console.warn(`[ADMIN_CREDENTIALS_OTP] SMTP credentials incomplete, generated OTP: ${otp}`);
     }
