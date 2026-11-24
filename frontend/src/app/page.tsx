@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Shield, QrCode, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
+import { Eye, EyeOff, Shield, QrCode, AlertCircle, CheckCircle2, RefreshCw, KeyRound, X, Send, AlertTriangle, Check } from "lucide-react";
 import jsQR from "jsqr";
 
 function AppLogo({ size = 80 }: { size?: number }) {
@@ -135,6 +135,106 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Admin Reset Credentials Modal States (via Email OTP)
+  const [showAdminResetModal, setShowAdminResetModal] = useState(false);
+  const [adminResetStep, setAdminResetStep] = useState<"REQUEST" | "VERIFY">("REQUEST");
+  const [adminResetOtp, setAdminResetOtp] = useState("");
+  const [adminResetNewUser, setAdminResetNewUser] = useState("");
+  const [adminResetNewPw, setAdminResetNewPw] = useState("");
+  const [adminResetConfirmPw, setAdminResetConfirmPw] = useState("");
+  const [showAdminResetNewPw, setShowAdminResetNewPw] = useState(false);
+  const [adminResetLoading, setAdminResetLoading] = useState(false);
+  const [adminResetMaskedEmail, setAdminResetMaskedEmail] = useState("");
+  const [adminResetError, setAdminResetError] = useState<string | null>(null);
+  const [adminResetSuccess, setAdminResetSuccess] = useState<string | null>(null);
+
+  const handleOpenResetAdminModal = () => {
+    setShowAdminResetModal(true);
+    setAdminResetStep("REQUEST");
+    setAdminResetOtp("");
+    setAdminResetNewUser(adminUser || "admin");
+    setAdminResetNewPw("");
+    setAdminResetConfirmPw("");
+    setShowAdminResetNewPw(false);
+    setAdminResetError(null);
+    setAdminResetSuccess(null);
+  };
+
+  const handleRequestAdminOtp = async () => {
+    setAdminResetLoading(true);
+    setAdminResetError(null);
+    setAdminResetSuccess(null);
+    try {
+      const res = await fetch("/api/admin/auth/request-otp", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setAdminResetMaskedEmail(data.email || "email HRD/Admin di pengaturan");
+        setAdminResetStep("VERIFY");
+        setAdminResetSuccess("Kode OTP berhasil dikirimkan ke email!");
+      } else {
+        setAdminResetError(data.error || "Gagal mengirimkan kode OTP.");
+      }
+    } catch (err) {
+      setAdminResetError("Terjadi kesalahan koneksi saat meminta kode OTP.");
+    } finally {
+      setAdminResetLoading(false);
+    }
+  };
+
+  const handleSubmitAdminCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminResetError(null);
+    setAdminResetSuccess(null);
+
+    if (!adminResetOtp.trim() || adminResetOtp.trim().length !== 6) {
+      setAdminResetError("Kode OTP 6-digit wajib diisi dengan benar.");
+      return;
+    }
+    if (!adminResetNewUser.trim() && !adminResetNewPw.trim()) {
+      setAdminResetError("Harap masukkan username baru atau password baru.");
+      return;
+    }
+    if (adminResetNewPw && adminResetNewPw.trim().length < 4) {
+      setAdminResetError("Password baru minimal 4 karakter.");
+      return;
+    }
+    if (adminResetNewPw && adminResetNewPw !== adminResetConfirmPw) {
+      setAdminResetError("Konfirmasi password baru tidak cocok.");
+      return;
+    }
+
+    setAdminResetLoading(true);
+    try {
+      const res = await fetch("/api/admin/auth/update-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          otp: adminResetOtp.trim(),
+          new_username: adminResetNewUser.trim() || undefined,
+          new_password: adminResetNewPw.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.new_username) {
+          setAdminUser(data.new_username);
+        }
+        if (adminResetNewPw.trim()) {
+          setAdminPw(adminResetNewPw.trim());
+        }
+        setShowAdminResetModal(false);
+        setError("");
+        alert("✅ Kredensial Administrator berhasil diperbarui! Silakan klik 'Masuk sebagai Admin'.");
+      } else {
+        setAdminResetError(data.error || "Gagal memperbarui kredensial admin.");
+      }
+    } catch (err) {
+      setAdminResetError("Terjadi kesalahan jaringan.");
+    } finally {
+      setAdminResetLoading(false);
+    }
+  };
 
   // Check existing session on mount
   useEffect(() => {
@@ -732,6 +832,17 @@ export default function LoginPage() {
                   </div>
                 </div>
 
+                {/* Link Ganti / Lupa Password Admin via Email OTP */}
+                <div className="flex justify-end pt-0.5">
+                  <button
+                    type="button"
+                    onClick={handleOpenResetAdminModal}
+                    className="text-xs text-[#2AB0B2] hover:text-[#52c8ca] font-semibold transition-colors cursor-pointer hover:underline"
+                  >
+                    Ganti Username / Password Admin via OTP?
+                  </button>
+                </div>
+
                 <button
                   type="submit"
                   disabled={loading}
@@ -758,6 +869,180 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
+
+      {/* Modal Alur Ganti Username / Password Admin via OTP Email */}
+      {showAdminResetModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setShowAdminResetModal(false)}>
+          <div className="w-full max-w-md bg-[#132B2C] rounded-3xl p-6 sm:p-7 border border-white/15 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 text-white" onClick={(e) => e.stopPropagation()}>
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowAdminResetModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              title="Tutup"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Header Modal */}
+            <div className="flex items-center gap-3.5 mb-5 pb-4 border-b border-white/10">
+              <div className="w-11 h-11 rounded-2xl bg-[#2AB0B2]/15 border border-[#2AB0B2]/30 flex items-center justify-center text-[#2AB0B2] shrink-0">
+                <Shield size={22} />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-white text-base">
+                  Ganti Kredensial Administrator
+                </h3>
+                <p className="text-xs text-white/50 mt-0.5">
+                  Verifikasi keamanan via kode OTP email HRD / Admin
+                </p>
+              </div>
+            </div>
+
+            {/* Error & Success Alerts */}
+            {adminResetError && (
+              <div className="mb-4 p-3 bg-red-500/15 border border-red-500/30 rounded-xl text-xs text-red-300 font-semibold flex items-center gap-2">
+                <AlertTriangle size={15} className="shrink-0 text-red-400" />
+                <span>{adminResetError}</span>
+              </div>
+            )}
+            {adminResetSuccess && (
+              <div className="mb-4 p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 font-semibold flex items-center gap-2">
+                <Check size={15} className="shrink-0 text-emerald-400" />
+                <span>{adminResetSuccess}</span>
+              </div>
+            )}
+
+            {/* Step 1: Request OTP */}
+            {adminResetStep === "REQUEST" ? (
+              <div className="space-y-4">
+                <p className="text-xs text-white/70 leading-relaxed">
+                  Untuk mengubah username atau password akun Administrator, sistem akan mengirimkan kode verifikasi (OTP) 6-digit ke <strong>email HRD / Admin</strong> yang terdaftar di pengaturan.
+                </p>
+
+                <div className="p-3.5 bg-white/5 border border-white/10 rounded-2xl text-xs text-white/80 space-y-1">
+                  <div className="font-semibold text-white/50">Akun sasaran:</div>
+                  <div className="font-mono text-[#2AB0B2] font-bold text-sm">@{adminUser || "admin"} (Administrator)</div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRequestAdminOtp}
+                  disabled={adminResetLoading}
+                  className="w-full py-3.5 bg-[#2AB0B2] hover:bg-[#209092] text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+                >
+                  {adminResetLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Mengirimkan Kode OTP...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send size={15} />
+                      <span>Kirim Kode OTP ke Email</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              /* Step 2: Input OTP & Set New Username / Password */
+              <form onSubmit={handleSubmitAdminCredentials} className="space-y-4">
+                <div className="p-3 bg-teal-500/10 border border-teal-500/20 rounded-xl text-xs text-teal-300">
+                  Kode OTP telah dikirim ke <strong>{adminResetMaskedEmail}</strong>. Masukkan kode tersebut di bawah ini:
+                </div>
+
+                {/* Input OTP */}
+                <div>
+                  <label className="block text-xs font-bold text-white/60 mb-1 uppercase tracking-wider pl-1">
+                    Kode Verifikasi (OTP 6-Digit) *
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={adminResetOtp}
+                    onChange={(e) => setAdminResetOtp(e.target.value.replace(/\D/g, ""))}
+                    placeholder="000000"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-[#2AB0B2] outline-none text-center font-mono text-xl font-black tracking-[8px] text-white bg-white/5 focus:bg-white/10 transition-all placeholder:text-white/20"
+                    required
+                  />
+                </div>
+
+                {/* Input Username Baru */}
+                <div>
+                  <label className="block text-xs font-bold text-white/60 mb-1 uppercase tracking-wider pl-1">
+                    Username Admin Baru (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={adminResetNewUser}
+                    onChange={(e) => setAdminResetNewUser(e.target.value)}
+                    placeholder="Biarkan jika tidak ingin ganti username"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-[#2AB0B2] outline-none font-mono text-sm text-white bg-white/5 focus:bg-white/10 transition-all placeholder:text-white/20"
+                  />
+                </div>
+
+                {/* Input Password Baru */}
+                <div>
+                  <label className="block text-xs font-bold text-white/60 mb-1 uppercase tracking-wider pl-1">
+                    Password Baru (Opsional)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showAdminResetNewPw ? "text" : "password"}
+                      value={adminResetNewPw}
+                      onChange={(e) => setAdminResetNewPw(e.target.value)}
+                      placeholder="Minimal 4 karakter"
+                      className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-white/15 focus:border-[#2AB0B2] outline-none text-sm text-white bg-white/5 focus:bg-white/10 transition-all font-mono placeholder:text-white/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminResetNewPw(!showAdminResetNewPw)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors cursor-pointer"
+                    >
+                      {showAdminResetNewPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Konfirmasi Password Baru jika password baru diisi */}
+                {adminResetNewPw.trim() !== "" && (
+                  <div>
+                    <label className="block text-xs font-bold text-white/60 mb-1 uppercase tracking-wider pl-1">
+                      Konfirmasi Password Baru *
+                    </label>
+                    <input
+                      type="password"
+                      value={adminResetConfirmPw}
+                      onChange={(e) => setAdminResetConfirmPw(e.target.value)}
+                      placeholder="Ketik ulang password baru"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-[#2AB0B2] outline-none text-sm text-white bg-white/5 focus:bg-white/10 transition-all font-mono placeholder:text-white/20"
+                      required
+                    />
+                  </div>
+                )}
+
+                <div className="pt-2 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={handleRequestAdminOtp}
+                    disabled={adminResetLoading}
+                    className="text-xs font-bold text-[#2AB0B2] hover:underline cursor-pointer"
+                  >
+                    Kirim Ulang OTP
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={adminResetLoading || adminResetOtp.length < 6}
+                    className="px-5 py-2.5 bg-[#2AB0B2] hover:bg-[#209092] text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+                  >
+                    {adminResetLoading ? "Menyimpan..." : "Verifikasi & Simpan"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Scan line animation */}
       <style>{`
