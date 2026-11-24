@@ -3179,18 +3179,27 @@ app.put('/api/users', async (req, res) => {
       }
     }
 
-    let updateFields = 'nama_lengkap = ?, username = ?';
-    let params = [nama_lengkap_val.trim(), username_val.trim().toLowerCase()];
+    const isAdminAccount = user.role === 'admin' || user.username === 'admin' || user.id === 'usr-admin';
+
+    let updateFields = 'nama_lengkap = ?';
+    let params = [nama_lengkap_val.trim()];
+
+    // Username akun admin tidak dapat diubah lewat PUT /api/users biasa (harus melalui verifikasi OTP email)
+    if (!isAdminAccount) {
+      updateFields += ', username = ?';
+      params.push(username_val.trim().toLowerCase());
+    }
 
     if (is_active !== undefined) {
-      if (user.username === 'admin' && !is_active) {
+      if (isAdminAccount && !is_active) {
         return res.status(403).json({ error: 'Akun administrator utama tidak dapat dinonaktifkan' });
       }
       updateFields += ', is_active = ?';
       params.push(is_active ? 1 : 0);
     }
 
-    if (password && password.trim() !== '' && password !== 'no_password') {
+    // Password akun admin tidak dapat diubah lewat PUT /api/users biasa (harus melalui verifikasi OTP email)
+    if (!isAdminAccount && password && password.trim() !== '' && password !== 'no_password') {
       updateFields += ', password = ?';
       params.push(password);
     }
@@ -4978,6 +4987,197 @@ app.post('/api/payroll/auth/reset-password', async (req, res) => {
   } catch (error) {
     console.error('Gagal mereset password payroll:', error);
     res.status(500).json({ error: 'Terjadi kesalahan sistem saat memperbarui password.' });
+  }
+});
+
+// --- ADMIN CREDENTIALS CHANGE VIA OTP ---
+// 1. Request OTP for Admin Username / Password change
+app.post('/api/admin/auth/request-otp', async (req, res) => {
+  try {
+    const [settingsRows] = await pool.query(
+      "SELECT key_name, key_value FROM settings WHERE key_name IN ('smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_sender', 'smtp_to')"
+    );
+    const settingsMap = {};
+    settingsRows.forEach(r => { settingsMap[r.key_name] = r.key_value; });
+
+    const hrdEmail = settingsMap['smtp_to'] || 'hasan.farisi100@gmail.com';
+    const host = settingsMap['smtp_host'] || 'smtp-relay.brevo.com';
+    const port = parseInt(settingsMap['smtp_port'] || '2525');
+    const user = settingsMap['smtp_user'];
+    const pass = settingsMap['smtp_pass'];
+    const sender = settingsMap['smtp_sender'] || 'noreply@sampulkreativ.id';
+
+    if (!hrdEmail) {
+      return res.status(400).json({ error: 'Email HRD (smtp_to) belum dikonfigurasi di Pengaturan.' });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = Date.now() + 15 * 60 * 1000; // Valid 15 menit
+
+    // Simpan ke tabel settings
+    await pool.query(
+      "INSERT INTO settings (key_name, key_value) VALUES (?, ?) ON CONFLICT (key_name) DO UPDATE SET key_value = EXCLUDED.key_value",
+      ['admin_credentials_otp', otp]
+    );
+    await pool.query(
+      "INSERT INTO settings (key_name, key_value) VALUES (?, ?) ON CONFLICT (key_name) DO UPDATE SET key_value = EXCLUDED.key_value",
+      ['admin_credentials_expiry', expiry.toString()]
+    );
+
+    // Kirim email notifikasi kode OTP ke email HRD / Admin
+    if (user && pass && host) {
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass }
+      });
+
+      const mailOptions = {
+        from: `"SampulKreativ Security" <${sender}>`,
+        to: hrdEmail,
+        subject: `[KODE OTP: ${otp}] Permintaan Ganti Username / Password Administrator SampulKreativ`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #E2E8F0; border-radius: 16px; padding: 28px; background-color: #ffffff; color: #1E293B;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <h2 style="color: #1C3D3F; margin: 0 0 6px 0; font-size: 22px;">Verifikasi Kredensial Administrator</h2>
+              <p style="color: #64748B; font-size: 13px; margin: 0;">Sistem Keamanan & Manajemen Akun SampulKreativ</p>
+            </div>
+            
+            <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+              Halo Tim Manajemen / Administrator,
+            </p>
+            <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+              Kami menerima permintaan untuk mengubah <strong>Username</strong> dan/atau <strong>Password</strong> akun Administrator utama di Admin Panel. Gunakan kode verifikasi (OTP) berikut untuk melanjutkan:
+            </p>
+
+            <div style="text-align: center; margin: 24px 0; padding: 18px; background: #F0FDFA; border: 2px dashed #2AB0B2; border-radius: 12px;">
+              <span style="font-size: 32px; font-weight: 900; letter-spacing: 8px; color: #0F766E; font-family: monospace;">${otp}</span>
+              <p style="margin: 8px 0 0 0; font-size: 11px; color: #0D9488; font-weight: bold;">KODE BERLAKU SELAMA 15 MENIT</p>
+            </div>
+
+            <p style="font-size: 12px; line-height: 1.5; color: #E11D48; margin-top: 20px; font-weight: bold;">
+              ⚠️ PERINGATAN KEAMANAN: Jangan berikan kode ini kepada siapapun! Akun Administrator memiliki kendali penuh atas seluruh data perusahaan. Jika Anda tidak meminta perubahan ini, segera amankan sistem.
+            </p>
+
+            <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 24px 0;" />
+            <p style="text-align: center; font-size: 11px; color: #94A3B8; margin: 0;">
+              &copy; ${new Date().getFullYear()} SampulKreativ. All rights reserved.
+            </p>
+          </div>
+        `
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log(`[ADMIN_CREDENTIALS_OTP] Email sent successfully to ${hrdEmail} with OTP: ${otp}`);
+    } else {
+      console.warn(`[ADMIN_CREDENTIALS_OTP] SMTP credentials incomplete, generated OTP: ${otp}`);
+    }
+
+    // Masked email for display (e.g. h***100@gmail.com)
+    const parts = hrdEmail.split('@');
+    const maskedUser = parts[0].length > 3 ? parts[0][0] + '***' + parts[0].slice(-3) : parts[0][0] + '***';
+    const maskedEmail = `${maskedUser}@${parts[1]}`;
+
+    res.json({
+      success: true,
+      message: `Kode verifikasi OTP telah dikirimkan ke email penerima HRD/Admin (${maskedEmail}).`,
+      email: maskedEmail
+    });
+  } catch (error) {
+    console.error('Gagal mengirimkan kode OTP admin credentials:', error);
+    res.status(500).json({ error: 'Gagal mengirimkan kode OTP ke email HRD: ' + (error.message || '') });
+  }
+});
+
+// 2. Verify OTP & Update Admin Username / Password
+app.post('/api/admin/auth/update-credentials', async (req, res) => {
+  try {
+    const { otp, new_username, new_password } = req.body;
+    if (!otp) {
+      return res.status(400).json({ error: 'Kode OTP verifikasi wajib disertakan.' });
+    }
+    if (!new_username && !new_password) {
+      return res.status(400).json({ error: 'Harap masukkan username baru atau password baru.' });
+    }
+
+    const [settingsRows] = await pool.query(
+      "SELECT key_name, key_value FROM settings WHERE key_name IN ('admin_credentials_otp', 'admin_credentials_expiry')"
+    );
+    const settingsMap = {};
+    settingsRows.forEach(r => { settingsMap[r.key_name] = r.key_value; });
+
+    const storedOtp = settingsMap['admin_credentials_otp'];
+    const storedExpiry = parseInt(settingsMap['admin_credentials_expiry'] || '0');
+
+    if (!storedOtp || !storedExpiry) {
+      return res.status(400).json({ error: 'Permintaan verifikasi belum dibuat atau sudah kedaluwarsa. Silakan minta kode OTP baru.' });
+    }
+
+    if (Date.now() > storedExpiry) {
+      return res.status(400).json({ error: 'Kode verifikasi OTP sudah kedaluwarsa (lebih dari 15 menit). Silakan minta kode baru.' });
+    }
+
+    if (storedOtp.trim() !== otp.toString().trim()) {
+      return res.status(400).json({ error: 'Kode verifikasi OTP salah. Silakan periksa kembali email HRD/Admin Anda.' });
+    }
+
+    // Cari akun administrator (id = 'usr-admin' atau role = 'admin')
+    const [adminRows] = await pool.query("SELECT * FROM users WHERE id = 'usr-admin' OR role = 'admin' LIMIT 1");
+    if (adminRows.length === 0) {
+      return res.status(404).json({ error: 'Akun administrator tidak ditemukan.' });
+    }
+    const adminUser = adminRows[0];
+
+    const updateFields = [];
+    const params = [];
+
+    if (new_username && new_username.trim()) {
+      const cleanUsername = new_username.trim().toLowerCase();
+      // Validasi duplikasi username
+      const [dup] = await pool.query("SELECT id FROM users WHERE id != ? AND LOWER(username) = ?", [adminUser.id, cleanUsername]);
+      if (dup.length > 0) {
+        return res.status(400).json({ error: 'Username tersebut sudah digunakan oleh akun lain.' });
+      }
+      updateFields.push("username = ?");
+      params.push(cleanUsername);
+    }
+
+    if (new_password && new_password.trim()) {
+      const cleanPassword = new_password.trim();
+      if (cleanPassword.length < 4) {
+        return res.status(400).json({ error: 'Password baru minimal 4 karakter.' });
+      }
+      updateFields.push("password = ?");
+      params.push(cleanPassword);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'Tidak ada perubahan username atau password yang dikirimkan.' });
+    }
+
+    params.push(adminUser.id);
+    await pool.query(`UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`, params);
+
+    // Hapus OTP setelah berhasil digunakan
+    await pool.query(
+      "INSERT INTO settings (key_name, key_value) VALUES (?, ?) ON CONFLICT (key_name) DO UPDATE SET key_value = EXCLUDED.key_value",
+      ['admin_credentials_otp', '']
+    );
+    await pool.query(
+      "INSERT INTO settings (key_name, key_value) VALUES (?, ?) ON CONFLICT (key_name) DO UPDATE SET key_value = EXCLUDED.key_value",
+      ['admin_credentials_expiry', '0']
+    );
+
+    res.json({
+      success: true,
+      message: 'Kredensial Administrator (Username / Password) berhasil diperbarui!',
+      new_username: new_username ? new_username.trim().toLowerCase() : adminUser.username
+    });
+  } catch (error) {
+    console.error('Gagal memperbarui kredensial admin:', error);
+    res.status(500).json({ error: 'Terjadi kesalahan sistem saat memperbarui kredensial admin.' });
   }
 });
 

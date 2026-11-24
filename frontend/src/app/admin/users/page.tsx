@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info, Bell, Unlock, Key, CreditCard, Download, Globe, Mail, Phone, UserPlus, LogIn, Archive, GraduationCap, RotateCcw, Search } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, X, User, Smartphone, Check, ShieldCheck, Users, AlertTriangle, Info, Bell, Unlock, Key, CreditCard, Download, Globe, Mail, Phone, UserPlus, LogIn, Archive, GraduationCap, RotateCcw, Search, Eye, EyeOff, Send, KeyRound } from "lucide-react";
 import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 
@@ -69,6 +69,103 @@ export default function AdminUsersPage() {
   const [cardModalUser, setCardModalUser] = useState<UserAccount | null>(null);
   const [cardDownloading, setCardDownloading] = useState(false);
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+
+  // Admin OTP Credentials Modal State
+  const [isAdminOtpModalOpen, setIsAdminOtpModalOpen] = useState(false);
+  const [adminOtpStep, setAdminOtpStep] = useState<"REQUEST" | "VERIFY">("REQUEST");
+  const [adminOtpCode, setAdminOtpCode] = useState("");
+  const [adminNewUsername, setAdminNewUsername] = useState("");
+  const [adminNewPassword, setAdminNewPassword] = useState("");
+  const [adminConfirmPassword, setAdminConfirmPassword] = useState("");
+  const [showAdminNewPassword, setShowAdminNewPassword] = useState(false);
+  const [adminOtpLoading, setAdminOtpLoading] = useState(false);
+  const [adminOtpMaskedEmail, setAdminOtpMaskedEmail] = useState("");
+  const [adminOtpError, setAdminOtpError] = useState<string | null>(null);
+  const [adminOtpSuccess, setAdminOtpSuccess] = useState<string | null>(null);
+
+  const handleOpenAdminCredentialsModal = () => {
+    setIsAdminOtpModalOpen(true);
+    setAdminOtpStep("REQUEST");
+    setAdminOtpCode("");
+    setAdminNewUsername(username);
+    setAdminNewPassword("");
+    setAdminConfirmPassword("");
+    setShowAdminNewPassword(false);
+    setAdminOtpError(null);
+    setAdminOtpSuccess(null);
+  };
+
+  const handleRequestAdminOtp = async () => {
+    setAdminOtpLoading(true);
+    setAdminOtpError(null);
+    setAdminOtpSuccess(null);
+    try {
+      const res = await fetch("/api/admin/auth/request-otp", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setAdminOtpMaskedEmail(data.email || "email HRD/Admin di pengaturan");
+        setAdminOtpStep("VERIFY");
+        setAdminOtpSuccess("Kode OTP 6-digit berhasil dikirimkan ke email!");
+      } else {
+        setAdminOtpError(data.error || "Gagal mengirimkan kode OTP.");
+      }
+    } catch (err) {
+      setAdminOtpError("Terjadi kesalahan koneksi saat meminta kode OTP.");
+    } finally {
+      setAdminOtpLoading(false);
+    }
+  };
+
+  const handleSubmitAdminCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminOtpError(null);
+    setAdminOtpSuccess(null);
+
+    if (!adminOtpCode.trim() || adminOtpCode.trim().length !== 6) {
+      setAdminOtpError("Kode OTP 6-digit wajib diisi dengan benar.");
+      return;
+    }
+    if (!adminNewUsername.trim() && !adminNewPassword.trim()) {
+      setAdminOtpError("Harap masukkan username baru atau password baru.");
+      return;
+    }
+    if (adminNewPassword && adminNewPassword.trim().length < 4) {
+      setAdminOtpError("Password baru minimal 4 karakter.");
+      return;
+    }
+    if (adminNewPassword && adminNewPassword !== adminConfirmPassword) {
+      setAdminOtpError("Konfirmasi password baru tidak cocok.");
+      return;
+    }
+
+    setAdminOtpLoading(true);
+    try {
+      const res = await fetch("/api/admin/auth/update-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          otp: adminOtpCode.trim(),
+          new_username: adminNewUsername.trim() || undefined,
+          new_password: adminNewPassword.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast("✅ Kredensial Administrator berhasil diperbarui!");
+        if (data.new_username) {
+          setUsername(data.new_username);
+        }
+        setIsAdminOtpModalOpen(false);
+        fetchUsers();
+      } else {
+        setAdminOtpError(data.error || "Gagal memperbarui kredensial admin.");
+      }
+    } catch (err) {
+      setAdminOtpError("Terjadi kesalahan jaringan.");
+    } finally {
+      setAdminOtpLoading(false);
+    }
+  };
 
   const downloadCardAsPDF = async (targetUser: UserAccount) => {
     setCardDownloading(true);
@@ -1100,16 +1197,30 @@ export default function AdminUsersPage() {
               )}
 
               {/* Username Input (Admin or Employee) */}
-              <div>
-                <input
-                  type="text"
-                  placeholder={isAdminForm ? "Username Admin" : "Username Karyawan"}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
-                  required
-                />
-              </div>
+              {isAdminForm && editingUserId ? (
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                    Username Administrator
+                  </label>
+                  <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-700 text-sm font-mono font-bold select-all">
+                    <span>@{username}</span>
+                    <span className="text-[10px] font-semibold text-gray-400 flex items-center gap-1">
+                      🔒 Terkunci
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <input
+                    type="text"
+                    placeholder={isAdminForm ? "Username Admin" : "Username Karyawan"}
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors font-mono"
+                    required
+                  />
+                </div>
+              )}
 
               {/* Email & No. Telepon Input */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1175,16 +1286,45 @@ export default function AdminUsersPage() {
               </div>
 
               {/* Password Input */}
-              <div>
-                <input
-                  type="password"
-                  placeholder={editingUserId ? "Password Baru (Kosongkan jika tidak diubah)" : "Password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
-                  required={!editingUserId}
-                />
-              </div>
+              {isAdminForm && editingUserId ? (
+                <div className="p-3.5 bg-gradient-to-br from-slate-50 to-teal-50/20 border border-teal-200/70 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-teal-100/80 border border-teal-200 flex items-center justify-center text-teal-700">
+                        <KeyRound size={16} />
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Kredensial Login Admin</div>
+                        <div className="text-xs font-mono font-bold text-gray-800">
+                          @{username} (••••••••)
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleOpenAdminCredentialsModal}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1C3D3F] hover:bg-[#2A595C] text-white text-xs font-bold rounded-xl shadow-3xs transition-all cursor-pointer active:scale-95"
+                    >
+                      <Unlock size={13} />
+                      Ubah via OTP Email
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
+                    🔒 Demi keamanan akun Administrator, penggantian username dan password memerlukan <strong>verifikasi kode OTP</strong> yang dikirim ke email HRD/Admin di menu Pengaturan.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <input
+                    type="password"
+                    placeholder={editingUserId ? "Password Baru (Kosongkan jika tidak diubah)" : "Password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-[#2AB0B2] outline-none transition-colors"
+                    required={!editingUserId}
+                  />
+                </div>
+              )}
 
               {/* Active toggle - only when editing */}
               {editingUserId && (
@@ -1378,6 +1518,180 @@ export default function AdminUsersPage() {
                 {cardDownloading ? "Menyiapkan PDF..." : "Unduh PDF (Gambar)"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Alur Ganti Username / Password Admin via OTP Email */}
+      {isAdminOtpModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setIsAdminOtpModalOpen(false)}>
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setIsAdminOtpModalOpen(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Tutup"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Header Modal */}
+            <div className="flex items-center gap-3.5 mb-5 pb-4 border-b border-slate-100">
+              <div className="w-11 h-11 rounded-2xl bg-teal-50 border border-teal-200/80 flex items-center justify-center text-[#2AB0B2] shrink-0">
+                <ShieldCheck size={22} />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  Ubah Kredensial Administrator
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Verifikasi keamanan via kode OTP email HRD / Admin
+                </p>
+              </div>
+            </div>
+
+            {/* Error & Success Alerts */}
+            {adminOtpError && (
+              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-semibold flex items-center gap-2">
+                <AlertTriangle size={15} className="shrink-0" />
+                <span>{adminOtpError}</span>
+              </div>
+            )}
+            {adminOtpSuccess && (
+              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-semibold flex items-center gap-2">
+                <Check size={15} className="shrink-0" />
+                <span>{adminOtpSuccess}</span>
+              </div>
+            )}
+
+            {/* Step 1: Request OTP */}
+            {adminOtpStep === "REQUEST" ? (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Demi keamanan akun Administrator, kode verifikasi (OTP) 6 digit akan dikirimkan ke <strong>email HRD / Admin</strong> yang telah dikonfigurasi di menu <em>Pengaturan</em>.
+                </p>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs text-slate-700 space-y-1">
+                  <div className="font-bold text-slate-800">Akun yang akan diperbarui:</div>
+                  <div className="font-mono text-teal-700 font-extrabold">@{username} (Administrator)</div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRequestAdminOtp}
+                  disabled={adminOtpLoading}
+                  className="w-full py-3 bg-[#1C3D3F] hover:bg-[#2A595C] text-white rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+                >
+                  {adminOtpLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Mengirimkan Kode OTP...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send size={15} />
+                      <span>Kirim Kode OTP ke Email</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              /* Step 2: Input OTP & Set New Username / Password */
+              <form onSubmit={handleSubmitAdminCredentials} className="space-y-4">
+                <div className="p-3 bg-teal-50/70 border border-teal-200/80 rounded-xl text-xs text-teal-800">
+                  Kode OTP telah dikirim ke <strong>{adminOtpMaskedEmail}</strong>. Masukkan kode tersebut di bawah ini:
+                </div>
+
+                {/* Input OTP */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Kode Verifikasi (OTP 6-Digit) *
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={adminOtpCode}
+                    onChange={(e) => setAdminOtpCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="000000"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-[#2AB0B2] outline-none text-center font-mono text-xl font-black tracking-[8px] text-slate-800 bg-slate-50 focus:bg-white transition-all"
+                    required
+                  />
+                </div>
+
+                {/* Input Username Baru */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Username Admin Baru (Opsional, biarkan jika tidak diubah)
+                  </label>
+                  <input
+                    type="text"
+                    value={adminNewUsername}
+                    onChange={(e) => setAdminNewUsername(e.target.value)}
+                    placeholder="Username admin baru"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-[#2AB0B2] outline-none font-mono text-sm text-slate-800 bg-slate-50 focus:bg-white transition-all"
+                  />
+                </div>
+
+                {/* Input Password Baru */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Password Baru (Opsional, biarkan jika tidak diubah)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showAdminNewPassword ? "text" : "password"}
+                      value={adminNewPassword}
+                      onChange={(e) => setAdminNewPassword(e.target.value)}
+                      placeholder="Minimal 4 karakter"
+                      className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-200 focus:border-[#2AB0B2] outline-none text-sm text-slate-800 bg-slate-50 focus:bg-white transition-all font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminNewPassword(!showAdminNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                    >
+                      {showAdminNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Konfirmasi Password Baru jika password baru diisi */}
+                {adminNewPassword.trim() !== "" && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Konfirmasi Password Baru *
+                    </label>
+                    <input
+                      type="password"
+                      value={adminConfirmPassword}
+                      onChange={(e) => setAdminConfirmPassword(e.target.value)}
+                      placeholder="Ketik ulang password baru"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-[#2AB0B2] outline-none text-sm text-slate-800 bg-slate-50 focus:bg-white transition-all font-mono"
+                      required
+                    />
+                  </div>
+                )}
+
+                <div className="pt-2 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={handleRequestAdminOtp}
+                    disabled={adminOtpLoading}
+                    className="text-xs font-bold text-teal-600 hover:underline cursor-pointer"
+                  >
+                    Kirim Ulang OTP
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={adminOtpLoading || adminOtpCode.length < 6}
+                    className="px-5 py-2.5 bg-[#1C3D3F] hover:bg-[#2A595C] text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+                  >
+                    {adminOtpLoading ? "Menyimpan..." : "Verifikasi & Simpan"}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
