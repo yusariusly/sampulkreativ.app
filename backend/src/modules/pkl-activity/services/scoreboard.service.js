@@ -157,6 +157,14 @@ async function computeRankingsForWeek(dbClient, students, cohortWeekNumber) {
       continue; // Skip student, belum mulai PKL
     }
 
+    // Cek apakah siswa sudah selesai PKL sebelum pekan ini dimulai
+    if (student.end_date) {
+      const studentEndStr = new Date(student.end_date).toISOString().split('T')[0];
+      if (studentEndStr < cohortRange.startDate) {
+        continue; // Skip student, sudah selesai/alumni pada pekan ini
+      }
+    }
+
     // Hitung week_number relatif siswa untuk pekan cohort ini
     // Kita gunakan tanggal awal pekan cohort (cohortRange.startDate) untuk mengevaluasi pekan relatif
     const progress = studentService.calculatePklProgress(student.start_date, student.duration_months || 4, cohortRange.startDate);

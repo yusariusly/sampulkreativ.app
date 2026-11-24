@@ -21,9 +21,9 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
   const students = await studentRepo.findByMentorId(dbClient, mentorId);
   if (students.length === 0) return [];
 
-  // 2. Dapatkan baseline start_date dinamis (paling awal) dari siswa aktif
+  // 2. Dapatkan baseline start_date dinamis (paling awal) dari seluruh siswa
   const [minStartRes] = await dbClient.query(
-    "SELECT MIN(start_date) as min_start FROM pkl_students WHERE status = 'ACTIVE'"
+    "SELECT MIN(start_date) as min_start FROM pkl_students WHERE status IN ('ACTIVE', 'COMPLETED', 'ARCHIVED')"
   );
   const baselineStart = minStartRes[0]?.min_start || new Date("2026-06-29");
   const baselineStartStr = new Date(baselineStart).toISOString().split('T')[0];
@@ -55,9 +55,23 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
     evalMap.get(row.student_id).push(row);
   }
 
-  // 5. Proses kompilasi data untuk masing-masing siswa
+  // 5. Proses kompilasi data untuk masing-masing siswa yang aktif pada minggu terkait
   const result = [];
   for (const student of students) {
+    // Cek apakah siswa sudah mulai PKL pada pekan ini
+    const studentStartStr = new Date(student.start_date).toISOString().split('T')[0];
+    if (studentStartStr > range.endDate) {
+      continue; // Skip: belum mulai PKL di minggu ini
+    }
+
+    // Cek apakah siswa sudah selesai PKL sebelum pekan ini dimulai
+    if (student.end_date) {
+      const studentEndStr = new Date(student.end_date).toISOString().split('T')[0];
+      if (studentEndStr < range.startDate) {
+        continue; // Skip: sudah selesai / alumni di minggu ini
+      }
+    }
+
     const studentEvals = evalMap.get(student.student_id) || [];
     
     // Filter evaluasi yang jatuh dalam rentang minggu terkait
@@ -121,6 +135,8 @@ async function getWeeklyRekapList(dbClient, mentorId, weekNumber) {
       student_name: student.student_name,
       school_name: student.school_name,
       start_date: student.start_date,
+      end_date: student.end_date,
+      status: student.status,
       week_number: weekNumber,
       relative_week_number: relativeWeek,
       total_points: calculatedPoints, // Selalu gunakan poin kalkulasi riil agar terhindar dari desinkronisasi

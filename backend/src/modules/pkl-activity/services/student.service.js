@@ -413,16 +413,31 @@ async function getStudentDashboard(dbClient, userId, todayDateStr) {
  */
 async function getMentorStudents(dbClient, mentorId, dateStr, startDate, endDate) {
   if (startDate && endDate) {
-    const students = await studentRepo.findByMentorId(dbClient, mentorId);
+    const allStudents = await studentRepo.findByMentorId(dbClient, mentorId);
     
+    // Filter siswa yang memang sedang menjalani magang pada rentang tanggal tersebut
+    const students = allStudents.filter(item => {
+      const sStart = new Date(item.start_date).toISOString().split('T')[0];
+      if (sStart > endDate) return false;
+      if (item.end_date) {
+        const sEnd = new Date(item.end_date).toISOString().split('T')[0];
+        if (sEnd < startDate) return false;
+      }
+      return true;
+    });
+
+    const studentIds = students.map(s => s.student_id);
+    if (studentIds.length === 0) {
+      return [];
+    }
+
     const query = `
       SELECT id, student_id, evaluation_date, wkt_point, skp_point, has_point, ker_point, ini_point 
       FROM pkl_daily_evaluations 
-      WHERE student_id IN (SELECT id FROM pkl_students WHERE status = 'ACTIVE' ${mentorId ? 'AND mentor_id = ?' : ''}) 
+      WHERE student_id IN (?) 
         AND evaluation_date BETWEEN ? AND ?
     `;
-    const params = mentorId ? [mentorId, startDate, endDate] : [startDate, endDate];
-    const [evaluations] = await dbClient.query(query, params);
+    const [evaluations] = await dbClient.query(query, [studentIds, startDate, endDate]);
 
     const evalsGrouped = {};
     evaluations.forEach(ev => {

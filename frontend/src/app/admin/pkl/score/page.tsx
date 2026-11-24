@@ -212,15 +212,8 @@ export default function PklScoreboardPage() {
     setMentor(user);
   }, [router]);
 
-  // Cari start_date paling awal dari siswa yang terdaftar untuk menentukan baseline cohort
-  const cohortStartDate = useMemo(() => {
-    if (students.length === 0) return "2026-06-29";
-    const startDates = students
-      .map((s) => s.start_date)
-      .filter(Boolean) as string[];
-    if (startDates.length === 0) return "2026-06-29";
-    return startDates.reduce((min, d) => (d < min ? d : min), startDates[0]);
-  }, [students]);
+  // Baseline tanggal awal cohort magang (Senin, 8 Juni 2026)
+  const cohortStartDate = "2026-06-08";
 
   // Hitung pekan aktif berjalan untuk cohort
   const cohortActiveWeek = useMemo(() => {
@@ -285,7 +278,12 @@ export default function PklScoreboardPage() {
       const list = json.status === "success" ? json.data : [];
       setStudents(list);
       if (list.length > 0) {
-        setSelectedStudentId(prev => prev || list[0].student_id);
+        setSelectedStudentId(prev => {
+          const stillExists = list.some((s: any) => s.student_id === prev);
+          return stillExists ? prev : list[0].student_id;
+        });
+      } else {
+        setSelectedStudentId(null);
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Gagal mengambil data rekap");
@@ -574,31 +572,6 @@ export default function PklScoreboardPage() {
     }
     return 1;
   }, [currentStudent, cohortStartDate]);
-
-  // Menghitung minggu akhir siswa selesai magang (relatif terhadap cohort)
-  const currentStudentEndWeek = useMemo(() => {
-    if (!currentStudent?.end_date) return 52;
-    const studentEndStr = formatJakartaDate(currentStudent.end_date);
-    for (let wk = 1; wk <= Math.max(52, cohortActiveWeek); wk++) {
-      const monFri = getMonFriDates(cohortStartDate, wk);
-      if (monFri[0].dateStr > studentEndStr) {
-        return Math.max(1, wk - 1);
-      }
-    }
-    return Math.max(16, cohortActiveWeek);
-  }, [currentStudent, cohortStartDate, cohortActiveWeek]);
-
-  // Auto-switch jika minggu yang sedang dipilih berada di luar masa magang siswa
-  useEffect(() => {
-    if (activeTab === "evaluation" && currentStudent) {
-      const isAlumni = currentStudent.status === "COMPLETED" || currentStudent.status === "ARCHIVED" || (currentStudent.end_date && new Date(currentStudent.end_date) < new Date(new Date().setHours(0, 0, 0, 0)));
-      if (selectedWeek < currentStudentStartWeek) {
-        setSelectedWeek(currentStudentStartWeek);
-      } else if (isAlumni && selectedWeek > currentStudentEndWeek) {
-        setSelectedWeek(currentStudentEndWeek);
-      }
-    }
-  }, [selectedStudentId, currentStudentStartWeek, currentStudentEndWeek, activeTab, currentStudent]);
 
   // Fetch daily evaluations for the entire week when selected week, active tab or mentor changes
   useEffect(() => {
@@ -1461,7 +1434,6 @@ export default function PklScoreboardPage() {
                   <span>
                     {getWeekRangeLabel(selectedWeek)}
                     {selectedWeek === cohortActiveWeek ? " (Minggu Berjalan)" : ""}
-                    {activeTab === "evaluation" && currentStudent && selectedWeek === currentStudentStartWeek ? " • Mulai Magang" : ""}
                   </span>
                   <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 ${isWeekDropdownOpen ? "rotate-180" : ""}`} />
                 </div>
@@ -1479,40 +1451,6 @@ export default function PklScoreboardPage() {
                     const wkNum = i + 1;
                     const isCurrent = wkNum === cohortActiveWeek;
                     const isSelected = wkNum === selectedWeek;
-                    const isBeforeStart = activeTab === "evaluation" && currentStudent && wkNum < currentStudentStartWeek;
-                    const isAfterEnd = activeTab === "evaluation" && currentStudent && wkNum > currentStudentEndWeek;
-                    const isStartWeek = activeTab === "evaluation" && currentStudent && wkNum === currentStudentStartWeek;
-                    const isEndWeek = activeTab === "evaluation" && currentStudent && wkNum === currentStudentEndWeek;
-
-                    if (isBeforeStart) {
-                      return (
-                        <div
-                          key={wkNum}
-                          className="w-full text-left px-3.5 py-2 text-xs font-medium rounded-xl flex items-center justify-between select-none opacity-40 bg-slate-50/80 text-slate-400 cursor-not-allowed border border-dashed border-slate-200 mb-1"
-                          title="Siswa belum mulai magang pada minggu ini"
-                        >
-                          <span className="line-through decoration-slate-350">{getWeekRangeLabel(wkNum)}</span>
-                          <span className="text-[9px] font-bold text-slate-400 bg-slate-200/70 px-2 py-0.5 rounded-md">
-                            Belum Magang
-                          </span>
-                        </div>
-                      );
-                    }
-
-                    if (isAfterEnd) {
-                      return (
-                        <div
-                          key={wkNum}
-                          className="w-full text-left px-3.5 py-2 text-xs font-medium rounded-xl flex items-center justify-between select-none opacity-50 bg-purple-50/40 text-purple-700/60 cursor-not-allowed border border-dashed border-purple-200/60 mb-1"
-                          title="Siswa sudah selesai magang pada minggu ini"
-                        >
-                          <span className="line-through decoration-purple-300">{getWeekRangeLabel(wkNum)}</span>
-                          <span className="text-[9px] font-bold text-purple-700 bg-purple-100/80 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            <GraduationCap size={10} /> Selesai Magang
-                          </span>
-                        </div>
-                      );
-                    }
 
                     return (
                       <button
@@ -1534,12 +1472,7 @@ export default function PklScoreboardPage() {
                           <span>{getWeekRangeLabel(wkNum)}</span>
                           {isCurrent && (
                             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isSelected ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-600 border border-emerald-200/60"}`}>
-                              Berjalan
-                            </span>
-                          )}
-                          {isStartWeek && (
-                            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded ${isSelected ? "bg-white/20 text-white" : "bg-indigo-50 text-indigo-600 border border-indigo-200/60"}`}>
-                              Mulai Magang
+                              Minggu Berjalan
                             </span>
                           )}
                         </div>
@@ -1633,97 +1566,55 @@ export default function PklScoreboardPage() {
                       {/* Dropdown Options List */}
                       <div className="absolute top-[40px] left-0 min-w-[270px] bg-white rounded-2xl shadow-xl border border-slate-150/80 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-[320px] overflow-y-auto">
                         {(() => {
-                          const isStudentActive = (s: StudentRekap) => {
-                            if (s.status === "COMPLETED" || s.status === "ARCHIVED") return false;
-                            if (s.end_date && new Date(s.end_date) < new Date(new Date().setHours(0, 0, 0, 0))) return false;
-                            return s.status === "ACTIVE" || !s.status;
-                          };
-                          const activeList = students.filter(isStudentActive);
-                          const alumniList = students.filter(s => !isStudentActive(s));
+                          if (students.length === 0) {
+                            return (
+                              <p className="text-[11px] text-slate-400 p-3 italic text-center">
+                                Tidak ada siswa yang magang pada Minggu {selectedWeek}.
+                              </p>
+                            );
+                          }
 
                           return (
-                            <>
-                              {/* Kelompok Siswa Aktif */}
-                              <div className="px-3 py-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50/80 rounded-lg uppercase tracking-wider mb-1 flex items-center justify-between">
-                                <span>Siswa PKL Aktif</span>
-                                <span className="bg-emerald-200/60 text-emerald-800 px-1.5 py-0.2 rounded-full text-[9px] font-black">{activeList.length}</span>
+                            <div className="space-y-1">
+                              <div className="px-3 py-1.5 text-[10px] font-bold text-slate-700 bg-slate-100 rounded-lg uppercase tracking-wider mb-1 flex items-center justify-between">
+                                <span>Siswa Magang Minggu {selectedWeek}</span>
+                                <span className="bg-[#2AB0B2] text-white px-1.5 py-0.2 rounded-full text-[9px] font-black">{students.length}</span>
                               </div>
-                              {activeList.length === 0 ? (
-                                <p className="text-[10px] text-slate-400 px-3 py-1 italic">Tidak ada siswa aktif</p>
-                              ) : (
-                                activeList.map((student) => {
-                                  const isSelected = student.student_id === selectedStudentId;
-                                  return (
-                                    <button
-                                      key={student.student_id}
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedStudentId(student.student_id);
-                                        setIsStudentDropdownOpen(false);
-                                      }}
-                                      className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer select-none mb-0.5 ${
-                                        isSelected
-                                          ? "bg-[#2AB0B2] text-white"
-                                          : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
-                                      }`}
-                                    >
-                                      <div className="flex flex-col min-w-0">
+                              {students.map((student) => {
+                                const isSelected = student.student_id === selectedStudentId;
+                                const isAlumni = student.status === "COMPLETED" || student.status === "ARCHIVED";
+                                return (
+                                  <button
+                                    key={student.student_id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedStudentId(student.student_id);
+                                      setIsStudentDropdownOpen(false);
+                                    }}
+                                    className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer select-none mb-0.5 ${
+                                      isSelected
+                                        ? "bg-[#2AB0B2] text-white"
+                                        : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
+                                    }`}
+                                  >
+                                    <div className="flex flex-col min-w-0">
+                                      <div className="flex items-center gap-1.5">
                                         <span className="truncate">{student.student_name}</span>
-                                        <span className={`text-[9px] font-semibold mt-0.5 ${isSelected ? "text-white/70" : "text-slate-400"}`}>
-                                          {student.school_name}
-                                        </span>
-                                      </div>
-                                      {isSelected && <Check size={12} className="text-white flex-shrink-0" />}
-                                    </button>
-                                  );
-                                })
-                              )}
-
-                              <div className="border-t border-slate-100 my-1.5" />
-
-                              {/* Kelompok Alumni */}
-                              <div className="px-3 py-1.5 text-[10px] font-bold text-purple-700 bg-purple-50/80 rounded-lg uppercase tracking-wider mb-1 flex items-center justify-between">
-                                <span>Arsip Alumni PKL</span>
-                                <span className="bg-purple-200/60 text-purple-800 px-1.5 py-0.2 rounded-full text-[9px] font-black">{alumniList.length}</span>
-                              </div>
-                              {alumniList.length === 0 ? (
-                                <p className="text-[10px] text-slate-400 px-3 py-1 italic">Belum ada alumni</p>
-                              ) : (
-                                alumniList.map((student) => {
-                                  const isSelected = student.student_id === selectedStudentId;
-                                  return (
-                                    <button
-                                      key={student.student_id}
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedStudentId(student.student_id);
-                                        setIsStudentDropdownOpen(false);
-                                      }}
-                                      className={`w-full text-left px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer select-none mb-0.5 ${
-                                        isSelected
-                                          ? "bg-purple-700 text-white"
-                                          : "text-slate-650 hover:bg-purple-50/50 hover:text-purple-900"
-                                      }`}
-                                    >
-                                      <div className="flex flex-col min-w-0">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="truncate">{student.student_name}</span>
-                                          <span className={`px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
-                                            isSelected ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"
-                                          }`}>
+                                        {isAlumni && (
+                                          <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold ${isSelected ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"}`}>
                                             Alumni
                                           </span>
-                                        </div>
-                                        <span className={`text-[9px] font-semibold mt-0.5 ${isSelected ? "text-white/70" : "text-slate-400"}`}>
-                                          {student.school_name}
-                                        </span>
+                                        )}
                                       </div>
-                                      {isSelected && <Check size={12} className="text-white flex-shrink-0" />}
-                                    </button>
-                                  );
-                                })
-                              )}
-                            </>
+                                      <span className={`text-[9px] font-semibold mt-0.5 ${isSelected ? "text-white/70" : "text-slate-400"}`}>
+                                        {student.school_name}
+                                      </span>
+                                    </div>
+                                    {isSelected && <Check size={12} className="text-white flex-shrink-0" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           );
                         })()}
                       </div>
